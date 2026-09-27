@@ -13,7 +13,8 @@ type Control =
   | [number, number, number, number?]
   | boolean
   | { type: "select"; options: { value: string; label: string }[] }
-  | { type: "color" };
+  | { type: "color" }
+  | { type: "text"; placeholder?: string };
 
 export interface Field {
   key: string;
@@ -56,6 +57,7 @@ const SHAPES: [ShapeName, string][] = [
 ];
 
 const MODES: [GraphMode, string][] = [
+  ["sequence", "Sequence (loop)"],
   ["hubBurst", "Hub burst"],
   ["geoSphere", "Geo sphere"],
   ["burstSphereMorph", "Burst ↔ Sphere"],
@@ -114,7 +116,13 @@ export const graphFields: Field[] = [
   { folder: "motion", key: "idleRotationSpeed", control: [0.08, 0, 0.5, 0.005], kind: "live" },
   { folder: "motion", key: "idleTiltAmount", control: [0.35, 0, 1.2, 0.01], kind: "live" },
   { folder: "motion", key: "morphSpeed", control: [0.4, 0, 2, 0.01], kind: "live" },
-  { folder: "motion", key: "morphHold", control: [0.5, 0, 1, 0.01], kind: "live" },
+  { folder: "motion", key: "morphHold", control: [0.5, 0, 1, 0.01], kind: "rebuild" },
+  // shapes: constellation, burst, sphere, cone, torus, helix, cube, galaxy
+  { folder: "sequence", key: "sequence", control: { type: "text", placeholder: "constellation,torus,helix" }, kind: "rebuild" },
+  { folder: "sequence", key: "holdTime", control: [4, 0, 15, 0.1], kind: "live" },
+  { folder: "sequence", key: "morphTime", control: [2.5, 0.3, 8, 0.1], kind: "live" },
+  { folder: "sequence", key: "stagger", control: [0.35, 0, 0.9, 0.01], kind: "live" },
+  { folder: "interaction", key: "hoverGlow", control: [0, 0, 1, 0.01], kind: "live" },
   { folder: "look", key: "color", control: color, kind: "look" },
   { folder: "look", key: "lineColor", control: color, kind: "look" },
   { folder: "look", key: "lineOpacity", control: [0.25, 0, 1, 0.005], kind: "live" },

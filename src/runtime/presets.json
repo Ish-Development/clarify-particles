@@ -41,7 +41,11 @@
   "cta": {
     "type": "graph",
     "config": {
-      "mode": "burstSphereMorph",
+      "mode": "sequence",
+      "sequence": "constellation,torus,helix,galaxy",
+      "holdTime": 4,
+      "morphTime": 2.5,
+      "stagger": 0.35,
       "morphSpeed": 0,
       "morphHold": 0.75,
       "count": 150,
@@ -58,7 +62,8 @@
       "scale": 2.45,
       "rotZ": 9,
       "idleRotationSpeed": 0.01,
-      "idleTiltAmount": 0.1
+      "idleTiltAmount": 0.1,
+      "hoverGlow": 0.8
     }
   }
 }

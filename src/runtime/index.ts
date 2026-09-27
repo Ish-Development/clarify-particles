@@ -12,8 +12,20 @@ let engine: Engine | null = null;
 let enginePromise: Promise<Engine> | null = null;
 const tracked = new Set<HTMLElement>();
 
+// Resolves once the page has fully loaded (images, fonts, other scripts)
+// and the main thread has a moment to spare — the engine never competes
+// with the site's own loading.
+const pageReady = new Promise<void>((resolve) => {
+  const idle = () =>
+    "requestIdleCallback" in window ? requestIdleCallback(() => resolve(), { timeout: 1500 }) : setTimeout(resolve, 200);
+  if (document.readyState === "complete") idle();
+  else window.addEventListener("load", idle, { once: true });
+});
+
+// One engine per page, however many sections use it: the import is cached,
+// and all sections share its single WebGL context.
 function loadEngine(): Promise<Engine> {
-  enginePromise ??= import("./engine").then((m) => (engine = m));
+  enginePromise ??= pageReady.then(() => import("./engine")).then((m) => (engine = m));
   return enginePromise;
 }
 

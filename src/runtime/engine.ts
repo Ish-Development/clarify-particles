@@ -96,11 +96,14 @@ void main() {
 // padded by one device pixel so the fragment shader can anti-alias.
 const LINE_VERT = /* glsl */ `
 attribute vec4 aEnds;
+attribute float aWeight;
 uniform vec2 uRes;
 uniform float uWidth;
 uniform float uDpr;
 varying float vDist;
+varying float vWeight;
 void main() {
+  vWeight = aWeight;
   vec2 a = aEnds.xy;
   vec2 b = aEnds.zw;
   vec2 d = b - a;
@@ -119,9 +122,10 @@ uniform float uAlpha;
 uniform float uWidth;
 uniform float uDpr;
 varying float vDist;
+varying float vWeight;
 void main() {
   float cover = clamp((uWidth * 0.5 - abs(vDist)) * uDpr + 0.5, 0.0, 1.0);
-  float a = uAlpha * cover;
+  float a = min(1.0, uAlpha * vWeight) * cover;
   gl_FragColor = vec4(uColor * a, a);
 }`;
 
@@ -340,6 +344,9 @@ abstract class View {
   }
 
   abstract step(dt: number): void;
+  // pointer in local px (null = not over this view), called every frame
+  // before step(); used for hover effects beyond the shared repel force
+  onPointer(_p: { x: number; y: number } | null, _dt: number) {}
   protected abstract sync(): void;
   protected abstract onResize(): void;
   protected abstract onLook(): void;
@@ -438,46 +445,50 @@ class PointsView extends View {
   }
 }
 
+interface EdgeBuffers {
+  ends: InstancedBufferAttribute;
+  weights: InstancedBufferAttribute;
+  geometry: InstancedBufferGeometry;
+  material: ShaderMaterial;
+  mesh: Mesh;
+}
+
 class GraphView extends View {
   readonly system: GraphSystem;
+  private readonly graphCfg: GraphSpec["config"];
   private readonly nodeGeometry = new BufferGeometry();
   private readonly nodeMaterial: ShaderMaterial;
   private readonly nodePos: Float32Array;
   private readonly nodePosAttr: BufferAttribute;
-  private readonly edgeLayers: {
-    edges: [number, number][];
-    pos: Float32Array;
-    attr: InstancedBufferAttribute;
-    geometry: InstancedBufferGeometry;
-    material: ShaderMaterial;
-    lines: Mesh;
-  }[] = [];
-  private readonly graphCfg: GraphSpec["config"];
+  private readonly nodeSizeAttr: BufferAttribute;
+  private readonly nodeAlphaAttr: BufferAttribute;
   private readonly nodeColorAttr: BufferAttribute;
+  // [outgoing, incoming] — mirrors GraphSystem.layers
+  private readonly edgeBuffers: EdgeBuffers[] = [];
 
   constructor(el: HTMLElement, cfg: GraphSpec["config"]) {
     super(el, cfg);
-    this.system = new GraphSystem(cfg, this.w, this.h);
-    const sys = this.system;
-    const n = sys.count;
-    const lineColor = hexToRgb01(cfg.lineColor);
     this.graphCfg = cfg;
+    this.system = new GraphSystem(cfg, this.w, this.h);
+    const n = this.system.count;
+    // sized for the largest layout so a sequence never reallocates
+    const cap = Math.max(1, this.system.maxEdges);
 
-    // edges first (drawn under the nodes); the two layers cross-fade
-    // during the morph modes
-    for (const edges of [sys.edgesA, sys.edgesB]) {
-      const pos = new Float32Array(Math.max(1, edges.length) * 4);
-      const attr = new InstancedBufferAttribute(pos, 4).setUsage(DynamicDrawUsage);
+    // edges first (drawn under the nodes)
+    for (let li = 0; li < 2; li++) {
+      const ends = new InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(DynamicDrawUsage);
+      const weights = new InstancedBufferAttribute(new Float32Array(cap), 1).setUsage(DynamicDrawUsage);
       const geometry = new InstancedBufferGeometry();
       geometry.setAttribute("position", new BufferAttribute(EDGE_QUAD, 3));
-      geometry.setAttribute("aEnds", attr);
-      geometry.instanceCount = edges.length;
+      geometry.setAttribute("aEnds", ends);
+      geometry.setAttribute("aWeight", weights);
+      geometry.instanceCount = 0;
       const material = makeMaterial(
         LINE_VERT,
         LINE_FRAG,
         {
           uRes: { value: [1, 1] },
-          uColor: { value: lineColor },
+          uColor: { value: [1, 1, 1] },
           uAlpha: { value: 0 },
           uWidth: { value: cfg.lineWidth },
           uDpr: { value: 1 },
@@ -486,18 +497,21 @@ class GraphView extends View {
       );
       // the shader's y-flip reverses triangle winding: don't cull
       material.side = DoubleSide;
-      const lines = new Mesh(geometry, material);
-      lines.frustumCulled = false;
-      this.scene.add(lines);
-      this.edgeLayers.push({ edges, pos, attr, geometry, material, lines });
+      const mesh = new Mesh(geometry, material);
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.edgeBuffers.push({ ends, weights, geometry, material, mesh });
     }
 
+    // node size/alpha are written every frame (hover glow scales them)
     this.nodePos = new Float32Array(n * 2);
     this.nodePosAttr = new BufferAttribute(this.nodePos, 2).setUsage(DynamicDrawUsage);
+    this.nodeSizeAttr = new BufferAttribute(new Float32Array(n), 1).setUsage(DynamicDrawUsage);
+    this.nodeAlphaAttr = new BufferAttribute(new Float32Array(n), 1).setUsage(DynamicDrawUsage);
     this.nodeColorAttr = new BufferAttribute(new Float32Array(n * 3), 3);
     this.nodeGeometry.setAttribute("position", this.nodePosAttr);
-    this.nodeGeometry.setAttribute("aSize", new BufferAttribute(sys.size, 1));
-    this.nodeGeometry.setAttribute("aAlpha", new BufferAttribute(sys.opacity, 1));
+    this.nodeGeometry.setAttribute("aSize", this.nodeSizeAttr);
+    this.nodeGeometry.setAttribute("aAlpha", this.nodeAlphaAttr);
     this.nodeGeometry.setAttribute("aColor", this.nodeColorAttr);
     // 2 = the playground's node scale (graphRender.ts: size * 2)
     this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2, cfg.softness), cfg.blend);
@@ -517,10 +531,14 @@ class GraphView extends View {
     this.nodeMaterial.blendDst = blendDst(cfg.blend);
     this.nodeMaterial.uniforms.uSoftness.value = cfg.softness;
     const lineColor = hexToRgb01(cfg.lineColor);
-    for (const layer of this.edgeLayers) {
-      layer.material.uniforms.uColor.value = lineColor;
-      layer.material.blendDst = blendDst(cfg.blend);
+    for (const b of this.edgeBuffers) {
+      b.material.uniforms.uColor.value = lineColor;
+      b.material.blendDst = blendDst(cfg.blend);
     }
+  }
+
+  onPointer(p: { x: number; y: number } | null, dt: number) {
+    if (this.graphCfg.hoverGlow > 0) this.system.updateGlow(p ? p.x : null, p ? p.y : 0, dt);
   }
 
   step(dt: number) {
@@ -529,30 +547,46 @@ class GraphView extends View {
 
   protected sync() {
     const s = this.system;
-    const x = s.screenX;
-    const y = s.screenY;
+    const cfg = this.graphCfg;
+    const hg = cfg.hoverGlow;
+    const glow = s.glow;
+    const pos = this.nodePos;
+    const size = this.nodeSizeAttr.array as Float32Array;
+    const alpha = this.nodeAlphaAttr.array as Float32Array;
     for (let i = 0; i < s.count; i++) {
-      this.nodePos[i * 2] = x[i] + s.offX[i];
-      this.nodePos[i * 2 + 1] = y[i] + s.offY[i];
+      pos[i * 2] = s.screenX[i] + s.offX[i];
+      pos[i * 2 + 1] = s.screenY[i] + s.offY[i];
+      // hover: highlighted nodes grow up to 60% and brighten
+      const g = hg * glow[i];
+      size[i] = s.size[i] * (1 + 0.6 * g);
+      alpha[i] = Math.min(1, s.opacity[i] + 0.6 * g);
     }
     this.nodePosAttr.needsUpdate = true;
+    this.nodeSizeAttr.needsUpdate = true;
+    this.nodeAlphaAttr.needsUpdate = true;
 
-    const alphas = [s.edgeAlphaA, s.edgeAlphaB];
-    this.edgeLayers.forEach((layer, li) => {
-      const alpha = alphas[li];
-      layer.lines.visible = alpha > 0.002 && layer.edges.length > 0;
-      if (!layer.lines.visible) return;
-      layer.material.uniforms.uAlpha.value = alpha * this.graphCfg.lineOpacity;
-      layer.material.uniforms.uWidth.value = this.graphCfg.lineWidth;
-      const pos = layer.pos;
-      let k = 0;
-      for (const [a, b] of layer.edges) {
-        pos[k++] = this.nodePos[a * 2];
-        pos[k++] = this.nodePos[a * 2 + 1];
-        pos[k++] = this.nodePos[b * 2];
-        pos[k++] = this.nodePos[b * 2 + 1];
+    s.layers.forEach((layer, li) => {
+      const b = this.edgeBuffers[li];
+      const count = layer.alpha > 0.002 ? layer.edges.length : 0;
+      b.mesh.visible = count > 0;
+      b.geometry.instanceCount = count;
+      if (!count) return;
+      b.material.uniforms.uAlpha.value = layer.alpha * cfg.lineOpacity;
+      b.material.uniforms.uWidth.value = cfg.lineWidth;
+      const ends = b.ends.array as Float32Array;
+      const weights = b.weights.array as Float32Array;
+      for (let e = 0; e < count; e++) {
+        const [a, c] = layer.edges[e];
+        ends[e * 4] = pos[a * 2];
+        ends[e * 4 + 1] = pos[a * 2 + 1];
+        ends[e * 4 + 2] = pos[c * 2];
+        ends[e * 4 + 3] = pos[c * 2 + 1];
+        // hover: edges touching highlighted nodes light up (up to 4x)
+        const g = hg * Math.max(glow[a], glow[c]);
+        weights[e] = (layer.weight ? layer.weight[e] : 1) * (1 + 3 * g);
       }
-      layer.attr.needsUpdate = true;
+      b.ends.needsUpdate = true;
+      b.weights.needsUpdate = true;
     });
   }
 
@@ -560,18 +594,18 @@ class GraphView extends View {
     const res = [this.w, this.h];
     this.nodeMaterial.uniforms.uRes.value = res;
     this.nodeMaterial.uniforms.uDpr.value = this.dpr;
-    for (const layer of this.edgeLayers) {
-      layer.material.uniforms.uRes.value = res;
-      layer.material.uniforms.uDpr.value = this.dpr;
+    for (const b of this.edgeBuffers) {
+      b.material.uniforms.uRes.value = res;
+      b.material.uniforms.uDpr.value = this.dpr;
     }
   }
 
   protected disposeGpu() {
     this.nodeGeometry.dispose();
     this.nodeMaterial.dispose();
-    for (const layer of this.edgeLayers) {
-      layer.geometry.dispose();
-      layer.material.dispose();
+    for (const b of this.edgeBuffers) {
+      b.geometry.dispose();
+      b.material.dispose();
     }
   }
 }
@@ -593,10 +627,9 @@ function frame(now: number) {
   for (const view of views.values()) {
     if (!view.running) continue;
     anyRunning = true;
-    if (pointer.active && view.cfg.interactive) {
-      const p = view.localPointer(pointer.x, pointer.y);
-      if (p) applyHover(view.system, view.cfg, p.x, p.y, dt);
-    }
+    const p = pointer.active && view.cfg.interactive ? view.localPointer(pointer.x, pointer.y) : null;
+    if (p) applyHover(view.system, view.cfg, p.x, p.y, dt);
+    view.onPointer(p, dt);
     view.step(dt);
     view.paint();
   }

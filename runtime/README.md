@@ -14,6 +14,24 @@ Always pin a version tag (`@1.0.0`), never `@latest` or a branch. A pinned URL n
 
 `particles.js` is a ~4 kB loader. It downloads the WebGL engine (`engine.js`, ~138 kB gzip, mostly Three.js) only when a particle section comes near the viewport. Pages without particle sections never load the engine.
 
+### Using the site's `window.libs` loader instead
+
+To load it through the shared lazy loader in the site's base code, add:
+
+```js
+/* PARTICLES (Three.js engine) */
+window.loadParticles = () => {
+  if (!document.querySelector("[data-particles]")) return Promise.resolve();
+  return window.libs.load("particles", () =>
+    import("https://cdn.jsdelivr.net/gh/<org>/<repo>@<version>/dist-runtime/particles.js")
+  );
+};
+```
+
+It must use `import()`, not `window.libs.script()`. The file is an ES module that loads its engine relative to its own URL, and as a classic `<script>` that path would resolve against the page instead.
+
+Three.js is bundled into `engine.js` (only the parts used), so there's no separate Three.js CDN script to load. The engine is fetched once per page and shared by every particle section, all drawing through one WebGL context. It only starts after the `load` event, when the browser is idle and a particle section is near the viewport.
+
 ## 2. Mark up a section
 
 Each site section has its own look, saved as a named **preset** in this repo (`src/runtime/presets.json`). Select the Section or Div block, open **Element settings → Custom attributes**, and add two attributes:

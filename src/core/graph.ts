@@ -1,7 +1,7 @@
 import type { ClickBehavior } from "./config";
 import { makeRng } from "./rng";
 
-export const GRAPH_MODES = ["hubBurst", "geoSphere", "burstSphereMorph", "coneTorusMorph"] as const;
+export const GRAPH_MODES = ["hubBurst", "geoSphere", "burstSphereMorph", "coneTorusMorph", "sequence"] as const;
 export type GraphMode = (typeof GRAPH_MODES)[number];
 
 export interface GraphConfig {
@@ -37,6 +37,16 @@ export interface GraphConfig {
   rotZ: number;
   // quantize node weights into N size/brightness steps (0 = continuous)
   tiers: number;
+  // "sequence" mode: comma-separated shapes (see SHAPES below) visited in a
+  // loop — hold on each for holdTime s, then morph for morphTime s. stagger
+  // (0..1) offsets nodes so they don't all move in lockstep.
+  sequence: string;
+  holdTime: number;
+  morphTime: number;
+  stagger: number;
+  // hover highlight: nodes near the pointer grow and brighten and their
+  // edges light up (0 = off)
+  hoverGlow: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -64,6 +74,11 @@ export const defaultGraphConfig: GraphConfig = {
   rotY: 0,
   rotZ: 0,
   tiers: 0,
+  sequence: "constellation,torus,helix,galaxy",
+  holdTime: 4,
+  morphTime: 2.5,
+  stagger: 0.35,
+  hoverGlow: 0,
 };
 
 interface Layout {
@@ -72,6 +87,8 @@ interface Layout {
   z: Float32Array;
   weight: Float32Array;
   edges: [number, number][];
+  // optional per-edge alpha multiplier (default 1)
+  edgeWeight?: Float32Array;
 }
 
 // Node count is small (tens-hundreds) so an O(n^2) neighbor search done once
@@ -214,24 +231,145 @@ function buildTorus(n: number, seed: number): Layout {
   return { x, y, z, weight, edges: nearestNeighborEdges(x, y, z, 3) };
 }
 
-function buildBaseLayout(mode: "hubBurst" | "geoSphere" | "cone" | "torus", n: number, seed: number): Layout {
-  switch (mode) {
-    case "hubBurst":
+// Hub-burst spokes blended into the geo sphere at `mix` (0..1): the burst's
+// spokes fade out and the sphere mesh fades in by the same amount — the
+// "network globe" look (the CTA design is mix 0.75). Weights come from the
+// burst, so the hub stays the largest node.
+function buildConstellation(n: number, seed: number, mix: number): Layout {
+  const a = buildHubBurst(n, seed);
+  const b = buildGeoSphere(n, seed + 1);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    x[i] = a.x[i] + (b.x[i] - a.x[i]) * mix;
+    y[i] = a.y[i] + (b.y[i] - a.y[i]) * mix;
+    z[i] = a.z[i] + (b.z[i] - a.z[i]) * mix;
+  }
+  const edges = [...a.edges, ...b.edges];
+  const edgeWeight = new Float32Array(edges.length);
+  edgeWeight.fill(1 - mix, 0, a.edges.length);
+  edgeWeight.fill(mix, a.edges.length);
+  return { x, y, z, weight: a.weight, edges, edgeWeight };
+}
+
+// Double helix along Y: nodes alternate strands, rungs join each pair.
+function buildHelix(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const turns = 2.2;
+  const R = 0.42;
+  const pairs = Math.ceil(n / 2);
+  for (let i = 0; i < n; i++) {
+    const level = Math.floor(i / 2) / Math.max(1, pairs - 1);
+    const a = level * turns * Math.PI * 2 + (i % 2) * Math.PI;
+    x[i] = Math.cos(a) * R;
+    z[i] = Math.sin(a) * R;
+    y[i] = level * 2.2 - 1.1;
+    weight[i] = rng.next();
+  }
+  const edges: [number, number][] = [];
+  for (let i = 0; i + 1 < n; i += 2) edges.push([i, i + 1]); // rungs
+  for (let i = 0; i + 2 < n; i++) edges.push([i, i + 2]); // strands
+  return { x, y, z, weight, edges };
+}
+
+// Nodes spread over the six faces of a cube, meshed to their neighbors.
+function buildCube(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const H = 0.62;
+  for (let i = 0; i < n; i++) {
+    const face = i % 6;
+    const u = (rng.next() * 2 - 1) * H;
+    const v = (rng.next() * 2 - 1) * H;
+    const s = face % 2 ? H : -H;
+    if (face < 2) [x[i], y[i], z[i]] = [u, v, s];
+    else if (face < 4) [x[i], y[i], z[i]] = [s, u, v];
+    else [x[i], y[i], z[i]] = [u, s, v];
+    weight[i] = rng.next();
+  }
+  return { x, y, z, weight, edges: nearestNeighborEdges(x, y, z, 3) };
+}
+
+// Three-armed spiral disc.
+function buildGalaxy(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const arm = i % 3;
+    const r = 0.08 + Math.pow(rng.next(), 0.8) * 0.95;
+    const a = (arm / 3) * Math.PI * 2 + r * 3.6 + (rng.next() - 0.5) * 0.5;
+    // in the XY plane, facing the viewer (the idle spin is around Y, so a
+    // disc in XZ would be seen edge-on as a flat streak)
+    x[i] = Math.cos(a) * r;
+    y[i] = Math.sin(a) * r;
+    z[i] = (rng.next() - 0.5) * 0.08;
+    weight[i] = rng.next();
+  }
+  return { x, y, z, weight, edges: nearestNeighborEdges(x, y, z, 2) };
+}
+
+// Shapes usable in a sequence (and their builders).
+export const SHAPES = ["constellation", "burst", "sphere", "cone", "torus", "helix", "cube", "galaxy"] as const;
+export type GraphShape = (typeof SHAPES)[number];
+
+function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig): Layout {
+  switch (shape) {
+    case "constellation":
+      return buildConstellation(n, seed, cfg.morphHold);
+    case "burst":
       return buildHubBurst(n, seed);
-    case "geoSphere":
+    case "sphere":
       return buildGeoSphere(n, seed);
     case "cone":
       return buildCone(n, seed);
     case "torus":
       return buildTorus(n, seed);
+    case "helix":
+      return buildHelix(n, seed);
+    case "cube":
+      return buildCube(n, seed);
+    case "galaxy":
+      return buildGalaxy(n, seed);
   }
 }
 
+export function parseSequence(seq: string): GraphShape[] {
+  const shapes = seq
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s): s is GraphShape => (SHAPES as readonly string[]).includes(s));
+  return shapes.length ? shapes : ["constellation"];
+}
+
+// One visible edge set this frame: layouts' edges, with the layer's
+// cross-fade alpha and optional per-edge weights.
+export interface EdgeLayer {
+  edges: [number, number][];
+  weight: Float32Array | undefined;
+  alpha: number;
+}
+
+const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
 // Node positions live in flat typed arrays (same convention as
-// ParticleSystem). Layouts are generated once in unit space (~-1..1) by a
-// builder above, then rotated + projected to screen space every frame; the
-// two morph modes cross-fade between two layouts' positions AND edge sets
-// (rather than recomputing topology each frame) using a ping-pong sine.
+// ParticleSystem). Layouts are generated once in unit space (~-1..1), then
+// blended, rotated and projected to screen space every frame. Edges are
+// never recomputed per frame: during a morph the outgoing layout's edges
+// fade out while the incoming layout's fade in.
+//   - single modes (hubBurst, geoSphere): one static layout
+//   - the two legacy morph modes: sine ping-pong between two layouts
+//   - "sequence": loop through cfg.sequence with hold + eased morph
 export class GraphSystem {
   count = 0;
   offX!: Float32Array;
@@ -242,14 +380,19 @@ export class GraphSystem {
   opacity!: Float32Array;
   screenX!: Float32Array;
   screenY!: Float32Array;
-  edgesA: [number, number][] = [];
-  edgesB: [number, number][] = [];
-  edgeAlphaA = 1;
-  edgeAlphaB = 0;
+  // hover highlight per node, eased 0..1 (see updateGlow)
+  glow!: Float32Array;
+  // [outgoing, incoming] edge sets for this frame
+  layers: [EdgeLayer, EdgeLayer] = [
+    { edges: [], weight: undefined, alpha: 1 },
+    { edges: [], weight: undefined, alpha: 0 },
+  ];
+  // most edges any layout has — lets renderers size buffers once
+  maxEdges = 0;
   time = 0;
 
-  private layoutA!: Layout;
-  private layoutB: Layout | null = null;
+  private layouts: Layout[] = [];
+  private delay!: Float32Array;
   private rot = 0;
   private lastW: number;
   private lastH: number;
@@ -283,24 +426,24 @@ export class GraphSystem {
     this.time = 0;
     this.rot = 0;
 
-    switch (cfg.mode) {
-      case "hubBurst":
-        this.layoutA = buildBaseLayout("hubBurst", n, cfg.seed);
-        this.layoutB = null;
-        break;
-      case "geoSphere":
-        this.layoutA = buildBaseLayout("geoSphere", n, cfg.seed);
-        this.layoutB = null;
-        break;
-      case "burstSphereMorph":
-        this.layoutA = buildBaseLayout("hubBurst", n, cfg.seed);
-        this.layoutB = buildBaseLayout("geoSphere", n, cfg.seed + 1);
-        break;
-      case "coneTorusMorph":
-        this.layoutA = buildBaseLayout("cone", n, cfg.seed);
-        this.layoutB = buildBaseLayout("torus", n, cfg.seed + 1);
-        break;
-    }
+    const shapes: GraphShape[] =
+      cfg.mode === "hubBurst"
+        ? ["burst"]
+        : cfg.mode === "geoSphere"
+          ? ["sphere"]
+          : cfg.mode === "burstSphereMorph"
+            ? ["burst", "sphere"]
+            : cfg.mode === "coneTorusMorph"
+              ? ["cone", "torus"]
+              : parseSequence(cfg.sequence);
+    // consecutive layouts get different seeds so their random weights and
+    // jitter differ (matches the original morph modes' seed + 1)
+    this.layouts = shapes.map((shape, i) => buildShape(shape, n, cfg.seed + i, cfg));
+    this.maxEdges = Math.max(...this.layouts.map((l) => l.edges.length));
+
+    const rng = makeRng(cfg.seed ^ 0x5bd1e995);
+    this.delay = new Float32Array(n);
+    for (let i = 0; i < n; i++) this.delay[i] = rng.next();
 
     this.offX = new Float32Array(n);
     this.offY = new Float32Array(n);
@@ -310,16 +453,34 @@ export class GraphSystem {
     this.opacity = new Float32Array(n);
     this.screenX = new Float32Array(n);
     this.screenY = new Float32Array(n);
+    this.glow = new Float32Array(n);
+    // node sizes follow the first layout's weights for the whole loop
     for (let i = 0; i < n; i++) {
-      const raw = this.layoutA.weight[i];
+      const raw = this.layouts[0].weight[i];
       const steps = Math.round(cfg.tiers);
       const wgt = steps > 1 ? Math.round(raw * (steps - 1)) / (steps - 1) : raw;
       this.size[i] = cfg.sizeMin + wgt * (cfg.sizeMax - cfg.sizeMin);
       this.opacity[i] = 0.45 + wgt * 0.55;
     }
-    this.edgesA = this.layoutA.edges;
-    this.edgesB = this.layoutB?.edges ?? [];
     this.update(0, w, h);
+  }
+
+  // Which two layouts are blended this frame, and how far (0..1).
+  private timeline(): { from: number; to: number; t: number; staggered: boolean } {
+    const cfg = this.cfg;
+    const L = this.layouts.length;
+    if (L < 2) return { from: 0, to: 0, t: 0, staggered: false };
+    if (cfg.mode !== "sequence") {
+      const t = cfg.morphSpeed > 0 ? 0.5 + 0.5 * Math.sin(this.time * cfg.morphSpeed) : cfg.morphHold;
+      return { from: 0, to: 1, t, staggered: false };
+    }
+    const hold = Math.max(0, cfg.holdTime);
+    const morph = Math.max(0.05, cfg.morphTime);
+    const period = hold + morph;
+    const cycle = Math.floor(this.time / period);
+    const local = this.time - cycle * period;
+    const from = cycle % L;
+    return { from, to: (from + 1) % L, t: local < hold ? 0 : (local - hold) / morph, staggered: true };
   }
 
   update(dt: number, w: number, h: number) {
@@ -327,11 +488,19 @@ export class GraphSystem {
     this.time += dt;
     this.rot += dt * cfg.idleRotationSpeed;
     const n = this.count;
-    const A = this.layoutA;
-    const B = this.layoutB;
-    const morphT = !B ? 0 : cfg.morphSpeed > 0 ? 0.5 + 0.5 * Math.sin(this.time * cfg.morphSpeed) : cfg.morphHold;
-    this.edgeAlphaA = B ? 1 - morphT : 1;
-    this.edgeAlphaB = B ? morphT : 0;
+    const { from, to, t, staggered } = this.timeline();
+    const A = this.layouts[from];
+    const B = this.layouts[to];
+    const blending = from !== to;
+    this.layers[0].edges = A.edges;
+    this.layers[0].weight = A.edgeWeight;
+    this.layers[0].alpha = blending ? 1 - (staggered ? easeInOutCubic(t) : t) : 1;
+    this.layers[1].edges = blending ? B.edges : [];
+    this.layers[1].weight = B.edgeWeight;
+    this.layers[1].alpha = blending ? 1 - this.layers[0].alpha : 0;
+    // stagger: node i starts its move delay[i] * s into the morph, and all
+    // nodes still finish on time
+    const s = staggered ? Math.min(1, Math.max(0, cfg.stagger)) : 0;
 
     const cx = w * cfg.centerX;
     const cy = h * cfg.centerY;
@@ -354,10 +523,15 @@ export class GraphSystem {
       let x = A.x[i];
       let y = A.y[i];
       let z = A.z[i];
-      if (B) {
-        x += (B.x[i] - x) * morphT;
-        y += (B.y[i] - y) * morphT;
-        z += (B.z[i] - z) * morphT;
+      if (blending) {
+        let ti = t;
+        if (staggered) {
+          ti = Math.min(1, Math.max(0, (t - this.delay[i] * s) / (1 - s || 1)));
+          ti = easeInOutCubic(ti);
+        }
+        x += (B.x[i] - x) * ti;
+        y += (B.y[i] - y) * ti;
+        z += (B.z[i] - z) * ti;
       }
       const rx = x * cosR + z * sinR;
       const rz = -x * sinR + z * cosR;
@@ -371,6 +545,28 @@ export class GraphSystem {
       this.offVY[i] += ay * dt;
       this.offX[i] += this.offVX[i] * dt;
       this.offY[i] += this.offVY[i] * dt;
+    }
+  }
+
+  // Ease each node's glow toward its closeness to the pointer (null = no
+  // pointer): a smooth falloff over 1.3x the hover radius, so the highlight
+  // blooms in and fades out rather than snapping.
+  updateGlow(px: number | null, py: number, dt: number) {
+    const n = this.count;
+    const R = this.cfg.hoverRadius * 1.3;
+    const ease = 1 - Math.exp(-dt * 6);
+    for (let i = 0; i < n; i++) {
+      let target = 0;
+      if (px !== null) {
+        const dx = this.screenX[i] + this.offX[i] - px;
+        const dy = this.screenY[i] + this.offY[i] - py;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < R) {
+          const f = 1 - d / R;
+          target = f * f * (3 - 2 * f);
+        }
+      }
+      this.glow[i] += (target - this.glow[i]) * ease;
     }
   }
 

@@ -93,15 +93,14 @@ export function buildGraphSvg(view: View, cfg: GraphViewConfig): string {
   const parts = [svgOpen(view.w, view.h, cfg.background)];
   const px = (i: number) => (s.screenX[i] + s.offX[i]).toFixed(2);
   const py = (i: number) => (s.screenY[i] + s.offY[i]).toFixed(2);
-  const addEdges = (edges: [number, number][], alpha: number) => {
+  const addEdges = (edges: [number, number][], alpha: number, weight?: Float32Array) => {
     if (alpha <= 0.002) return;
-    const op = (alpha * cfg.lineOpacity).toFixed(3);
-    for (const [a, b] of edges) {
+    edges.forEach(([a, b], e) => {
+      const op = Math.min(1, alpha * cfg.lineOpacity * (weight ? weight[e] : 1)).toFixed(3);
       parts.push(`<line x1="${px(a)}" y1="${py(a)}" x2="${px(b)}" y2="${py(b)}" stroke="${cfg.lineColor}" stroke-opacity="${op}" stroke-width="${cfg.lineWidth}"/>`);
-    }
+    });
   };
-  addEdges(s.edgesA, s.edgeAlphaA);
-  addEdges(s.edgesB, s.edgeAlphaB);
+  for (const layer of s.layers) addEdges(layer.edges, layer.alpha, layer.weight);
   for (let i = 0; i < s.count; i++) {
     parts.push(
       `<circle cx="${px(i)}" cy="${py(i)}" r="${s.size[i].toFixed(2)}" fill="${cfg.color}" fill-opacity="${s.opacity[i].toFixed(3)}"/>`,
