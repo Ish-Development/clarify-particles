@@ -162,7 +162,10 @@ function buildTorus(n: number, seed: number): Layout {
 // shape layout blended with a hub burst. Node 0 is the hub; every shape here
 // puts its node 0 at the top pole (0, 1, 0), so the hub — and the fan of
 // spokes into it — sits in the same place for all of them.
-function networkOf(b: Layout, n: number, seed: number, mix: number): Layout {
+// `mix` = how strictly nodes follow the shape (vs the random burst disc);
+// `spokes` = fan line strength, kept independent so every network shape has
+// the same fan however strict its silhouette.
+function networkOf(b: Layout, n: number, seed: number, mix: number, spokes = 1 - mix): Layout {
   const a = buildHubBurst(n, seed);
   const x = new Float32Array(n);
   const y = new Float32Array(n);
@@ -174,8 +177,8 @@ function networkOf(b: Layout, n: number, seed: number, mix: number): Layout {
   }
   const edges = [...a.edges, ...b.edges];
   const edgeWeight = new Float32Array(edges.length);
-  edgeWeight.fill(1 - mix, 0, a.edges.length);
-  edgeWeight.fill(mix, a.edges.length);
+  edgeWeight.fill(spokes, 0, a.edges.length);
+  edgeWeight.fill(1 - spokes, a.edges.length);
   return { x, y, z, weight: a.weight, edges, edgeWeight };
 }
 
@@ -191,7 +194,7 @@ function buildClusters(n: number, seed: number): Layout {
   const y = new Float32Array(n);
   const z = new Float32Array(n);
   const weight = new Float32Array(n);
-  const K = 6;
+  const K = 5;
   const GOLDEN_ANGLE = 2.39996322972865332;
   const centers: number[][] = [];
   for (let k = 0; k < K; k++) {
@@ -202,7 +205,7 @@ function buildClusters(n: number, seed: number): Layout {
   const member: number[][] = centers.map(() => []);
   y[0] = 1; // the hub pole
   weight[0] = rng.next();
-  const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 0.55;
+  const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 0.36;
   for (let i = 1; i < n; i++) {
     const k = i % K;
     const c = centers[k];
@@ -244,7 +247,7 @@ function buildSpiral(n: number, seed: number): Layout {
   const y = new Float32Array(n);
   const z = new Float32Array(n);
   const weight = new Float32Array(n);
-  const turns = 6;
+  const turns = 4.5;
   for (let i = 0; i < n; i++) {
     const t = i / Math.max(1, n - 1);
     const py = 1 - 2 * t; // i = 0 -> top pole (the hub)
@@ -255,9 +258,15 @@ function buildSpiral(n: number, seed: number): Layout {
     z[i] = Math.sin(a) * r;
     weight[i] = rng.next();
   }
-  const edges = nearestNeighborEdges(x, y, z, 2);
-  const seen = new Set(edges.map(([a, b]) => `${a}_${b}`));
-  for (let i = 0; i + 1 < n; i++) if (!seen.has(`${i}_${i + 1}`)) edges.push([i, i + 1]);
+  // the spiral itself, plus a sparse set of rungs to the next turn (every
+  // third node) so the turns read as lines rather than a mesh
+  const edges: [number, number][] = [];
+  for (let i = 0; i + 1 < n; i++) edges.push([i, i + 1]);
+  const perTurn = n / turns;
+  for (let i = 0; i < n; i += 3) {
+    const j = Math.round(i + perTurn);
+    if (j < n) edges.push([i, j]);
+  }
   return { x, y, z, weight, edges };
 }
 
@@ -534,10 +543,12 @@ function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig
   switch (shape) {
     case "constellation":
       return buildConstellation(n, seed, cfg.morphHold);
+    // stricter silhouettes than the constellation so they read as distinct
+    // shapes, with the constellation's fan strength
     case "clusters":
-      return networkOf(buildClusters(n, seed + 1), n, seed, cfg.morphHold);
+      return networkOf(buildClusters(n, seed + 1), n, seed, 0.92, 1 - cfg.morphHold);
     case "spiral":
-      return networkOf(buildSpiral(n, seed + 1), n, seed, cfg.morphHold);
+      return networkOf(buildSpiral(n, seed + 1), n, seed, 0.95, 1 - cfg.morphHold);
     case "burst":
       return buildHubBurst(n, seed);
     case "sphere":
