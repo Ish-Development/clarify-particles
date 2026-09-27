@@ -62,49 +62,59 @@ export class Interaction {
 
   private onClick(e: PointerEvent) {
     const p = this.toLocal(e);
-    const sys = this.system;
-    const cfg = this.cfg;
-    if (cfg.clickBehavior === "none") return;
-    if (cfg.clickBehavior === "reshuffle") {
-      if (!sys.scatterBaseX || !sys.scatterBaseY) return;
-      for (let i = 0; i < sys.count; i++) {
-        sys.scatterBaseX[i] = Math.random();
-        sys.scatterBaseY[i] = Math.random();
-      }
-      return;
-    }
-    const radius = 220;
-    const r2 = radius * radius;
-    for (let i = 0; i < sys.count; i++) {
-      const dx = sys.baseX[i] - p.x;
-      const dy = sys.baseY[i] - p.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < r2) {
-        const d = Math.max(8, Math.sqrt(d2));
-        const falloff = 1 - d / radius;
-        sys.offVX[i] += (dx / d) * falloff * 900;
-        sys.offVY[i] += (dy / d) * falloff * 900;
-      }
-    }
+    applyClick(this.system, this.cfg, p.x, p.y);
   }
 
   update(dt: number) {
     if (!this.active) return;
-    const sys = this.system;
-    const cfg = this.cfg;
-    const r = cfg.hoverRadius;
-    const r2 = r * r;
-    const strength = cfg.hoverStrength * 4000;
+    applyHover(this.system, this.cfg, this.mouseX, this.mouseY, dt);
+  }
+}
+
+// Pure force functions — shared by the playground's Interaction class and
+// the production runtime, which routes pointer events differently (one
+// window-level listener feeding every mounted section).
+
+// One-shot click response: radial velocity burst, or a scatter reshuffle.
+export function applyClick(sys: Steerable, cfg: InteractionConfig, px: number, py: number) {
+  if (cfg.clickBehavior === "none") return;
+  if (cfg.clickBehavior === "reshuffle") {
+    if (!sys.scatterBaseX || !sys.scatterBaseY) return;
     for (let i = 0; i < sys.count; i++) {
-      const dx = sys.baseX[i] + sys.offX[i] - this.mouseX;
-      const dy = sys.baseY[i] + sys.offY[i] - this.mouseY;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < r2 && d2 > 1) {
-        const d = Math.sqrt(d2);
-        const falloff = 1 - d / r;
-        sys.offVX[i] += (dx / d) * falloff * strength * dt;
-        sys.offVY[i] += (dy / d) * falloff * strength * dt;
-      }
+      sys.scatterBaseX[i] = Math.random();
+      sys.scatterBaseY[i] = Math.random();
+    }
+    return;
+  }
+  const radius = 220;
+  const r2 = radius * radius;
+  for (let i = 0; i < sys.count; i++) {
+    const dx = sys.baseX[i] - px;
+    const dy = sys.baseY[i] - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < r2) {
+      const d = Math.max(8, Math.sqrt(d2));
+      const falloff = 1 - d / radius;
+      sys.offVX[i] += (dx / d) * falloff * 900;
+      sys.offVY[i] += (dy / d) * falloff * 900;
+    }
+  }
+}
+
+// Continuous hover repel, applied every frame while the pointer is over.
+export function applyHover(sys: Steerable, cfg: InteractionConfig, mx: number, my: number, dt: number) {
+  const r = cfg.hoverRadius;
+  const r2 = r * r;
+  const strength = cfg.hoverStrength * 4000;
+  for (let i = 0; i < sys.count; i++) {
+    const dx = sys.baseX[i] + sys.offX[i] - mx;
+    const dy = sys.baseY[i] + sys.offY[i] - my;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < r2 && d2 > 1) {
+      const d = Math.sqrt(d2);
+      const falloff = 1 - d / r;
+      sys.offVX[i] += (dx / d) * falloff * strength * dt;
+      sys.offVY[i] += (dy / d) * falloff * strength * dt;
     }
   }
 }

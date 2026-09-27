@@ -1,7 +1,7 @@
-import type { ParticleConfig } from "../config";
-import type { ParticleSystem } from "../particles";
+import type { ParticleConfig } from "../core/config";
+import type { ParticleSystem } from "../core/particles";
 import { bucketColor } from "../render";
-import type { GraphConfig, GraphSystem } from "../graph";
+import type { GraphConfig, GraphSystem } from "../core/graph";
 import { downloadBlob } from "./shared";
 
 // Vector snapshot of the current frame — one <circle> per particle, colored

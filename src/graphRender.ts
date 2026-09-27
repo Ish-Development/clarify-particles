@@ -1,4 +1,4 @@
-import type { GraphSystem } from "./graph";
+import type { GraphSystem } from "./core/graph";
 
 // Monochrome: one soft-circle sprite (no per-color buckets needed like v1's
 // gradient/hue modes) — size variation is done per-node via drawImage scale.

@@ -1,7 +1,8 @@
 import type { ClickBehavior } from "./config";
 import { makeRng } from "./rng";
 
-export type GraphMode = "hubBurst" | "geoSphere" | "burstSphereMorph" | "coneTorusMorph";
+export const GRAPH_MODES = ["hubBurst", "geoSphere", "burstSphereMorph", "coneTorusMorph"] as const;
+export type GraphMode = (typeof GRAPH_MODES)[number];
 
 export interface GraphConfig {
   seed: number;

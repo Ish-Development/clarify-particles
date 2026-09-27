@@ -1,4 +1,4 @@
-import type { ParticleConfig } from "../config";
+import type { ParticleConfig } from "../core/config";
 import { downloadBlob } from "./shared";
 
 // Produces a single self-contained HTML file: the current config baked in,

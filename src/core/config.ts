@@ -1,28 +1,30 @@
-export type ShapeName =
-  | "chaosField"
-  | "noiseLines"
-  | "straightLines"
-  | "terrain"
-  | "waterfall"
-  | "nebula"
-  | "veins"
-  | "concentricRings"
-  | "square"
-  | "triangle"
-  | "sphere"
-  | "cube"
-  | "torus"
-  | "torusKnot"
-  | "hexCone"
-  | "octahedron"
-  | "icosahedron"
-  | "dodecahedron"
-  | "stellated"
-  | "gem"
-  | "cubesIntersect"
-  | "crossCubes"
-  | "interlock"
-  | "sacredGeometry";
+export const SHAPE_NAMES = [
+  "chaosField",
+  "noiseLines",
+  "straightLines",
+  "terrain",
+  "waterfall",
+  "nebula",
+  "veins",
+  "concentricRings",
+  "square",
+  "triangle",
+  "sphere",
+  "cube",
+  "torus",
+  "torusKnot",
+  "hexCone",
+  "octahedron",
+  "icosahedron",
+  "dodecahedron",
+  "stellated",
+  "gem",
+  "cubesIntersect",
+  "crossCubes",
+  "interlock",
+  "sacredGeometry",
+] as const;
+export type ShapeName = (typeof SHAPE_NAMES)[number];
 export type ColorMode = "single" | "gradient" | "hueRange";
 export type ClickBehavior = "burst" | "reshuffle" | "none";
 

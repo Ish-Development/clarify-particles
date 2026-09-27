@@ -1,5 +1,5 @@
-import type { ParticleConfig } from "./config";
-import type { ParticleSystem } from "./particles";
+import type { ParticleConfig } from "./core/config";
+import type { ParticleSystem } from "./core/particles";
 
 export const SPRITE_BUCKETS = 32;
 export const SPRITE_SIZE = 64;

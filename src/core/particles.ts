@@ -114,6 +114,22 @@ export class ParticleSystem {
     }
   }
 
+  // Re-anchor to a new canvas size WITHOUT resetting the simulation: rest
+  // positions are scaled proportionally, so a resize (e.g. the mobile
+  // address bar showing/hiding) never snaps particles back to scatter.
+  // Shape targets are recomputed from w/h every frame anyway.
+  resize(w: number, h: number) {
+    if (w === this.lastW && h === this.lastH) return;
+    const sx = w / (this.lastW || w);
+    const sy = h / (this.lastH || h);
+    for (let i = 0; i < this.count; i++) {
+      this.baseX[i] *= sx;
+      this.baseY[i] *= sy;
+    }
+    this.lastW = w;
+    this.lastH = h;
+  }
+
   reroll() {
     this.cfg.seed = Math.floor(Math.random() * 1e9);
     this.rebuild();

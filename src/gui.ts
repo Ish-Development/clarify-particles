@@ -1,5 +1,5 @@
 import GUI from "lil-gui";
-import type { ParticleConfig, ShapeName } from "./config";
+import type { ParticleConfig, ShapeName } from "./core/config";
 
 export interface GuiCallbacks {
   onRebuild: () => void;

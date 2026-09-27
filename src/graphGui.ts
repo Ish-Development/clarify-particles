@@ -1,5 +1,5 @@
 import GUI from "lil-gui";
-import type { GraphConfig, GraphMode } from "./graph";
+import type { GraphConfig, GraphMode } from "./core/graph";
 
 export interface GraphGuiCallbacks {
   onRebuild: () => void;

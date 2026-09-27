@@ -1,14 +1,14 @@
-import { defaultConfig, type ParticleConfig } from "./config";
-import { ParticleSystem } from "./particles";
+import { defaultConfig, type ParticleConfig } from "./core/config";
+import { ParticleSystem } from "./core/particles";
 import { buildSpriteCache, render } from "./render";
-import { Interaction } from "./interaction";
+import { Interaction } from "./core/interaction";
 import { buildGui, type GuiCallbacks } from "./gui";
 import { exportPngSequence } from "./export/exportPng";
 import { exportVideo } from "./export/exportVideo";
 import { exportStandaloneHtml } from "./export/exportCode";
 import { exportParticleSvg, exportGraphSvg, copyParticleSvg, copyGraphSvg } from "./export/exportSvg";
 
-import { defaultGraphConfig, GraphSystem, type GraphConfig, type GraphMode } from "./graph";
+import { defaultGraphConfig, GraphSystem, type GraphConfig, type GraphMode } from "./core/graph";
 import { buildMonoSprite, renderGraph } from "./graphRender";
 import { buildGraphGui, type GraphGuiCallbacks } from "./graphGui";
 
