@@ -79,6 +79,7 @@ void main() {
 //   0 = solid disc with a 1px anti-aliased edge
 const POINT_FRAG = /* glsl */ `
 uniform float uSoftness;
+uniform float uSolid;
 varying float vAlpha;
 varying vec3 vColor;
 varying float vSize;
@@ -86,8 +87,11 @@ void main() {
   float f = 1.0 - length(gl_PointCoord - 0.5) * 2.0;
   if (f <= 0.0) discard;
   float hard = clamp(f * vSize * 0.5, 0.0, 1.0);
-  float a = mix(hard, f * f, uSoftness) * vAlpha;
-  gl_FragColor = vec4(vColor * a, a);
+  float cover = mix(hard, f * f, uSoftness);
+  // solid: opaque disc dimmed by vAlpha; otherwise vAlpha is transparency
+  float a = cover * mix(vAlpha, 1.0, uSolid);
+  vec3 col = vColor * mix(1.0, vAlpha, uSolid);
+  gl_FragColor = vec4(col * a, a);
 }`;
 
 // Edges are instanced quads, not GL lines (those are always 1 device pixel
@@ -164,6 +168,7 @@ class Stage {
   private bufW = 1;
   private bufH = 1;
   lost = false;
+  lostAt = 0;
 
   constructor() {
     // throws when WebGL is unavailable — caught in mount()
@@ -178,8 +183,11 @@ class Stage {
     this.maxPointSize = (gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array)[1] || 64;
     const canvas = this.renderer.domElement;
     canvas.addEventListener("webglcontextlost", (e) => {
+      // ask the browser to give it back; resume() replaces the renderer if
+      // it doesn't (some browsers never restore a backgrounded tab's context)
       e.preventDefault();
       this.lost = true;
+      this.lostAt = performance.now();
     });
     canvas.addEventListener("webglcontextrestored", () => {
       this.lost = false;
@@ -373,9 +381,10 @@ abstract class View {
   }
 }
 
-function pointUniforms(sizeScale: number, softness: number) {
+function pointUniforms(sizeScale: number, softness: number, solid: boolean) {
   return {
     uSoftness: { value: softness },
+    uSolid: { value: solid ? 1 : 0 },
     uRes: { value: [1, 1] },
     uDpr: { value: 1 },
     uSizeScale: { value: sizeScale },
@@ -410,7 +419,7 @@ class PointsView extends View {
     this.writeColors();
 
     // 6 = the playground's sprite scale (render.ts: size * 6)
-    this.material = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(6, cfg.softness), cfg.blend);
+    this.material = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(6, cfg.softness, cfg.solid), cfg.blend);
     const points = new Points(this.geometry, this.material);
     points.frustumCulled = false;
     this.scene.add(points);
@@ -442,6 +451,7 @@ class PointsView extends View {
     this.writeColors();
     this.material.blendDst = blendDst(this.cfg.blend);
     this.material.uniforms.uSoftness.value = this.cfg.softness;
+    this.material.uniforms.uSolid.value = this.cfg.solid ? 1 : 0;
   }
 
   protected onResize() {
@@ -525,7 +535,7 @@ class GraphView extends View {
     this.nodeGeometry.setAttribute("aAlpha", this.nodeAlphaAttr);
     this.nodeGeometry.setAttribute("aColor", this.nodeColorAttr);
     // 2 = the playground's node scale (graphRender.ts: size * 2)
-    this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2, cfg.softness), cfg.blend);
+    this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2, cfg.softness, cfg.solid), cfg.blend);
     const nodes = new Points(this.nodeGeometry, this.nodeMaterial);
     nodes.frustumCulled = false;
     this.scene.add(nodes);
@@ -541,6 +551,7 @@ class GraphView extends View {
     this.nodeColorAttr.needsUpdate = true;
     this.nodeMaterial.blendDst = blendDst(cfg.blend);
     this.nodeMaterial.uniforms.uSoftness.value = cfg.softness;
+    this.nodeMaterial.uniforms.uSolid.value = cfg.solid ? 1 : 0;
     const lineColor = hexToRgb01(cfg.lineColor);
     for (const b of this.edgeBuffers) {
       b.material.uniforms.uColor.value = lineColor;
@@ -632,6 +643,7 @@ const pointer = { x: 0, y: 0, active: false };
 
 function frame(now: number) {
   rafId = 0;
+  if (stage?.lost && now - stage.lostAt > 1500 && !document.hidden) replaceStage();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
   let anyRunning = false;
@@ -693,6 +705,41 @@ function onReducedMotionChange() {
   wake();
 }
 
+// A lost context that was never restored: swap in a fresh renderer. Scenes,
+// geometries and materials don't belong to a renderer, so every view simply
+// re-uploads to the new one on its next draw — the animation carries on.
+function replaceStage() {
+  const old = stage;
+  if (!old) return;
+  try {
+    stage = new Stage();
+  } catch {
+    return; // GPU still unavailable; try again on the next resume
+  }
+  try {
+    old.renderer.dispose();
+  } catch {
+    // already gone
+  }
+  console.info("[particles] WebGL context was not restored — recreated the renderer");
+  for (const view of views.values()) if (view.visible) view.paint();
+}
+
+// Back to the page (tab shown, window focused, bfcache restore): recover
+// from anything the browser did while we were in the background.
+function resume() {
+  if (document.hidden || !stage) return;
+  const gl = stage.renderer.getContext();
+  if (stage.lost || gl.isContextLost()) replaceStage();
+  // some browsers drop a frame callback requested while backgrounded,
+  // which would leave rafId set and the loop never restarting
+  if (rafId) {
+    cancelAnimationFrame(rafId);
+    rafId = 0;
+  }
+  wake();
+}
+
 function listen(on: boolean) {
   const m = on ? "addEventListener" : "removeEventListener";
   const opts = { passive: true };
@@ -701,7 +748,9 @@ function listen(on: boolean) {
   window[m]("pointerup", onPointerEnd as EventListener, opts);
   window[m]("pointercancel", onPointerEnd as EventListener, opts);
   document[m]("pointerout", onPointerOut as EventListener, opts);
-  document[m]("visibilitychange", wake);
+  document[m]("visibilitychange", resume);
+  window[m]("focus", resume);
+  window[m]("pageshow", resume);
   reducedMotion[m]("change", onReducedMotionChange);
 }
 

@@ -10,14 +10,17 @@ export interface RuntimeOptions {
   blend: "additive" | "normal";
   // hover/click reactions on or off
   interactive: boolean;
-  // dot edge: 1 = soft glow, 0 = solid disc
+  // dot edge: 1 = soft glow, 0 = crisp disc
   softness: number;
+  // opaque dots: brightness comes from dimming the color instead of
+  // transparency, so lines and dots behind don't show through
+  solid: boolean;
 }
 
 export type PointsConfig = ParticleConfig & RuntimeOptions;
 export type GraphViewConfig = GraphConfig & RuntimeOptions;
 
-const runtimeDefaults: RuntimeOptions = { countMobile: 0, blend: "additive", interactive: true, softness: 1 };
+const runtimeDefaults: RuntimeOptions = { countMobile: 0, blend: "additive", interactive: true, softness: 1, solid: false };
 
 // What an element gets with no attributes at all. Kept free of presets.json
 // so the playground can import it without hot-reloading on every preset save.

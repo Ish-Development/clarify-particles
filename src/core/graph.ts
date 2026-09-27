@@ -9,6 +9,9 @@ export interface GraphConfig {
   count: number;
   sizeMin: number;
   sizeMax: number;
+  // node brightness range across weights (tiers)
+  opacityMin: number;
+  opacityMax: number;
   mode: GraphMode;
   morphSpeed: number;
   // morph position (0 = first layout, 1 = second) held when morphSpeed = 0
@@ -54,6 +57,8 @@ export const defaultGraphConfig: GraphConfig = {
   count: 140,
   sizeMin: 4,
   sizeMax: 14,
+  opacityMin: 0.45,
+  opacityMax: 1,
   mode: "hubBurst",
   morphSpeed: 0.4,
   morphHold: 0.5,
@@ -298,6 +303,41 @@ function buildCube(n: number, seed: number): Layout {
   return { x, y, z, weight, edges: nearestNeighborEdges(x, y, z, 3) };
 }
 
+// Globe: latitude rings (dot count per ring follows its circumference),
+// linked around each ring and to the nearest nodes on neighboring rings.
+function buildGlobe(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const rings = Math.max(4, Math.round(Math.sqrt(n / 2.5)));
+  const circ: number[] = [];
+  for (let r = 0; r < rings; r++) circ.push(Math.sin((Math.PI * (r + 0.5)) / rings));
+  const total = circ.reduce((a, b) => a + b, 0);
+  const edges: [number, number][] = [];
+  let i = 0;
+  for (let r = 0; r < rings && i < n; r++) {
+    const lat = (Math.PI * (r + 0.5)) / rings;
+    const count = r === rings - 1 ? n - i : Math.max(3, Math.round((n * circ[r]) / total));
+    const start = i;
+    for (let k = 0; k < count && i < n; k++, i++) {
+      const lon = (k / count) * Math.PI * 2 + r * 0.4;
+      x[i] = Math.sin(lat) * Math.cos(lon);
+      z[i] = Math.sin(lat) * Math.sin(lon);
+      y[i] = Math.cos(lat);
+      weight[i] = rng.next();
+      if (k > 0) edges.push([i - 1, i]);
+    }
+    if (i - start > 2) edges.push([start, i - 1]); // close the ring
+  }
+  const seen = new Set(edges.map(([a, b]) => `${Math.min(a, b)}_${Math.max(a, b)}`));
+  for (const [a, b] of nearestNeighborEdges(x, y, z, 2)) {
+    if (!seen.has(`${a}_${b}`)) edges.push([a, b]);
+  }
+  return { x, y, z, weight, edges };
+}
+
 // Three-armed spiral disc.
 function buildGalaxy(n: number, seed: number): Layout {
   const rng = makeRng(seed);
@@ -320,7 +360,7 @@ function buildGalaxy(n: number, seed: number): Layout {
 }
 
 // Shapes usable in a sequence (and their builders).
-export const SHAPES = ["constellation", "burst", "sphere", "cone", "torus", "helix", "cube", "galaxy"] as const;
+export const SHAPES = ["constellation", "burst", "sphere", "globe", "cone", "torus", "helix", "cube", "galaxy"] as const;
 export type GraphShape = (typeof SHAPES)[number];
 
 function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig): Layout {
@@ -331,6 +371,8 @@ function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig
       return buildHubBurst(n, seed);
     case "sphere":
       return buildGeoSphere(n, seed);
+    case "globe":
+      return buildGlobe(n, seed);
     case "cone":
       return buildCone(n, seed);
     case "torus":
@@ -460,7 +502,7 @@ export class GraphSystem {
       const steps = Math.round(cfg.tiers);
       const wgt = steps > 1 ? Math.round(raw * (steps - 1)) / (steps - 1) : raw;
       this.size[i] = cfg.sizeMin + wgt * (cfg.sizeMax - cfg.sizeMin);
-      this.opacity[i] = 0.45 + wgt * 0.55;
+      this.opacity[i] = cfg.opacityMin + wgt * (cfg.opacityMax - cfg.opacityMin);
     }
     this.update(0, w, h);
   }

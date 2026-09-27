@@ -67,6 +67,7 @@ const MODES: [GraphMode, string][] = [
 const shared: Field[] = [
   { folder: "look", key: "blend", control: select(["additive", "normal"]), kind: "look" },
   { folder: "look", key: "softness", control: [1, 0, 1, 0.01], kind: "look" },
+  { folder: "look", key: "solid", control: false, kind: "look" },
   { folder: "look", key: "paintBackground", control: false, kind: "look" },
   { folder: "look", key: "backgroundColor", control: color, kind: "look" },
   { folder: "interaction", key: "interactive", control: true, kind: "live" },
@@ -107,6 +108,8 @@ export const graphFields: Field[] = [
   { folder: "nodes", key: "sizeMin", control: [4, 1, 20, 0.5], kind: "rebuild" },
   { folder: "nodes", key: "sizeMax", control: [14, 1, 30, 0.5], kind: "rebuild" },
   { folder: "nodes", key: "tiers", control: [0, 0, 6, 1], kind: "rebuild" },
+  { folder: "nodes", key: "opacityMin", control: [0.45, 0, 1, 0.01], kind: "rebuild" },
+  { folder: "nodes", key: "opacityMax", control: [1, 0, 1, 0.01], kind: "rebuild" },
   { folder: "placement", key: "centerX", control: [0.5, -0.5, 1.5, 0.01], kind: "live" },
   { folder: "placement", key: "centerY", control: [0.5, -0.5, 1.5, 0.01], kind: "live" },
   { folder: "placement", key: "scale", control: [1, 0.2, 5, 0.01], kind: "live" },
@@ -117,7 +120,7 @@ export const graphFields: Field[] = [
   { folder: "motion", key: "idleTiltAmount", control: [0.35, 0, 1.2, 0.01], kind: "live" },
   { folder: "motion", key: "morphSpeed", control: [0.4, 0, 2, 0.01], kind: "live" },
   { folder: "motion", key: "morphHold", control: [0.5, 0, 1, 0.01], kind: "rebuild" },
-  // shapes: constellation, burst, sphere, cone, torus, helix, cube, galaxy
+  // shapes: constellation, burst, sphere, globe, cone, torus, helix, cube, galaxy
   { folder: "sequence", key: "sequence", control: { type: "text", placeholder: "constellation,torus,helix" }, kind: "rebuild" },
   { folder: "sequence", key: "holdTime", control: [4, 0, 15, 0.1], kind: "live" },
   { folder: "sequence", key: "morphTime", control: [2.5, 0.3, 8, 0.1], kind: "live" },
