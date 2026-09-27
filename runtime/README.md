@@ -151,6 +151,7 @@ The script sets up every section on page load. These calls are only needed for c
 ClarifyParticles.init(container?)   // mount new [data-particles] elements (e.g. after CMS load / page transition)
 ClarifyParticles.destroy(element?)  // tear down one element, or all
 ClarifyParticles.refresh(element?)  // re-read attributes after changing them
+ClarifyParticles.debug()            // live engine state (loop, WebGL context, sections, recent events)
 ```
 
 If a section is removed from the page without calling `destroy()`, the script frees its GPU resources automatically.

@@ -188,8 +188,10 @@ class Stage {
       e.preventDefault();
       this.lost = true;
       this.lostAt = performance.now();
+      note("webgl context lost");
     });
     canvas.addEventListener("webglcontextrestored", () => {
+      note("webgl context restored");
       this.lost = false;
       wake();
     });
@@ -355,7 +357,11 @@ abstract class View {
   }
 
   get running() {
-    return this.visible && !paused && !document.hidden && !reducedMotion.matches;
+    // deliberately not gated on document.hidden: browsers already stop
+    // animation frames for truly hidden pages, and some (seen in Arc) can
+    // leave document.hidden stuck at true after the window comes back —
+    // which would freeze the effect for good
+    return this.visible && !paused && !reducedMotion.matches;
   }
 
   // Reduced motion: fast-forward the simulation to its settled state and
@@ -668,10 +674,21 @@ let paused = false;
 const views = new Map<HTMLElement, View>();
 let rafId = 0;
 let lastT = 0;
+// when the last frame actually ran — the watchdog uses it to spot a loop
+// that stalled (a frame callback the browser dropped)
+let lastFrameAt = 0;
+let watchdog = 0;
+// recent lifecycle events, for the ?debug overlay
+const events: string[] = [];
+function note(e: string) {
+  events.push(`${(performance.now() / 1000).toFixed(1)}s ${e}`);
+  if (events.length > 8) events.shift();
+}
 const pointer = { x: 0, y: 0, active: false };
 
 function frame(now: number) {
   rafId = 0;
+  lastFrameAt = performance.now();
   if (stage?.lost && now - stage.lostAt > 1500 && !document.hidden) replaceStage();
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
@@ -704,6 +721,8 @@ function onPointerMove(e: PointerEvent) {
   pointer.x = e.clientX;
   pointer.y = e.clientY;
   pointer.active = true;
+  // any interaction revives an idle loop
+  if (!rafId) wake();
 }
 
 function onPointerDown(e: PointerEvent) {
@@ -751,22 +770,33 @@ function replaceStage() {
     // already gone
   }
   console.info("[particles] WebGL context was not restored — recreated the renderer");
+  note("recreated renderer");
   for (const view of views.values()) if (view.visible) view.paint();
 }
 
 // Back to the page (tab shown, window focused, bfcache restore): recover
 // from anything the browser did while we were in the background.
-function resume() {
-  if (document.hidden || !stage) return;
+function resume(e?: Event) {
+  if (!stage) return;
+  if (e) note(`${e.type} (${document.visibilityState})`);
   const gl = stage.renderer.getContext();
   if (stage.lost || gl.isContextLost()) replaceStage();
-  // some browsers drop a frame callback requested while backgrounded,
-  // which would leave rafId set and the loop never restarting
-  if (rafId) {
+  // a frame callback requested while backgrounded that the browser dropped
+  // leaves rafId set and the loop never restarting
+  if (rafId && performance.now() - lastFrameAt > 500) {
     cancelAnimationFrame(rafId);
     rafId = 0;
+    note("restarted stalled loop");
   }
   wake();
+}
+
+// Belt and braces: once a second, restart the loop if something should be
+// animating but no frame has run for a while.
+function checkLoop() {
+  if (!stage) return;
+  const due = [...views.values()].some((v) => v.running);
+  if (due && performance.now() - lastFrameAt > 1500) resume();
 }
 
 function listen(on: boolean) {
@@ -798,6 +828,7 @@ export function mount(el: HTMLElement, spec: ViewSpec, { editor = false } = {}) 
       return;
     }
     listen(true);
+    watchdog = window.setInterval(checkLoop, 1000);
   }
   const view = spec.type === "graph" ? new GraphView(el, spec.config) : new PointsView(el, spec.config, editor);
   views.set(el, view);
@@ -812,6 +843,7 @@ export function unmount(el: HTMLElement) {
     cancelAnimationFrame(rafId);
     rafId = 0;
     listen(false);
+    clearInterval(watchdog);
     stage.dispose();
     stage = null;
   }
@@ -841,4 +873,18 @@ export function remount(el: HTMLElement, spec: ViewSpec, opts?: { editor?: boole
   views.get(el)?.dispose();
   views.delete(el);
   mount(el, spec, opts);
+}
+
+// Live state for the ?debug overlay / support: is the loop running, is the
+// context alive, which sections are visible, and recent lifecycle events.
+export function debugState() {
+  return {
+    visibility: document.visibilityState,
+    focused: document.hasFocus(),
+    loop: rafId ? "running" : "idle",
+    lastFrameMsAgo: Math.round(performance.now() - lastFrameAt),
+    context: !stage ? "none" : stage.lost || stage.renderer.getContext().isContextLost() ? "LOST" : "ok",
+    sections: [...views.values()].map((v) => ({ visible: v.visible, running: v.running })),
+    events: [...events],
+  };
 }

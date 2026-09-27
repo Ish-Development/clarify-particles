@@ -77,7 +77,12 @@ function refresh(el?: HTMLElement) {
   });
 }
 
-const api = { init, destroy, refresh };
+// Snapshot of the engine's live state (null until the engine has loaded).
+function debug() {
+  return engine?.debugState() ?? null;
+}
+
+const api = { init, destroy, refresh, debug };
 declare global {
   interface Window {
     ClarifyParticles: typeof api;

@@ -33,6 +33,19 @@
 
       addSection(cta, "cta");
       await import("/src/runtime/index.ts");
+
+      // ?debug: live engine state in the corner (for diagnosing a stalled
+      // or missing effect — screenshot it and send it over)
+      if (new URLSearchParams(location.search).has("debug")) {
+        const box = document.createElement("pre");
+        box.style.cssText =
+          "position:fixed;left:12px;bottom:12px;z-index:99;margin:0;padding:10px 12px;max-width:420px;" +
+          "background:rgba(0,0,0,.85);color:#9fe29f;font:11px/1.4 ui-monospace,monospace;border-radius:8px;pointer-events:none;white-space:pre-wrap";
+        document.body.append(box);
+        setInterval(() => {
+          box.textContent = JSON.stringify(window.ClarifyParticles.debug() ?? "engine not loaded yet", null, 1);
+        }, 250);
+      }
     </script>
   </body>
 </html>
