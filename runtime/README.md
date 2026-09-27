@@ -96,11 +96,13 @@ Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`
 | Attribute | Default | Notes |
 |---|---|---|
 | `data-mode` | `hubBurst` | `hubBurst`, `geoSphere`, `burstSphereMorph`, `coneTorusMorph`, `sequence` |
-| `data-sequence` | `constellation,torus,helix,galaxy` | Shapes looped in `sequence` mode: `constellation` `burst` `sphere` `globe` `cone` `torus` `helix` `cube` `galaxy` `knot` `atom` `icosa` `wave`. `galaxy`, `wave` and `burst` are flat, so they turn edge-on under a strong idle rotation |
+| `data-sequence` | `constellation,torus,helix,galaxy` | Shapes looped in `sequence` mode: `constellation` `clusters` `spiral` (these three share the dense "network" style: mesh plus a fan into one fixed hub) `burst` `sphere` `globe` `cone` `torus` `helix` `cube` `galaxy` `knot` `atom` `icosa` `wave`. `galaxy`, `wave` and `burst` are flat, so they turn edge-on under a strong idle rotation |
 | `data-hold-time` / `data-morph-time` | `4` / `2.5` | Seconds on each shape / per transition |
 | `data-stagger` | `0.35` | 0–1: nodes start their move at different times |
 | `data-morph-implode` / `data-morph-swirl` | `0` / `0` | Mid-morph pull toward the core (0–1) and swirl (radians) |
 | `data-fit` / `data-fit-padding` | `false` / `16` | Keep every shape fully inside the canvas (never clipped) |
+| `data-anchor-left` | `false` | Keep only the left edge inside (for effects beside text); it may bleed off top, right and bottom |
+| `data-morph-scatter` | `0` | Scatter & reform: nodes fling outward mid-morph (never leftward), lines dim |
 | `data-hover-glow` | `0` | 0–1: nodes near the cursor grow/brighten, their lines light up |
 | `data-opacity-min` / `data-opacity-max` | `0.45` / `1` | Node brightness range |
 | `data-count` | `140` | Nodes |

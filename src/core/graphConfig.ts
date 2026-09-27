@@ -62,6 +62,13 @@ export interface GraphConfig {
   // morphSwirl radians — both keep nodes inside the fitted radius
   morphImplode: number;
   morphSwirl: number;
+  // scatter & reform: mid-morph, nodes burst outward on screen by up to
+  // this many shape radii — rightward/up/down only, never to the left
+  morphScatter: number;
+  // keep the shape's left edge inside the canvas (fitPadding clear) while
+  // letting it bleed off the top, right and bottom — for effects that sit
+  // to the right of text
+  anchorLeft: boolean;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -100,4 +107,6 @@ export const defaultGraphConfig: GraphConfig = {
   fitPadding: 16,
   morphImplode: 0,
   morphSwirl: 0,
+  morphScatter: 0,
+  anchorLeft: false,
 };

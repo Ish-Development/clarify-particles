@@ -158,9 +158,12 @@ function buildTorus(n: number, seed: number): Layout {
 // spokes fade out and the sphere mesh fades in by the same amount — the
 // "network globe" look (the CTA design is mix 0.75). Weights come from the
 // burst, so the hub stays the largest node.
-function buildConstellation(n: number, seed: number, mix: number): Layout {
+// The "network style" shared by constellation, clusters and spiral: any
+// shape layout blended with a hub burst. Node 0 is the hub; every shape here
+// puts its node 0 at the top pole (0, 1, 0), so the hub — and the fan of
+// spokes into it — sits in the same place for all of them.
+function networkOf(b: Layout, n: number, seed: number, mix: number): Layout {
   const a = buildHubBurst(n, seed);
-  const b = buildGeoSphere(n, seed + 1);
   const x = new Float32Array(n);
   const y = new Float32Array(n);
   const z = new Float32Array(n);
@@ -174,6 +177,88 @@ function buildConstellation(n: number, seed: number, mix: number): Layout {
   edgeWeight.fill(1 - mix, 0, a.edges.length);
   edgeWeight.fill(mix, a.edges.length);
   return { x, y, z, weight: a.weight, edges, edgeWeight };
+}
+
+function buildConstellation(n: number, seed: number, mix: number): Layout {
+  return networkOf(buildGeoSphere(n, seed + 1), n, seed, mix);
+}
+
+// Communities: nodes gather into clumps spread over the sphere (dense
+// links inside each clump, a few bridges between neighboring clumps).
+function buildClusters(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const K = 6;
+  const GOLDEN_ANGLE = 2.39996322972865332;
+  const centers: number[][] = [];
+  for (let k = 0; k < K; k++) {
+    const cy = 1 - ((k + 0.5) / K) * 2;
+    const r = Math.sqrt(1 - cy * cy);
+    centers.push([Math.cos(k * GOLDEN_ANGLE) * r, cy, Math.sin(k * GOLDEN_ANGLE) * r]);
+  }
+  const member: number[][] = centers.map(() => []);
+  y[0] = 1; // the hub pole
+  weight[0] = rng.next();
+  const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 0.55;
+  for (let i = 1; i < n; i++) {
+    const k = i % K;
+    const c = centers[k];
+    const px = c[0] + gauss();
+    const py = c[1] + gauss();
+    const pz = c[2] + gauss();
+    const len = Math.hypot(px, py, pz) || 1;
+    const r = 0.72 + rng.next() * 0.28;
+    x[i] = (px / len) * r;
+    y[i] = (py / len) * r;
+    z[i] = (pz / len) * r;
+    weight[i] = rng.next();
+    member[k].push(i);
+  }
+  const edges = nearestNeighborEdges(x, y, z, 3);
+  // bridges: each clump links to its two nearest neighboring clumps
+  for (let k = 0; k < K; k++) {
+    const others = centers
+      .map((c, j) => ({ j, d: Math.hypot(c[0] - centers[k][0], c[1] - centers[k][1], c[2] - centers[k][2]) }))
+      .filter((o) => o.j !== k)
+      .sort((p, q) => p.d - q.d)
+      .slice(0, 2);
+    for (const { j } of others) {
+      for (let b = 0; b < 2; b++) {
+        const a = member[k][Math.floor(rng.next() * member[k].length)];
+        const c = member[j][Math.floor(rng.next() * member[j].length)];
+        if (a !== undefined && c !== undefined) edges.push([Math.min(a, c), Math.max(a, c)]);
+      }
+    }
+  }
+  return { x, y, z, weight, edges };
+}
+
+// Spherical spiral (loxodrome) from pole to pole: linked along the spiral
+// and across neighboring turns — an orderly vortex.
+function buildSpiral(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const turns = 6;
+  for (let i = 0; i < n; i++) {
+    const t = i / Math.max(1, n - 1);
+    const py = 1 - 2 * t; // i = 0 -> top pole (the hub)
+    const r = Math.sqrt(Math.max(0, 1 - py * py));
+    const a = t * turns * Math.PI * 2;
+    x[i] = Math.cos(a) * r;
+    y[i] = py;
+    z[i] = Math.sin(a) * r;
+    weight[i] = rng.next();
+  }
+  const edges = nearestNeighborEdges(x, y, z, 2);
+  const seen = new Set(edges.map(([a, b]) => `${a}_${b}`));
+  for (let i = 0; i + 1 < n; i++) if (!seen.has(`${i}_${i + 1}`)) edges.push([i, i + 1]);
+  return { x, y, z, weight, edges };
 }
 
 // Double helix along Y: nodes alternate strands, rungs join each pair.
@@ -428,6 +513,8 @@ function buildGalaxy(n: number, seed: number): Layout {
 // Shapes usable in a sequence (and their builders).
 export const SHAPES = [
   "constellation",
+  "clusters",
+  "spiral",
   "burst",
   "sphere",
   "globe",
@@ -447,6 +534,10 @@ function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig
   switch (shape) {
     case "constellation":
       return buildConstellation(n, seed, cfg.morphHold);
+    case "clusters":
+      return networkOf(buildClusters(n, seed + 1), n, seed, cfg.morphHold);
+    case "spiral":
+      return networkOf(buildSpiral(n, seed + 1), n, seed, cfg.morphHold);
     case "burst":
       return buildHubBurst(n, seed);
     case "sphere":
@@ -640,15 +731,26 @@ export class GraphSystem {
     // nodes still finish on time
     const s = staggered ? Math.min(1, Math.max(0, cfg.stagger)) : 0;
 
-    const cx = w * cfg.centerX;
+    let cx = w * cfg.centerX;
     const cy = h * cfg.centerY;
     let scale = Math.min(w, h) * 0.32 * cfg.scale;
     if (cfg.fit) {
       // keep clear: padding + the largest dot (incl. 60% hover growth) +
       // room for the hover push
-      const margin = cfg.fitPadding + cfg.sizeMax * 1.6 + 20;
-      const room = Math.max(1, Math.min(cx, w - cx, cy, h - cy) - margin);
+      const fitMargin = cfg.fitPadding + cfg.sizeMax * 1.6 + 20;
+      const room = Math.max(1, Math.min(cx, w - cx, cy, h - cy) - fitMargin);
       scale = (room / this.maxRadius) * Math.min(1, cfg.scale);
+    }
+    const margin = cfg.fitPadding + cfg.sizeMax * 1.6 + 20;
+    // left edge stays clear; top/right/bottom may bleed
+    if (cfg.anchorLeft && !cfg.fit) cx = Math.max(cx, margin + this.maxRadius * scale);
+    const R = this.maxRadius * scale;
+    const scatter = staggered ? Math.max(0, cfg.morphScatter) : 0;
+    if (scatter && blending) {
+      // lines dim while the nodes are flung apart
+      const dim = 1 - 0.85 * Math.sin(Math.PI * t);
+      this.layers[0].alpha *= dim;
+      this.layers[1].alpha *= dim;
     }
     const DEG = Math.PI / 180;
     const cosR = Math.cos(this.rot + cfg.rotY * DEG);
@@ -668,6 +770,7 @@ export class GraphSystem {
       let x = A.x[i];
       let y = A.y[i];
       let z = A.z[i];
+      let bell = 0;
       if (blending) {
         let ti = t;
         if (staggered) {
@@ -677,9 +780,9 @@ export class GraphSystem {
         x += (B.x[i] - x) * ti;
         y += (B.y[i] - y) * ti;
         z += (B.z[i] - z) * ti;
+        // peaks mid-morph for each node (bell over its own progress)
+        bell = Math.sin(Math.PI * ti);
         if (staggered && (cfg.morphImplode || cfg.morphSwirl)) {
-          // peaks mid-morph for each node (bell over its own progress)
-          const bell = Math.sin(Math.PI * ti);
           const pull = 1 - Math.min(1, Math.max(0, cfg.morphImplode)) * bell;
           const a = cfg.morphSwirl * bell;
           const ca = Math.cos(a);
@@ -693,8 +796,19 @@ export class GraphSystem {
       const rx = x * cosR + z * sinR;
       const rz = -x * sinR + z * cosR;
       const ry = y * cosT - rz * sinT;
-      this.screenX[i] = cx + (rx * cosZ - ry * sinZ) * scale;
-      this.screenY[i] = cy + (rx * sinZ + ry * cosZ) * scale;
+      let sx = cx + (rx * cosZ - ry * sinZ) * scale;
+      let sy = cy + (rx * sinZ + ry * cosZ) * scale;
+      if (scatter && bell > 0) {
+        // fling outward from the center, mirrored so nothing heads left
+        const dx = sx - cx;
+        const dy = sy - cy;
+        const d = Math.hypot(dx, dy) || 1;
+        const m = scatter * R * bell * (0.4 + this.delay[i]);
+        sx += (Math.abs(dx) / d) * m;
+        sy += (dy / d) * m;
+      }
+      this.screenX[i] = sx;
+      this.screenY[i] = sy;
 
       const ax = -k * this.offX[i] - damp * this.offVX[i];
       const ay = -k * this.offY[i] - damp * this.offVY[i];

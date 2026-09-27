@@ -42,13 +42,13 @@
     "type": "graph",
     "config": {
       "mode": "sequence",
-      "sequence": "constellation,knot,atom,icosa,helix,globe",
-      "holdTime": 3.2,
-      "morphTime": 2.4,
-      "stagger": 0.45,
+      "sequence": "constellation,clusters,spiral",
+      "holdTime": 3.5,
+      "morphTime": 2.6,
+      "stagger": 0.4,
       "morphSpeed": 0,
       "morphHold": 0.75,
-      "count": 100,
+      "count": 150,
       "sizeMin": 4,
       "sizeMax": 12,
       "tiers": 3,
@@ -59,7 +59,7 @@
       "lineWidth": 2,
       "centerX": 0.5,
       "centerY": 0.5,
-      "scale": 1,
+      "scale": 2.5,
       "rotZ": 9,
       "idleRotationSpeed": 0.05,
       "idleTiltAmount": 0.2,
@@ -69,10 +69,12 @@
       "opacityMax": 0.85,
       "canvasInset": "0 0 0 50%",
       "edgeFade": 0,
-      "fit": true,
+      "fit": false,
       "morphImplode": 0,
-      "morphSwirl": 1.8,
-      "fitPadding": 8
+      "morphSwirl": 0,
+      "fitPadding": 8,
+      "anchorLeft": true,
+      "morphScatter": 0.6
     }
   }
 }
