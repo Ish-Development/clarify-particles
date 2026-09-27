@@ -50,6 +50,15 @@ export interface GraphConfig {
   // hover highlight: nodes near the pointer grow and brighten and their
   // edges light up (0 = off)
   hoverGlow: number;
+  // fit: size every shape to stay fully inside the canvas (scale becomes a
+  // multiplier capped at 1); fitPadding = extra px kept clear of the edges
+  fit: boolean;
+  fitPadding: number;
+  // morph drama (sequence mode): mid-morph, nodes pull toward the core by
+  // up to morphImplode (0..1) and swirl around the vertical axis by up to
+  // morphSwirl radians — both keep nodes inside the fitted radius
+  morphImplode: number;
+  morphSwirl: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -84,6 +93,10 @@ export const defaultGraphConfig: GraphConfig = {
   morphTime: 2.5,
   stagger: 0.35,
   hoverGlow: 0,
+  fit: false,
+  fitPadding: 16,
+  morphImplode: 0,
+  morphSwirl: 0,
 };
 
 interface Layout {
@@ -338,6 +351,154 @@ function buildGlobe(n: number, seed: number): Layout {
   return { x, y, z, weight, edges };
 }
 
+// (p=2, q=3) trefoil knot: nodes walk the curve with a little tube jitter,
+// linked along the curve and to near neighbors across crossings.
+function buildKnot(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const r = 2 + Math.cos(3 * t);
+    const j = () => (rng.next() - 0.5) * 0.18;
+    x[i] = (r * Math.cos(2 * t)) / 3 + j();
+    y[i] = (r * Math.sin(2 * t)) / 3 + j();
+    z[i] = Math.sin(3 * t) / 3 + j();
+    weight[i] = rng.next();
+  }
+  const edges: [number, number][] = [];
+  for (let i = 0; i < n; i++) edges.push([i, (i + 1) % n]);
+  return { x, y, z, weight, edges };
+}
+
+// Atom: three tilted orbit rings around a dense nucleus.
+function buildAtom(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const core = Math.max(6, Math.round(n * 0.18));
+  const perRing = Math.floor((n - core) / 3);
+  const edges: [number, number][] = [];
+  let i = 0;
+  for (let ring = 0; ring < 3; ring++) {
+    const tilt = 1.1; // each orbit leans out of the screen plane
+    const spin = (ring / 3) * Math.PI; // ... and is turned 60° from the last
+    const count = ring === 2 ? n - core - 2 * perRing : perRing;
+    const start = i;
+    for (let k = 0; k < count; k++, i++) {
+      const a = (k / count) * Math.PI * 2;
+      const px = Math.cos(a);
+      const py = Math.sin(a) * Math.cos(tilt);
+      const pz = Math.sin(a) * Math.sin(tilt);
+      x[i] = px * Math.cos(spin) - py * Math.sin(spin);
+      y[i] = px * Math.sin(spin) + py * Math.cos(spin);
+      z[i] = pz;
+      weight[i] = rng.next() * 0.7;
+      edges.push([i, k + 1 < count ? i + 1 : start]);
+    }
+  }
+  const coreStart = i;
+  for (; i < n; i++) {
+    const u = rng.next() * 2 - 1;
+    const a = rng.next() * Math.PI * 2;
+    const r = 0.2 * Math.cbrt(rng.next());
+    const s = Math.sqrt(1 - u * u);
+    x[i] = Math.cos(a) * s * r;
+    y[i] = Math.sin(a) * s * r;
+    z[i] = u * r;
+    weight[i] = 0.5 + rng.next() * 0.5;
+  }
+  const cx = x.subarray(coreStart);
+  const cy = y.subarray(coreStart);
+  const cz = z.subarray(coreStart);
+  for (const [a, b] of nearestNeighborEdges(cx, cy, cz, 3)) edges.push([a + coreStart, b + coreStart]);
+  return { x, y, z, weight, edges };
+}
+
+// Icosahedron wireframe: the 12 vertices plus nodes spaced along its 30
+// edges, each edge a chain.
+function buildIcosa(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const t = (1 + Math.sqrt(5)) / 2;
+  const raw = [
+    [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
+    [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
+    [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
+  ];
+  const len = Math.hypot(1, t);
+  const V = raw.map((v) => v.map((c) => c / len));
+  const E: [number, number][] = [];
+  for (let a = 0; a < 12; a++) {
+    for (let b = a + 1; b < 12; b++) {
+      const d = Math.hypot(V[a][0] - V[b][0], V[a][1] - V[b][1], V[a][2] - V[b][2]);
+      if (d < 1.1) E.push([a, b]); // edge length is ~1.05 on the unit sphere
+    }
+  }
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const edges: [number, number][] = [];
+  const nv = Math.min(12, n);
+  for (let i = 0; i < nv; i++) {
+    [x[i], y[i], z[i]] = V[i];
+    weight[i] = 1;
+  }
+  const along = Math.max(0, n - nv);
+  let i = nv;
+  E.forEach(([a, b], e) => {
+    const k = Math.floor(along / E.length) + (e < along % E.length ? 1 : 0);
+    let prev = a;
+    for (let m = 1; m <= k && i < n; m++, i++) {
+      const f = m / (k + 1);
+      x[i] = V[a][0] + (V[b][0] - V[a][0]) * f;
+      y[i] = V[a][1] + (V[b][1] - V[a][1]) * f;
+      z[i] = V[a][2] + (V[b][2] - V[a][2]) * f;
+      weight[i] = rng.next() * 0.6;
+      edges.push([prev, i]);
+      prev = i;
+    }
+    if (a < nv && b < nv) edges.push([prev, b]);
+  });
+  return { x, y, z, weight, edges };
+}
+
+// Rippling grid, leaned back so the waves read in depth.
+function buildWave(n: number, seed: number): Layout {
+  const rng = makeRng(seed);
+  const x = new Float32Array(n);
+  const y = new Float32Array(n);
+  const z = new Float32Array(n);
+  const weight = new Float32Array(n);
+  const cols = Math.max(2, Math.round(Math.sqrt(n)));
+  const rows = Math.max(2, Math.ceil(n / cols));
+  const lean = 1.0;
+  const edges: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    const u = (c / (cols - 1)) * 2 - 1;
+    const v = (r / (rows - 1)) * 2 - 1;
+    const h = 0.22 * Math.sin(u * 3.2) * Math.cos(v * 2.6);
+    // grid in XZ (the ground) at 0.68 of the unit radius, tipped toward
+    // the viewer around X
+    const gx = u * 0.68;
+    const gy = h;
+    const gz = v * 0.68;
+    x[i] = gx;
+    y[i] = gy * Math.cos(lean) - gz * Math.sin(lean);
+    z[i] = gy * Math.sin(lean) + gz * Math.cos(lean);
+    weight[i] = rng.next();
+    if (c + 1 < cols && i + 1 < n) edges.push([i, i + 1]);
+    if (i + cols < n) edges.push([i, i + cols]);
+  }
+  return { x, y, z, weight, edges };
+}
+
 // Three-armed spiral disc.
 function buildGalaxy(n: number, seed: number): Layout {
   const rng = makeRng(seed);
@@ -360,7 +521,21 @@ function buildGalaxy(n: number, seed: number): Layout {
 }
 
 // Shapes usable in a sequence (and their builders).
-export const SHAPES = ["constellation", "burst", "sphere", "globe", "cone", "torus", "helix", "cube", "galaxy"] as const;
+export const SHAPES = [
+  "constellation",
+  "burst",
+  "sphere",
+  "globe",
+  "cone",
+  "torus",
+  "helix",
+  "cube",
+  "galaxy",
+  "knot",
+  "atom",
+  "icosa",
+  "wave",
+] as const;
 export type GraphShape = (typeof SHAPES)[number];
 
 function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig): Layout {
@@ -383,6 +558,14 @@ function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig
       return buildCube(n, seed);
     case "galaxy":
       return buildGalaxy(n, seed);
+    case "knot":
+      return buildKnot(n, seed);
+    case "atom":
+      return buildAtom(n, seed);
+    case "icosa":
+      return buildIcosa(n, seed);
+    case "wave":
+      return buildWave(n, seed);
   }
 }
 
@@ -434,6 +617,8 @@ export class GraphSystem {
   time = 0;
 
   private layouts: Layout[] = [];
+  // largest distance from the origin over every layout (for fit)
+  private maxRadius = 1;
   private delay!: Float32Array;
   private rot = 0;
   private lastW: number;
@@ -482,6 +667,12 @@ export class GraphSystem {
     // jitter differ (matches the original morph modes' seed + 1)
     this.layouts = shapes.map((shape, i) => buildShape(shape, n, cfg.seed + i, cfg));
     this.maxEdges = Math.max(...this.layouts.map((l) => l.edges.length));
+    // rotation preserves distance from the origin, and a blend of two points
+    // is never farther out than the farther one — so this bounds every frame
+    this.maxRadius = 1e-6;
+    for (const l of this.layouts) {
+      for (let i = 0; i < n; i++) this.maxRadius = Math.max(this.maxRadius, Math.hypot(l.x[i], l.y[i], l.z[i]));
+    }
 
     const rng = makeRng(cfg.seed ^ 0x5bd1e995);
     this.delay = new Float32Array(n);
@@ -546,7 +737,14 @@ export class GraphSystem {
 
     const cx = w * cfg.centerX;
     const cy = h * cfg.centerY;
-    const scale = Math.min(w, h) * 0.32 * cfg.scale;
+    let scale = Math.min(w, h) * 0.32 * cfg.scale;
+    if (cfg.fit) {
+      // keep clear: padding + the largest dot (incl. 60% hover growth) +
+      // room for the hover push
+      const margin = cfg.fitPadding + cfg.sizeMax * 1.6 + 20;
+      const room = Math.max(1, Math.min(cx, w - cx, cy, h - cy) - margin);
+      scale = (room / this.maxRadius) * Math.min(1, cfg.scale);
+    }
     const DEG = Math.PI / 180;
     const cosR = Math.cos(this.rot + cfg.rotY * DEG);
     const sinR = Math.sin(this.rot + cfg.rotY * DEG);
@@ -574,6 +772,18 @@ export class GraphSystem {
         x += (B.x[i] - x) * ti;
         y += (B.y[i] - y) * ti;
         z += (B.z[i] - z) * ti;
+        if (staggered && (cfg.morphImplode || cfg.morphSwirl)) {
+          // peaks mid-morph for each node (bell over its own progress)
+          const bell = Math.sin(Math.PI * ti);
+          const pull = 1 - Math.min(1, Math.max(0, cfg.morphImplode)) * bell;
+          const a = cfg.morphSwirl * bell;
+          const ca = Math.cos(a);
+          const sa = Math.sin(a);
+          const sx = (x * ca + z * sa) * pull;
+          z = (-x * sa + z * ca) * pull;
+          x = sx;
+          y *= pull;
+        }
       }
       const rx = x * cosR + z * sinR;
       const rz = -x * sinR + z * cosR;
