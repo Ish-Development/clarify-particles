@@ -83,6 +83,9 @@ export interface GraphConfig {
   // entrance: seconds for the nodes to fly in once the section is in view
   // (0 = off)
   intro: number;
+  // excite beat: breaths per second while a data-particles-excite element
+  // is hovered
+  exciteRate: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -131,4 +134,5 @@ export const defaultGraphConfig: GraphConfig = {
   parallax: 0,
   hoverPath: false,
   intro: 0,
+  exciteRate: 0.35,
 };

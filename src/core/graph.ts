@@ -770,6 +770,9 @@ export class GraphSystem {
   private par = { x: 0, y: 0, tx: 0, ty: 0 };
   private excite = 0;
   private exciteTarget = 0;
+  // own clock for the excite beat, restarted on each hover so every
+  // "breath" starts from dim and swells
+  private beatT = 0;
   private pulses: Pulse[] = [];
   private path: number[] = [];
   private pathNode = -1;
@@ -888,6 +891,7 @@ export class GraphSystem {
     this.par.ty = p ? p.y : 0;
   }
   setExcite(on: boolean) {
+    if (on && this.exciteTarget === 0 && this.excite < 0.05) this.beatT = 0;
     this.exciteTarget = on ? 1 : 0;
   }
   // entrance: start (section scrolled into view) or skip (reduced motion)
@@ -1086,9 +1090,10 @@ export class GraphSystem {
       this.offY[i] += this.offVY[i] * dt;
     }
 
-    // excite ("ready to activate"): a steady ~1.1 Hz beat of light through
+    // excite ("ready to activate"): a slow, steady breath of light through
     // the whole network, strongest at the hub
-    const beat = this.excite * (0.5 + 0.5 * Math.sin(this.time * Math.PI * 2 * 1.1));
+    this.beatT += dt;
+    const beat = this.excite * (0.5 - 0.5 * Math.cos(this.beatT * Math.PI * 2 * cfg.exciteRate));
     this.lineGain = (waiting ? 0 : introP * introP) * (1 + 1.2 * beat);
     // during a sequence hold `blending` is true with t = 0 — only an actual
     // transition in progress counts as morphing
@@ -1202,7 +1207,7 @@ export class GraphSystem {
     if (!ready) this.pulses = [];
     while (this.pulses.length < want) this.pulses.push(this.spawnPulse(topo, true));
     if (this.pulses.length > want) this.pulses.length = want;
-    const speed = cfg.pulseSpeed * (1 + 2 * this.excite);
+    const speed = cfg.pulseSpeed * (1 + this.excite);
     let pc = 0;
     for (let q = 0; q < this.pulses.length; q++) {
       let pu = this.pulses[q];
