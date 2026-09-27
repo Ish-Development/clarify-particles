@@ -57,5 +57,10 @@ export default defineConfig({
   base: "./",
   plugins: [presetsApi()],
   // the playground uses top-level await
-  build: { target: "es2022" },
+  build: {
+    target: "es2022",
+    rollupOptions: {
+      input: { playground: resolve(__dirname, "index.html"), sections: resolve(__dirname, "sections.html") },
+    },
+  },
 });

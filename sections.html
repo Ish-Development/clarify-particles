@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clarify sections preview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@500&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; background: #060709; }
+    </style>
+  </head>
+  <body>
+    <!-- The site sections as they'll look in Webflow, running the production
+         runtime (loader + engine) exactly as the Webflow script tag will. -->
+    <main id="sections"></main>
+    <script type="module">
+      import "/src/sections/sections.css";
+      import cta from "/src/sections/cta.html?raw";
+
+      // in Webflow the card carries these attributes; the playground's
+      // template marks it data-particles-target instead
+      function addSection(html, preset) {
+        const tpl = document.createElement("template");
+        tpl.innerHTML = html;
+        const target = tpl.content.querySelector("[data-particles-target]");
+        target.removeAttribute("data-particles-target");
+        target.setAttribute("data-particles", "");
+        target.setAttribute("data-preset", preset);
+        document.getElementById("sections").append(tpl.content);
+      }
+
+      addSection(cta, "cta");
+      await import("/src/runtime/index.ts");
+    </script>
+  </body>
+</html>
