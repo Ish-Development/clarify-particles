@@ -10,9 +10,14 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 const SECTIONS = [["src/sections/cta.html", "cta"]];
 
 const css = read("src/sections/tokens.css") + "\n" + read("src/sections/sections.css").replace(/@import[^;]+;/, "");
-const body = SECTIONS.map(([file, preset]) =>
-  read(file).replace("data-particles-target", `data-particles data-preset="${preset}"`),
-).join("\n");
+// swap the template's mount marker attribute (inside a tag — not any
+// mention of it in a comment) for the site attributes
+const body = SECTIONS.map(([file, preset]) => {
+  const html = read(file);
+  const out = html.replace(/(<[a-z][^>]*?\s)data-particles-target(?=[\s>])/i, `$1data-particles data-preset="${preset}"`);
+  if (out === html) throw new Error(`${file}: no data-particles-target attribute found`);
+  return out;
+}).join("\n");
 
 writeFileSync(
   new URL("../dist-runtime/demo.html", import.meta.url),
