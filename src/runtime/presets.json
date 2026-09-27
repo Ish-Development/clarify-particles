@@ -57,16 +57,18 @@
       "lineColor": "#f4f7fa",
       "lineOpacity": 0.18,
       "lineWidth": 2,
-      "centerX": 0.92,
+      "centerX": 0.84,
       "centerY": 0.45,
-      "scale": 2.45,
+      "scale": 2.78,
       "rotZ": 9,
       "idleRotationSpeed": 0.05,
       "idleTiltAmount": 0.2,
       "hoverGlow": 0.8,
       "solid": true,
       "opacityMin": 0.3,
-      "opacityMax": 0.85
+      "opacityMax": 0.85,
+      "canvasInset": "0 0 0 50%",
+      "edgeFade": 80
     }
   }
 }

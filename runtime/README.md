@@ -117,6 +117,9 @@ Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`
 | `data-blend` | `additive` (points), `normal` (graph) | Use `normal` for dark particles on light backgrounds |
 | `data-interactive` | `true` | Hover repel and click reactions |
 | `data-softness` | `1` | Dot edge: `1` soft glow, `0` solid disc |
+| `data-solid` | `false` | Opaque dots (brightness from dimming, not transparency) |
+| `data-canvas-inset` | `0` | CSS inset of the effect inside the element, e.g. `0 0 0 50%` = right half only |
+| `data-edge-fade` | `0` | px of soft fade on inset edges (hides the clip line) |
 | `data-hover-radius` / `data-hover-strength` | `120` / `1.2` (graph: `140` / `1`) | |
 | `data-click-behavior` | `burst` | `burst`, `reshuffle`, `none` |
 
