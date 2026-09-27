@@ -31,7 +31,9 @@
         document.getElementById("sections").append(tpl.content);
       }
 
-      addSection(cta, "cta");
+      // ?cta=<preset> previews a variant (e.g. ?cta=cta-morph)
+      const params = new URLSearchParams(location.search);
+      addSection(cta, params.get("cta") || "cta");
       await import("/src/runtime/index.ts");
 
       // ?debug: live engine state in the corner, also posted to the dev
