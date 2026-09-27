@@ -1093,7 +1093,9 @@ export class GraphSystem {
     // excite ("ready to activate"): a slow, steady breath of light through
     // the whole network, strongest at the hub
     this.beatT += dt;
-    const beat = this.excite * (0.5 - 0.5 * Math.cos(this.beatT * Math.PI * 2 * cfg.exciteRate));
+    // exciteRate 0 = no breathing: just light up (eased on and off)
+    const beat =
+      cfg.exciteRate > 0 ? this.excite * (0.5 - 0.5 * Math.cos(this.beatT * Math.PI * 2 * cfg.exciteRate)) : this.excite;
     this.lineGain = (waiting ? 0 : introP * introP) * (1 + 1.2 * beat);
     // during a sequence hold `blending` is true with t = 0 — only an actual
     // transition in progress counts as morphing

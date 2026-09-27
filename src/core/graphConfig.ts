@@ -84,7 +84,7 @@ export interface GraphConfig {
   // (0 = off)
   intro: number;
   // excite beat: breaths per second while a data-particles-excite element
-  // is hovered
+  // is hovered (0 = steady: the network just lights up)
   exciteRate: number;
 }
 

@@ -158,7 +158,8 @@
       "parallax": 0.25,
       "hoverPath": true,
       "clickBehavior": "ripple",
-      "intro": 2.2
+      "intro": 2.2,
+      "exciteRate": 0
     }
   }
 }
