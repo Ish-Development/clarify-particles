@@ -54,9 +54,6 @@ export interface ParticleConfig {
   hoverStrength: number;
   clickBehavior: ClickBehavior;
   background: string;
-  pngFps: number;
-  pngDuration: number;
-  videoDuration: number;
 }
 
 export const defaultConfig: ParticleConfig = {
@@ -78,14 +75,11 @@ export const defaultConfig: ParticleConfig = {
   autoRotate: true,
   innerCopies: 1,
   idleMotion: true,
-  chaos: 1,
+  chaos: 0,
   speed: 0,
-  ease: 0,
+  ease: 0.06,
   hoverRadius: 120,
   hoverStrength: 1.2,
   clickBehavior: "burst",
   background: "#000000",
-  pngFps: 30,
-  pngDuration: 4,
-  videoDuration: 6,
 };

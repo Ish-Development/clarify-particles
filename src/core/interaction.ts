@@ -20,60 +20,8 @@ export interface Steerable {
   scatterBaseY?: Float32Array;
 }
 
-// Hover = continuous repel force applied every frame while the pointer is
-// over the canvas. Click = one-shot impulse (burst) or a target reshuffle,
-// depending on the configured click behavior.
-export class Interaction {
-  mouseX = -9999;
-  mouseY = -9999;
-  active = false;
-
-  constructor(
-    private canvas: HTMLCanvasElement,
-    private cfg: InteractionConfig,
-    private system: Steerable,
-  ) {
-    canvas.addEventListener("pointermove", (e) => this.onMove(e));
-    canvas.addEventListener("pointerleave", () => {
-      this.active = false;
-    });
-    canvas.addEventListener("pointerdown", (e) => this.onClick(e));
-  }
-
-  // called on version switch — listeners bound above read `this.cfg` /
-  // `this.system` each time, so swapping these in place avoids
-  // re-registering DOM listeners.
-  setContext(cfg: InteractionConfig, system: Steerable) {
-    this.cfg = cfg;
-    this.system = system;
-  }
-
-  private toLocal(e: PointerEvent) {
-    const rect = this.canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  }
-
-  private onMove(e: PointerEvent) {
-    const p = this.toLocal(e);
-    this.mouseX = p.x;
-    this.mouseY = p.y;
-    this.active = true;
-  }
-
-  private onClick(e: PointerEvent) {
-    const p = this.toLocal(e);
-    applyClick(this.system, this.cfg, p.x, p.y);
-  }
-
-  update(dt: number) {
-    if (!this.active) return;
-    applyHover(this.system, this.cfg, this.mouseX, this.mouseY, dt);
-  }
-}
-
-// Pure force functions — shared by the playground's Interaction class and
-// the production runtime, which routes pointer events differently (one
-// window-level listener feeding every mounted section).
+// Pointer forces. The runtime engine routes one window-level pointer
+// listener to every mounted section and calls these per section.
 
 // One-shot click response: radial velocity burst, or a scatter reshuffle.
 export function applyClick(sys: Steerable, cfg: InteractionConfig, px: number, py: number) {

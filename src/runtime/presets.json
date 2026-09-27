@@ -1,0 +1,7 @@
+{
+  "rings": { "type": "points", "config": { "shape": "concentricRings" } },
+  "sphere": { "type": "points", "config": { "shape": "sphere", "count": 5000, "colorMode": "gradient", "color2": "#33aaff" } },
+  "nebula": { "type": "points", "config": { "shape": "nebula", "ease": 0.04, "count": 7000, "colorMode": "hueRange", "hueMin": 190, "hueMax": 260, "opacityMax": 0.7 } },
+  "graph-hub": { "type": "graph", "config": { "mode": "hubBurst" } },
+  "graph-morph": { "type": "graph", "config": { "mode": "coneTorusMorph" } }
+}

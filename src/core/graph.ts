@@ -19,7 +19,6 @@ export interface GraphConfig {
   background: string;
   color: string;
   lineColor: string;
-  videoDuration: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -37,7 +36,6 @@ export const defaultGraphConfig: GraphConfig = {
   background: "#050505",
   color: "#e8e8e8",
   lineColor: "#e8e8e8",
-  videoDuration: 6,
 };
 
 interface Layout {

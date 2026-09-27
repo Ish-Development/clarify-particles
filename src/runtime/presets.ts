@@ -1,33 +1,14 @@
 import type { ParticleConfig } from "../core/config";
 import type { GraphConfig } from "../core/graph";
+import type { RuntimeOptions } from "./defaults";
+import presets from "./presets.json";
 
-// Named looks the Webflow dev can reference with data-preset="<name>".
-// Placeholders until the client signs off on final designs: replace/extend
-// these with the approved looks (the playground's "Copy Webflow attributes"
-// output can be pasted in as a preset's config).
+// Named looks the Webflow dev references with data-preset="<name>" — one per
+// site section (hero, services, …). presets.json is written by the
+// playground's "Save preset" action; each config only lists values that
+// differ from the runtime defaults (spec.ts), so defaults can evolve.
 export type Preset =
-  | { type: "points"; config: Partial<ParticleConfig> & { blend?: "additive" | "normal" } }
-  | { type: "graph"; config: Partial<GraphConfig> & { blend?: "additive" | "normal" } };
+  | { type: "points"; config: Partial<ParticleConfig & RuntimeOptions> }
+  | { type: "graph"; config: Partial<GraphConfig & RuntimeOptions> };
 
-export const PRESETS: Record<string, Preset> = {
-  rings: {
-    type: "points",
-    config: { shape: "concentricRings", chaos: 0, ease: 0.06, count: 6000 },
-  },
-  sphere: {
-    type: "points",
-    config: { shape: "sphere", chaos: 0, ease: 0.06, count: 5000, colorMode: "gradient", color1: "#ffffff", color2: "#33aaff" },
-  },
-  nebula: {
-    type: "points",
-    config: { shape: "nebula", chaos: 0, ease: 0.04, count: 7000, colorMode: "hueRange", hueMin: 190, hueMax: 260, opacityMax: 0.7 },
-  },
-  "graph-hub": {
-    type: "graph",
-    config: { mode: "hubBurst" },
-  },
-  "graph-morph": {
-    type: "graph",
-    config: { mode: "coneTorusMorph" },
-  },
-};
+export const PRESETS = presets as Record<string, Preset>;

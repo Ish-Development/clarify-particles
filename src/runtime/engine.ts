@@ -31,7 +31,8 @@ import { ParticleSystem } from "../core/particles";
 import { GraphSystem } from "../core/graph";
 import { applyClick, applyHover, type InteractionConfig, type Steerable } from "../core/interaction";
 import { hexToRgb01, particleColor } from "../core/color";
-import type { GraphSpec, PointsSpec, RuntimeOptions, ViewSpec } from "./spec";
+import type { RuntimeOptions } from "./defaults";
+import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
 
 const isMobile = () => matchMedia("(max-width: 767px)").matches;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -107,10 +108,14 @@ function makeMaterial(vert: string, frag: string, uniforms: ShaderMaterial["unif
     blending: CustomBlending,
     blendEquation: AddEquation,
     blendSrc: OneFactor,
-    blendDst: blend === "additive" ? OneFactor : OneMinusSrcAlphaFactor,
+    blendDst: blendDst(blend),
     blendSrcAlpha: OneFactor,
     blendDstAlpha: OneMinusSrcAlphaFactor,
   });
+}
+
+function blendDst(blend: RuntimeOptions["blend"]) {
+  return blend === "additive" ? OneFactor : OneMinusSrcAlphaFactor;
 }
 
 // --- shared renderer ---
@@ -201,11 +206,7 @@ abstract class View {
     readonly cfg: ViewConfig,
   ) {
     this.ctx = this.canvas.getContext("2d")!;
-    if (cfg.background && cfg.background !== "transparent") {
-      const [r, g, b] = hexToRgb01(cfg.background);
-      this.clearColor.setRGB(r, g, b, SRGBColorSpace);
-      this.clearAlpha = 1;
-    }
+    this.applyBackground();
 
     // The canvas sits behind the element's content but above its background:
     // `isolation: isolate` makes the element a stacking context so the
@@ -231,6 +232,24 @@ abstract class View {
       },
       { rootMargin: "100px 0px" },
     );
+  }
+
+  private applyBackground() {
+    const bg = this.cfg.background;
+    this.clearAlpha = 0;
+    if (bg && bg !== "transparent") {
+      const [r, g, b] = hexToRgb01(bg);
+      this.clearColor.setRGB(r, g, b, SRGBColorSpace);
+      this.clearAlpha = 1;
+    }
+  }
+
+  // Re-read look settings (colors, background, blend) from cfg without
+  // resetting the simulation — the playground's live color editing.
+  refreshLook() {
+    this.applyBackground();
+    this.onLook();
+    if (this.visible && !this.running) this.paint();
   }
 
   // Called by subclasses once their GPU resources exist.
@@ -261,7 +280,7 @@ abstract class View {
   }
 
   get running() {
-    return this.visible && !document.hidden && !reducedMotion.matches;
+    return this.visible && !paused && !document.hidden && !reducedMotion.matches;
   }
 
   // Reduced motion: fast-forward the simulation to its settled state and
@@ -287,6 +306,7 @@ abstract class View {
   abstract step(dt: number): void;
   protected abstract sync(): void;
   protected abstract onResize(): void;
+  protected abstract onLook(): void;
   protected abstract disposeGpu(): void;
 
   dispose() {
@@ -314,23 +334,25 @@ class PointsView extends View {
   private readonly material: ShaderMaterial;
   private readonly pos: Float32Array;
   private readonly posAttr: BufferAttribute;
+  private readonly colorAttr: BufferAttribute;
 
-  constructor(el: HTMLElement, cfg: PointsSpec["config"]) {
-    const count = isMobile() ? cfg.countMobile || Math.round(cfg.count * 0.5) : cfg.count;
+  // cfg is used BY REFERENCE: the simulation reads it every frame, so the
+  // playground's live edits (chaos, ease, rotation, hover…) apply instantly.
+  constructor(el: HTMLElement, cfg: PointsSpec["config"], editor: boolean) {
+    if (!editor && isMobile()) cfg.count = cfg.countMobile || Math.round(cfg.count * 0.5);
     super(el, cfg);
-    const sysCfg = { ...cfg, count };
-    this.system = new ParticleSystem(sysCfg, this.w, this.h);
+    this.system = new ParticleSystem(cfg, this.w, this.h);
     const sys = this.system;
     const n = sys.count;
 
     this.pos = new Float32Array(n * 2);
     this.posAttr = new BufferAttribute(this.pos, 2).setUsage(DynamicDrawUsage);
-    const colors = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) colors.set(particleColor(sysCfg, sys.colorT[i]), i * 3);
+    this.colorAttr = new BufferAttribute(new Float32Array(n * 3), 3);
     this.geometry.setAttribute("position", this.posAttr);
     this.geometry.setAttribute("aSize", new BufferAttribute(sys.size, 1));
     this.geometry.setAttribute("aAlpha", new BufferAttribute(sys.opacity, 1));
-    this.geometry.setAttribute("aColor", new BufferAttribute(colors, 3));
+    this.geometry.setAttribute("aColor", this.colorAttr);
+    this.writeColors();
 
     // 6 = the playground's sprite scale (render.ts: size * 6)
     this.material = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(6), cfg.blend);
@@ -352,6 +374,18 @@ class PointsView extends View {
       pos[i * 2 + 1] = s.baseY[i] + s.offY[i];
     }
     this.posAttr.needsUpdate = true;
+  }
+
+  private writeColors() {
+    const cfg = this.cfg as PointsSpec["config"];
+    const colors = this.colorAttr.array as Float32Array;
+    for (let i = 0; i < this.system.count; i++) colors.set(particleColor(cfg, this.system.colorT[i]), i * 3);
+    this.colorAttr.needsUpdate = true;
+  }
+
+  protected onLook() {
+    this.writeColors();
+    this.material.blendDst = blendDst(this.cfg.blend);
   }
 
   protected onResize() {
@@ -380,6 +414,8 @@ class GraphView extends View {
     material: ShaderMaterial;
     lines: LineSegments;
   }[] = [];
+  private readonly graphCfg: GraphSpec["config"];
+  private readonly nodeColorAttr: BufferAttribute;
 
   constructor(el: HTMLElement, cfg: GraphSpec["config"]) {
     super(el, cfg);
@@ -387,6 +423,7 @@ class GraphView extends View {
     const sys = this.system;
     const n = sys.count;
     const lineColor = hexToRgb01(cfg.lineColor);
+    this.graphCfg = cfg;
 
     // edges first (drawn under the nodes); the two layers cross-fade
     // during the morph modes
@@ -410,19 +447,32 @@ class GraphView extends View {
 
     this.nodePos = new Float32Array(n * 2);
     this.nodePosAttr = new BufferAttribute(this.nodePos, 2).setUsage(DynamicDrawUsage);
-    const color = hexToRgb01(cfg.color);
-    const colors = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) colors.set(color, i * 3);
+    this.nodeColorAttr = new BufferAttribute(new Float32Array(n * 3), 3);
     this.nodeGeometry.setAttribute("position", this.nodePosAttr);
     this.nodeGeometry.setAttribute("aSize", new BufferAttribute(sys.size, 1));
     this.nodeGeometry.setAttribute("aAlpha", new BufferAttribute(sys.opacity, 1));
-    this.nodeGeometry.setAttribute("aColor", new BufferAttribute(colors, 3));
+    this.nodeGeometry.setAttribute("aColor", this.nodeColorAttr);
     // 2 = the playground's node scale (graphRender.ts: size * 2)
     this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2), cfg.blend);
     const nodes = new Points(this.nodeGeometry, this.nodeMaterial);
     nodes.frustumCulled = false;
     this.scene.add(nodes);
+    this.onLook();
     this.start();
+  }
+
+  protected onLook() {
+    const cfg = this.graphCfg;
+    const color = hexToRgb01(cfg.color);
+    const colors = this.nodeColorAttr.array as Float32Array;
+    for (let i = 0; i < this.system.count; i++) colors.set(color, i * 3);
+    this.nodeColorAttr.needsUpdate = true;
+    this.nodeMaterial.blendDst = blendDst(cfg.blend);
+    const lineColor = hexToRgb01(cfg.lineColor);
+    for (const layer of this.edgeLayers) {
+      layer.material.uniforms.uColor.value = lineColor;
+      layer.material.blendDst = blendDst(cfg.blend);
+    }
   }
 
   step(dt: number) {
@@ -479,6 +529,7 @@ class GraphView extends View {
 // --- loop & pointer routing ---
 
 let stage: Stage | null = null;
+let paused = false;
 const views = new Map<HTMLElement, View>();
 let rafId = 0;
 let lastT = 0;
@@ -562,7 +613,8 @@ function listen(on: boolean) {
 
 // --- public API (used by index.ts) ---
 
-export function mount(el: HTMLElement, spec: ViewSpec) {
+// `editor` = the playground: exact config (no mobile particle reduction).
+export function mount(el: HTMLElement, spec: ViewSpec, { editor = false } = {}) {
   if (views.has(el)) return;
   if (!stage) {
     try {
@@ -575,7 +627,7 @@ export function mount(el: HTMLElement, spec: ViewSpec) {
     }
     listen(true);
   }
-  const view = spec.type === "graph" ? new GraphView(el, spec.config) : new PointsView(el, spec.config);
+  const view = spec.type === "graph" ? new GraphView(el, spec.config) : new PointsView(el, spec.config, editor);
   views.set(el, view);
 }
 
@@ -591,4 +643,30 @@ export function unmount(el: HTMLElement) {
     stage.dispose();
     stage = null;
   }
+}
+
+// --- playground hooks (not used by the site loader) ---
+
+export type { View };
+
+export function getView(el: HTMLElement): View | undefined {
+  return views.get(el);
+}
+
+export function refreshLook(el: HTMLElement) {
+  views.get(el)?.refreshLook();
+}
+
+// Freeze the loop (e.g. while an export steps the simulation manually).
+export function setPaused(p: boolean) {
+  paused = p;
+  if (!p) wake();
+}
+
+// Replace an element's view (new particle buffers) while keeping the shared
+// GL context alive — unmount + mount would tear it down and recreate it.
+export function remount(el: HTMLElement, spec: ViewSpec, opts?: { editor?: boolean }) {
+  views.get(el)?.dispose();
+  views.delete(el);
+  mount(el, spec, opts);
 }

@@ -11,8 +11,8 @@
     "preview:runtime": "vite preview --config vite.runtime.config.ts --open /demo.html"
   },
   "dependencies": {
+    "dialkit": "^2.0.2",
     "jszip": "^3.10.1",
-    "lil-gui": "^0.19.2",
     "three": "^0.186.1"
   },
   "devDependencies": {

@@ -16,14 +16,14 @@ Always pin a version tag (`@1.0.0`), never `@latest` or a branch. A pinned URL n
 
 ## 2. Mark up a section
 
-Select a Section or Div block and open **Element settings → Custom attributes**. Add `data-particles`, which can have an empty value. Then add either a preset or individual settings:
+Each site section has its own look, saved as a named **preset** in this repo (`src/runtime/presets.json`). Select the Section or Div block, open **Element settings → Custom attributes**, and add two attributes:
 
 | Name | Value |
 |---|---|
 | `data-particles` | *(empty)* |
-| `data-preset` | `rings` |
+| `data-preset` | `hero` *(the section's preset name)* |
 
-That's all. The script adds a `<canvas>` inside the element:
+That's all. Looks are designed and changed in the playground, not in Webflow. To restyle a section later, update its preset and release a new version. The Webflow markup stays the same. The script adds a `<canvas>` inside the element:
 
 - **Background:** it sits behind the element's content but above the element's own background color or image.
 - **Clicks:** the canvas never blocks clicks.
@@ -35,11 +35,11 @@ The element can be a full section, a hero, or a card inside a grid. The script s
 
 ## Configuration
 
-Settings are resolved in this order, and later ones win:
+Presets are the recommended route. Settings can also be overridden per element, resolved in this order (later wins):
 
 1. Defaults
-2. `data-preset="name"`: a named look defined in `src/runtime/presets.ts`
-3. `data-config='{"shape":"sphere", ...}'`: JSON (the playground's copy button outputs this)
+2. `data-preset="name"`: a named look from `src/runtime/presets.json`
+3. `data-config='{"shape":"sphere", ...}'`: JSON (the playground's "Copy Webflow attributes" outputs this for unsaved looks)
 4. Individual attributes such as `data-shape="sphere"` or `data-count="4000"`
 
 Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`). If you mistype a name or value, the browser console shows a warning that names the element.
@@ -117,9 +117,22 @@ If a section is removed from the page without calling `destroy()`, the script fr
 
 ```bash
 npm install
-npm run dev              # playground: design looks
+npm run dev              # playground: design section looks, save presets
 npm run build:runtime    # production files -> dist-runtime/
 npm run preview:runtime  # test page with several sections -> /demo.html
 ```
+
+### Designing a section's look (playground)
+
+The playground previews through the production engine, so what you see is what the site draws.
+
+1. **Section panel:** pick an existing preset to edit, or keep `(new)`.
+   - Set **Frame** to roughly the section's shape (full, 16:9, square card, mobile). Shapes scale to their container.
+   - Set **Section color** to the section's Webflow background.
+2. **Particles / Graph panel:** tune the look. Most controls apply live; count and size rebuild the particles.
+3. **Save the preset:** type a name (`hero`, `services`…) and click **Save preset**. This writes `src/runtime/presets.json`, storing only values that differ from the defaults.
+4. **Release:** rebuild and release (below). In Webflow, the section uses `data-preset="<name>"`.
+
+Saving only works under `npm run dev`. A static build of the playground can still copy `data-config` attributes.
 
 To release: run `npm run build:runtime`, commit `dist-runtime/`, then tag (`git tag v1.0.0 && git push --tags`). Update the version in the Webflow script tag.
