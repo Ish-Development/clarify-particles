@@ -161,7 +161,8 @@
       "intro": 0,
       "exciteRate": 0,
       "hoverRadius": 110,
-      "hoverStrength": 0.5
+      "hoverStrength": 0.5,
+      "rippleSpeed": 4
     }
   }
 }

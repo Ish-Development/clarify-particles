@@ -1148,15 +1148,18 @@ export class GraphSystem {
       for (let k = 0; k < this.path.length; k++) if (pathProgress >= k) onPath[this.path[k]] = 1;
     }
 
-    // ripple: a ring of light moving outward ~7 hops/s, fading over 3.5s
+    // ripple: a ring of light moving outward rippleSpeed hops/s; it lives
+    // long enough to cross ~24 hops at any speed, fading as it goes
     let rippleR = -1;
     let rippleFade = 0;
     if (this.ripple) {
+      const speed = Math.max(0.5, cfg.rippleSpeed);
+      const life = 24.5 / speed;
       const age = this.time - this.ripple.t0;
-      if (age > 3.5 || blending) this.ripple = null;
+      if (age > life || blending) this.ripple = null;
       else {
-        rippleR = age * 7;
-        rippleFade = 1 - age / 3.5;
+        rippleR = age * speed;
+        rippleFade = 1 - age / life;
       }
     }
 

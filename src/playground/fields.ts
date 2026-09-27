@@ -144,6 +144,7 @@ export const graphFields: Field[] = [
   { folder: "effects", key: "depth", control: [0, 0, 1, 0.01], kind: "live" },
   { folder: "effects", key: "intro", control: [0, 0, 5, 0.1], kind: "rebuild" },
   { folder: "effects", key: "exciteRate", control: [0.35, 0, 2, 0.01], kind: "live" },
+  { folder: "effects", key: "rippleSpeed", control: [7, 0.5, 20, 0.1], kind: "live" },
   { folder: "look", key: "color", control: color, kind: "look" },
   { folder: "look", key: "lineColor", control: color, kind: "look" },
   { folder: "look", key: "lineOpacity", control: [0.25, 0, 1, 0.005], kind: "live" },

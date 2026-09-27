@@ -86,6 +86,8 @@ export interface GraphConfig {
   // excite beat: breaths per second while a data-particles-excite element
   // is hovered (0 = steady: the network just lights up)
   exciteRate: number;
+  // click ripple speed, in connection hops per second
+  rippleSpeed: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -135,4 +137,5 @@ export const defaultGraphConfig: GraphConfig = {
   hoverPath: false,
   intro: 0,
   exciteRate: 0.35,
+  rippleSpeed: 7,
 };
