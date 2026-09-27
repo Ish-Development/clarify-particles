@@ -7,7 +7,8 @@ import { defineConfig } from "vite";
 // pair works from any CDN path).
 export default defineConfig({
   base: "./",
-  publicDir: resolve(__dirname, "runtime/public"),
+  // demo.html is generated afterwards by scripts/build-demo.mjs
+  publicDir: false,
   build: {
     outDir: "dist-runtime",
     emptyOutDir: true,

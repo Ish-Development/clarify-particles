@@ -1,73 +1,140 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Particles runtime demo</title>
-    <style>
-      /* stand-in for a typical Webflow page */
-      body { margin: 0; font-family: system-ui, sans-serif; color: #fff; background: #0b0b0c; }
-      section { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 8vw; box-sizing: border-box; }
-      h1, h2 { margin: 0 0 16px; font-weight: 600; letter-spacing: -0.02em; }
-      h1 { font-size: clamp(40px, 7vw, 96px); }
-      h2 { font-size: clamp(28px, 4vw, 56px); }
-      p { max-width: 520px; line-height: 1.5; opacity: 0.8; }
-      .btn { display: inline-block; padding: 14px 22px; border-radius: 999px; background: #fff; color: #000; text-decoration: none; font-weight: 600; }
-      .light { background: #f3f2ee; color: #111; }
-      .blue { background: #06122b; }
-      .split { display: grid; grid-template-columns: 1fr 1fr; gap: 4vw; align-items: center; width: 100%; }
-      .card { aspect-ratio: 1; border-radius: 24px; overflow: hidden; background: #151518; }
-      footer { padding: 64px 8vw; opacity: 0.6; }
-      @media (max-width: 767px) { .split { grid-template-columns: 1fr; } }
-    </style>
-  </head>
-  <body>
-    <!-- 1. preset -->
-    <section data-particles data-preset="rings">
-      <h1>Hero with rings</h1>
-      <p>data-preset="rings". Hover to push particles, click empty space to burst. The button stays clickable.</p>
-      <a class="btn" href="#next">Get started</a>
-    </section>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clarify particles: section reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+html, body { margin: 0; background: #060709; }
+/* Design tokens from the Figma file "Clarify — Website Design Foundation"
+   (variables, as named there). The Webflow site should define the same
+   variables; section markup here only references these. */
+:root {
+  /* color */
+  --background-bg-primary: #060709;
+  --background-bg-secondary: #080a0c;
+  --border-border-primary: #2f323680;
+  --text-text-primary: #f8fbfd;
+  --text-text-secondary: #dee2e8;
+  --neutrals-bone-100: #f4f7fa;
+  --mist-500: #5f8db4;
+  --mist-600: #a4c9e9;
+  --button-primary-bg: #dee2e8;
+  --button-primary-text: #030304;
 
-    <!-- 2. no effect -->
-    <section class="light" id="next">
-      <h2>Plain Webflow section</h2>
-      <p>No particles here — the loop pauses while nothing animated is on screen.</p>
-    </section>
+  /* type */
+  --family-heading-primary: "Geist", system-ui, sans-serif;
+  --family-text-primary: "Geist", system-ui, sans-serif;
+  --family-text-secondary: "Geist Mono", ui-monospace, monospace;
+  --headings-size-h2: 44px;
+  --body-size-text-medium: 18px;
+  --eyebrow-size-eyebrow-large: 14px;
+  --buttons-size-button-large: 16px;
 
-    <!-- 3. individual attributes, on a nested element (a card) -->
-    <section>
-      <div class="split">
-        <div>
-          <h2>Sphere in a card</h2>
-          <p>Individual data-* attributes on a div inside the layout, with rounded corners clipping it.</p>
-        </div>
-        <div class="card" data-particles data-shape="sphere" data-chaos="0" data-ease="0.06" data-count="4000"
-             data-color-mode="gradient" data-color1="#ffffff" data-color2="#ff7a33" data-inner-copies="2"></div>
+  /* space & layout */
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 64px;
+  --section-space-m: 80px;
+  --section-space-xxl: 240px;
+  --grid-margin: 80px;
+  --grid-gutter: 24px;
+
+  /* radius */
+  --radius-small: 8px;
+  --radius-x-large: 24px;
+}
+
+
+
+/* Section markup mirroring the Figma frames — the playground's tuning
+   backdrop, and a reference for the Webflow build. */
+
+.section-frame { width: 1512px; font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased; }
+.section-frame * { box-sizing: border-box; }
+
+/* --- shared components --- */
+
+.eyebrow { display: flex; align-items: center; gap: var(--space-2); }
+.eyebrow__grid { display: grid; grid-template-columns: repeat(4, 2px); gap: 1px; }
+.eyebrow__grid i { width: 2px; height: 2px; background: var(--mist-500); }
+.eyebrow__grid i.on { background: var(--mist-600); }
+.eyebrow__label {
+  font: 500 var(--eyebrow-size-eyebrow-large) / 1 var(--family-text-secondary);
+  color: var(--text-text-secondary);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-small);
+  font: 500 var(--buttons-size-button-large) / 1 var(--family-text-primary);
+  text-decoration: none; white-space: nowrap;
+}
+.btn--primary { background: var(--button-primary-bg); color: var(--button-primary-text); border: 1px solid rgba(255, 255, 255, 0.12); }
+
+/* --- CTA (Figma 13311:5898) --- */
+
+.cta { background: var(--background-bg-primary); padding: var(--section-space-m) var(--grid-margin); }
+.cta__card {
+  position: relative;
+  overflow: clip;
+  background: var(--background-bg-secondary);
+  border: 1px solid var(--border-border-primary);
+  border-radius: var(--radius-x-large);
+  padding: var(--section-space-xxl) var(--space-8);
+}
+.cta__content { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-6); }
+.cta__text { display: flex; flex-direction: column; gap: var(--space-4); width: 488px; }
+.cta__title {
+  margin: 0; width: 311px;
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+  color: var(--text-text-primary);
+}
+.cta__body {
+  margin: 0; width: 456px;
+  font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary);
+  color: var(--text-text-secondary);
+}
+
+</style>
+</head>
+<body>
+<!-- Reference build of the Figma sections with the production script.
+     In Webflow, only the data-* attributes and the script tag matter. -->
+<section class="cta">
+  <!-- data-particles data-preset="cta": the element the effect mounts on (in Webflow:
+       data-particles data-preset="cta" on this card) -->
+  <div class="cta__card" data-particles-target>
+    <div class="cta__content">
+      <div class="eyebrow">
+        <span class="eyebrow__grid" aria-hidden="true"
+          ><i class="on"></i><i></i><i></i><i></i
+          ><i></i><i class="on"></i><i class="on"></i><i></i
+          ><i></i><i class="on"></i><i class="on"></i><i></i
+          ><i></i><i></i><i></i><i class="on"></i
+        ></span>
+        <span class="eyebrow__label">Start today</span>
       </div>
-    </section>
+      <div class="cta__text">
+        <h2 class="cta__title">See how Clarify solves yours</h2>
+        <p class="cta__body">Bring one site and one problem. We connect the data behind it and show you the fix in action</p>
+      </div>
+      <!-- data-particles-excite: hovering/focusing this energizes the effect -->
+      <a class="btn btn--primary" href="#" data-particles-excite>Get started</a>
+    </div>
+  </div>
+</section>
 
-    <!-- 4. graph on a coloured section -->
-    <section class="blue" data-particles="graph" data-mode="burstSphereMorph" data-morph-speed="0.5">
-      <h2>Node graph</h2>
-      <p>data-particles="graph" with a morph mode.</p>
-    </section>
-
-    <!-- 5. light background: normal blending, dark particles -->
-    <section class="light" data-particles data-shape="torusKnot" data-chaos="0" data-ease="0.06"
-             data-blend="normal" data-color1="#111111" data-opacity-max="0.8">
-      <h2>On a light background</h2>
-      <p>data-blend="normal" so dark particles show up on light sections.</p>
-    </section>
-
-    <!-- 6. JSON config -->
-    <section data-particles data-config='{"shape":"nebula","chaos":0,"ease":0.04,"count":7000,"colorMode":"hueRange","hueMin":190,"hueMax":260}'>
-      <h2>JSON config</h2>
-      <p>Everything in one data-config attribute — what the playground's copy button outputs.</p>
-    </section>
-
-    <footer>Footer</footer>
-
-    <script type="module" src="./particles.js"></script>
-  </body>
+<script type="module" src="./particles.js"></script>
+</body>
 </html>

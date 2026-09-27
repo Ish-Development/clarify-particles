@@ -1,0 +1,40 @@
+# Clarify particles
+
+Production particle/network effects for the Clarify Webflow site, plus the playground used to design them. The client designs section by section from Figma. A Webflow dev implements them with `data-particles` + `data-preset` attributes and one script tag.
+
+Read first:
+- `docs/SECTIONS.md`: per-section specs and every tuning decision
+- `docs/ARCHITECTURE.md`: how it works, and the gotchas
+- `runtime/README.md`: the dev handover
+- `docs/CONFIG.md`: every setting
+
+## Commands
+
+```bash
+npm run dev             # playground http://localhost:4790 (+ /sections.html, ?debug)
+npm run build           # playground + sections preview -> dist/
+npx vite preview --port 4791   # STABLE preview of dist/ for client review (no HMR)
+npm run build:runtime   # production files -> dist-runtime/ (particles.js, engine.js, demo.html)
+npx tsc -b              # typecheck
+```
+
+- **Client review:** always show the client **http://localhost:4791/sections.html**. Rebuild (`npm run build`) after changes and have them refresh.
+- **Why not the dev server:** 4790 hot-reloads background tabs, and restarts break pages.
+- **Variants:** `sections.html?cta=<preset>` previews another preset for a section; `?debug` shows a live state overlay. On the dev server, `?debug` also posts it to `.particles-debug.log`.
+- **Playground deep link:** `/?preset=cta&frame=cta`.
+
+## Release (the dev's script URL pins a tag)
+
+1. `npm run build:runtime`, then commit, **including `dist-runtime/`**.
+2. Bump `version` in package.json and tag: `git tag vX.Y.Z && git push && git push --tags`.
+3. jsDelivr serves `https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@X.Y.Z/dist-runtime/particles.js`.
+4. Give the dev the new version number, and update it in `runtime/README.md`.
+
+A tag's files are cached permanently: never re-point or reuse a tag, always release a new version.
+
+## Working conventions
+
+- **Showing variants:** add a new preset (e.g. `cta-plus`) instead of changing the approved one, and link `?cta=<variant>`. The client often wants to compare, then go back.
+- **Tuning changes:** usually belong in `presets.json`. Add engine options (`src/core/graphConfig.ts` + defaults + playground `fields.ts` + `docs/CONFIG.md`) only when a look needs one. Keep new options off by default so existing presets don't change.
+- **Verification:** screenshot through agent-browser and crop the canvas region. Test multiple fresh loads for anything touching the loop or loading.
+- **Section markup:** lives in `src/sections/` (Figma tokens in `tokens.css`) and feeds the playground frames, `sections.html` and `demo.html`.

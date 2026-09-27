@@ -1,13 +1,13 @@
 {
-  "name": "particle-sys",
+  "name": "clarify-particles",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "build:runtime": "tsc -b && vite build --config vite.runtime.config.ts",
+    "build:runtime": "tsc -b && vite build --config vite.runtime.config.ts && node scripts/build-demo.mjs",
     "preview:runtime": "vite preview --config vite.runtime.config.ts --open /demo.html"
   },
   "dependencies": {

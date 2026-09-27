@@ -1,15 +1,28 @@
-# Particle system
+# Clarify particles
 
-Interactive particle backgrounds for the Webflow site.
+Interactive particle and network backgrounds for the Clarify Webflow site: a production script for the site, and a playground for designing each section's look.
 
-- `npm run dev`: **playground**. Design each section's look and save it as a named preset.
-- `npm run build:runtime`: the **production script** for Webflow (`dist-runtime/`).
+**Webflow devs:** start with [runtime/README.md](runtime/README.md). You need one script tag, and two attributes per section.
 
-Handover and Webflow setup: [runtime/README.md](runtime/README.md).
-
+```html
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.0/dist-runtime/particles.js"></script>
 ```
-src/core/        simulation (shapes, noise, springs, pointer forces), shared by both
-src/runtime/     production loader + Three.js engine + section presets (presets.json)
-src/playground/  DialKit design tool, rendering through the runtime engine
-runtime/public/  demo page for the built runtime
+
+| Doc | For |
+|---|---|
+| [runtime/README.md](runtime/README.md) | Webflow integration, per-section markup, API, troubleshooting |
+| [docs/SECTIONS.md](docs/SECTIONS.md) | Each section's Figma source, preset and design decisions |
+| [docs/CONFIG.md](docs/CONFIG.md) | Every setting |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How it works, decisions, gotchas |
+| [CLAUDE.md](CLAUDE.md) | Working on the repo: commands, review and release process |
+
+## Develop
+
+```bash
+npm install
+npm run dev             # playground: design looks, save section presets
+npm run build:runtime   # production files -> dist-runtime/
 ```
+
+- **Stack:** Vite + TypeScript, Three.js (bundled into the lazily loaded engine) and DialKit (playground panels).
+- **Structure:** `src/core` is the simulation, `src/runtime` is what ships, `src/playground` is the design tool, and `src/sections` holds the Figma section markup.
