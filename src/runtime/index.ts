@@ -17,7 +17,7 @@ const tracked = new Set<HTMLElement>();
 // with the site's own loading.
 const pageReady = new Promise<void>((resolve) => {
   const idle = () =>
-    "requestIdleCallback" in window ? requestIdleCallback(() => resolve(), { timeout: 1500 }) : setTimeout(resolve, 200);
+    "requestIdleCallback" in window ? requestIdleCallback(() => resolve(), { timeout: 300 }) : setTimeout(resolve, 50);
   if (document.readyState === "complete") idle();
   else window.addEventListener("load", idle, { once: true });
 });

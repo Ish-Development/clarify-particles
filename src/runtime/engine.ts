@@ -252,8 +252,9 @@ abstract class View {
     if (getComputedStyle(el).position === "static") el.style.position = "relative";
     el.style.isolation = "isolate";
     this.canvas.setAttribute("aria-hidden", "true");
+    // starts transparent and fades in on the first drawn frame (paint())
     this.canvas.style.cssText =
-      "position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:-1";
+      "position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:-1;opacity:0";
     el.prepend(this.canvas);
 
     this.measure();
@@ -327,9 +328,19 @@ abstract class View {
     this.paint();
   }
 
+  private shown = false;
+
   paint() {
     this.sync();
     stage?.draw(this);
+    if (!this.shown && stage && !stage.lost) {
+      this.shown = true;
+      // ease in rather than pop; reduced motion shows it immediately
+      if (!reducedMotion.matches) this.canvas.style.transition = "opacity 0.8s ease-out";
+      this.canvas.style.opacity = "1";
+      // lets the site sequence its own intro animations with the effect
+      this.el.dispatchEvent(new CustomEvent("particles:ready", { bubbles: true }));
+    }
   }
 
   // Pointer position in this view's local (layout) pixels, or null if

@@ -145,6 +145,12 @@ ClarifyParticles.refresh(element?)  // re-read attributes after changing them
 
 If a section is removed from the page without calling `destroy()`, the script frees its GPU resources automatically.
 
+Each element fires a `particles:ready` event (it bubbles) on its first drawn frame, when the effect starts fading in. Use it to time intro animations:
+
+```js
+section.addEventListener("particles:ready", () => gsap.from(".cta__content", { opacity: 0, y: 12 }));
+```
+
 ## Development (this repo)
 
 ```bash
