@@ -12,6 +12,9 @@ interface Layout {
   edges: [number, number][];
   // optional per-edge alpha multiplier (default 1)
   edgeWeight?: Float32Array;
+  // edges before this index are hub spokes (network shapes); the rest are
+  // the mesh that pulses, paths and ripples travel along
+  meshFrom?: number;
 }
 
 // Node count is small (tens-hundreds) so an O(n^2) neighbor search done once
@@ -180,7 +183,7 @@ function networkOf(b: Layout, n: number, seed: number, mix: number, spokes = 1 -
   const edgeWeight = new Float32Array(edges.length);
   edgeWeight.fill(spokes, 0, a.edges.length);
   edgeWeight.fill(1 - spokes, a.edges.length);
-  return { x, y, z, weight: a.weight, edges, edgeWeight };
+  return { x, y, z, weight: a.weight, edges, edgeWeight, meshFrom: a.edges.length };
 }
 
 // Minimum spacing: nodes closer than ~80% of the even spacing for this many
@@ -644,6 +647,76 @@ const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2
 //   - single modes (hubBurst, geoSphere): one static layout
 //   - the two legacy morph modes: sine ping-pong between two layouts
 //   - "sequence": loop through cfg.sequence with hold + eased morph
+interface Pulse {
+  a: number; // from node
+  b: number; // to node
+  t: number; // 0..1 along the edge (negative = waiting to start)
+  hops: number; // mesh hops left before heading into the hub
+  first: boolean; // fades in on its first edge
+}
+
+// Per-layout graph structure for the traveling effects.
+interface Topology {
+  adj: number[][]; // mesh adjacency (spokes excluded)
+  parent: Int32Array; // next hop toward the hub (node 0) over the mesh, -1 = none
+  network: boolean; // has hub spokes
+}
+
+function topology(l: Layout, n: number): Topology {
+  const from = l.meshFrom ?? 0;
+  const adj: number[][] = Array.from({ length: n }, () => []);
+  for (let e = from; e < l.edges.length; e++) {
+    const [a, b] = l.edges[e];
+    adj[a].push(b);
+    adj[b].push(a);
+  }
+  const parent = new Int32Array(n).fill(-1);
+  const seen = new Uint8Array(n);
+  const queue = [0];
+  seen[0] = 1;
+  for (let q = 0; q < queue.length; q++) {
+    const u = queue[q];
+    for (const v of adj[u]) {
+      if (seen[v]) continue;
+      seen[v] = 1;
+      parent[v] = u;
+      queue.push(v);
+    }
+  }
+  return { adj, parent, network: from > 0 };
+}
+
+// Hop distances from `start` over the mesh (-1 = unreachable).
+function hops(adj: number[][], start: number): Int16Array {
+  const dist = new Int16Array(adj.length).fill(-1);
+  const queue = [start];
+  dist[start] = 0;
+  for (let q = 0; q < queue.length; q++) {
+    const u = queue[q];
+    for (const v of adj[u]) {
+      if (dist[v] >= 0) continue;
+      dist[v] = dist[u] + 1;
+      queue.push(v);
+    }
+  }
+  return dist;
+}
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const MAX_PULSES = 64;
+const MAX_PATH = 64;
+
+// Node positions live in flat typed arrays (same convention as
+// ParticleSystem). Layouts are generated once in unit space (~-1..1), then
+// blended, rotated and projected to screen space every frame. Edges are
+// never recomputed per frame: during a morph the outgoing layout's edges
+// fade out while the incoming layout's fade in.
+//   - single modes (hubBurst, geoSphere): one static layout
+//   - the two legacy morph modes: sine ping-pong between two layouts
+//   - "sequence": loop through cfg.sequence with hold + eased morph
+// Optional effects (all off by default): traveling pulses, depth +
+// parallax, hover path to the hub, "excite" (a site element hovered),
+// click ripples and an entrance.
 export class GraphSystem {
   count = 0;
   offX!: Float32Array;
@@ -654,8 +727,19 @@ export class GraphSystem {
   opacity!: Float32Array;
   screenX!: Float32Array;
   screenY!: Float32Array;
-  // hover highlight per node, eased 0..1 (see updateGlow)
+  // hover highlight per node, eased 0..1
   glow!: Float32Array;
+  // what the renderer draws this frame (base size/opacity with depth,
+  // highlights and entrance applied)
+  renderSize!: Float32Array;
+  renderAlpha!: Float32Array;
+  // 0..1 highlight per node (hover glow, path, ripple) — edges between lit
+  // nodes light up too
+  light!: Float32Array;
+  // depth dimming per node (1 = nearest)
+  depthAlpha!: Float32Array;
+  // multiplier on every line's opacity (entrance, excite)
+  lineGain = 1;
   // [outgoing, incoming] edge sets for this frame
   layers: [EdgeLayer, EdgeLayer] = [
     { edges: [], weight: undefined, alpha: 1 },
@@ -664,14 +748,39 @@ export class GraphSystem {
   // most edges any layout has — lets renderers size buffers once
   maxEdges = 0;
   time = 0;
+  // bright line segments (pulse trails, hover path): ax, ay, bx, by,
+  // alpha, taper (1 = fades toward a) per segment
+  highlights = new Float32Array((MAX_PULSES + MAX_PATH) * 6);
+  highlightCount = 0;
+  // pulse heads: x, y, alpha
+  pulseHeads = new Float32Array(MAX_PULSES * 3);
+  pulseCount = 0;
 
   private layouts: Layout[] = [];
+  private topo: Topology[] = [];
   // largest distance from the origin over every layout (for fit)
   private maxRadius = 1;
   private delay!: Float32Array;
   private rot = 0;
   private lastW: number;
   private lastH: number;
+  private rng = makeRng(1);
+  // pointer in canvas px (null = away); parallax target -1..1 over the section
+  private pointer: { x: number; y: number } | null = null;
+  private par = { x: 0, y: 0, tx: 0, ty: 0 };
+  private excite = 0;
+  private exciteTarget = 0;
+  private pulses: Pulse[] = [];
+  private path: number[] = [];
+  private pathNode = -1;
+  private pathT = 0;
+  private pathAlpha = 0;
+  private ripple: { dist: Int16Array; t0: number } | null = null;
+  // entrance: "wait" (hidden until startIntro), "play", "done"
+  private intro: "wait" | "play" | "done" = "done";
+  private introT = 0;
+  private introDir!: Float32Array;
+  private seqTime = 0;
 
   constructor(
     private cfg: GraphConfig,
@@ -700,6 +809,7 @@ export class GraphSystem {
     const n = cfg.count;
     this.count = n;
     this.time = 0;
+    this.seqTime = 0;
     this.rot = 0;
 
     const shapes: GraphShape[] =
@@ -715,6 +825,7 @@ export class GraphSystem {
     // consecutive layouts get different seeds so their random weights and
     // jitter differ (matches the original morph modes' seed + 1)
     this.layouts = shapes.map((shape, i) => buildShape(shape, n, cfg.seed + i, cfg));
+    this.topo = this.layouts.map((l) => topology(l, n));
     this.maxEdges = Math.max(...this.layouts.map((l) => l.edges.length));
     // rotation preserves distance from the origin, and a blend of two points
     // is never farther out than the farther one — so this bounds every frame
@@ -723,9 +834,18 @@ export class GraphSystem {
       for (let i = 0; i < n; i++) this.maxRadius = Math.max(this.maxRadius, Math.hypot(l.x[i], l.y[i], l.z[i]));
     }
 
-    const rng = makeRng(cfg.seed ^ 0x5bd1e995);
+    this.rng = makeRng(cfg.seed ^ 0x5bd1e995);
+    const rng = this.rng;
     this.delay = new Float32Array(n);
-    for (let i = 0; i < n; i++) this.delay[i] = rng.next();
+    this.introDir = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) {
+      this.delay[i] = rng.next();
+      // entrance: fly in from the right / above / below — never from the
+      // text side
+      const a = (rng.next() - 0.5) * Math.PI * 1.2;
+      this.introDir[i * 2] = Math.cos(a);
+      this.introDir[i * 2 + 1] = Math.sin(a);
+    }
 
     this.offX = new Float32Array(n);
     this.offY = new Float32Array(n);
@@ -736,6 +856,10 @@ export class GraphSystem {
     this.screenX = new Float32Array(n);
     this.screenY = new Float32Array(n);
     this.glow = new Float32Array(n);
+    this.renderSize = new Float32Array(n);
+    this.renderAlpha = new Float32Array(n);
+    this.light = new Float32Array(n);
+    this.depthAlpha = new Float32Array(n).fill(1);
     // node sizes follow the first layout's weights for the whole loop
     for (let i = 0; i < n; i++) {
       const raw = this.layouts[0].weight[i];
@@ -744,7 +868,59 @@ export class GraphSystem {
       this.size[i] = cfg.sizeMin + wgt * (cfg.sizeMax - cfg.sizeMin);
       this.opacity[i] = cfg.opacityMin + wgt * (cfg.opacityMax - cfg.opacityMin);
     }
+    this.pulses = [];
+    this.path = [];
+    this.pathNode = -1;
+    this.ripple = null;
+    this.intro = cfg.intro > 0 ? "wait" : "done";
+    this.introT = 0;
     this.update(0, w, h);
+  }
+
+  // --- inputs from the renderer ---
+
+  setPointer(p: { x: number; y: number } | null) {
+    this.pointer = p;
+  }
+  // pointer over the whole section, -1..1 (null = away): drives parallax
+  setSectionPointer(p: { x: number; y: number } | null) {
+    this.par.tx = p ? p.x : 0;
+    this.par.ty = p ? p.y : 0;
+  }
+  setExcite(on: boolean) {
+    this.exciteTarget = on ? 1 : 0;
+  }
+  // entrance: start (section scrolled into view) or skip (reduced motion)
+  startIntro() {
+    if (this.intro === "wait") {
+      this.intro = "play";
+      this.introT = 0;
+    }
+  }
+  skipIntro() {
+    this.intro = "done";
+  }
+  // light wave spreading hop by hop from the node nearest (px, py)
+  rippleAt(px: number, py: number) {
+    const i = this.nearest(px, py, Infinity);
+    if (i < 0) return;
+    const { from } = this.timeline();
+    this.ripple = { dist: hops(this.topo[from].adj, i), t0: this.time };
+  }
+
+  private nearest(px: number, py: number, maxD: number) {
+    let best = -1;
+    let bd = maxD * maxD;
+    for (let i = 0; i < this.count; i++) {
+      const dx = this.screenX[i] + this.offX[i] - px;
+      const dy = this.screenY[i] + this.offY[i] - py;
+      const d = dx * dx + dy * dy;
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    return best;
   }
 
   // Which two layouts are blended this frame, and how far (0..1).
@@ -759,17 +935,33 @@ export class GraphSystem {
     const hold = Math.max(0, cfg.holdTime);
     const morph = Math.max(0.05, cfg.morphTime);
     const period = hold + morph;
-    const cycle = Math.floor(Math.max(0, this.time) / period);
-    const local = Math.max(0, this.time) - cycle * period;
+    const time = Math.max(0, this.seqTime);
+    const cycle = Math.floor(time / period);
+    const local = time - cycle * period;
     const from = cycle % L;
     return { from, to: (from + 1) % L, t: local < hold ? 0 : (local - hold) / morph, staggered: true };
   }
 
   update(dt: number, w: number, h: number) {
     const cfg = this.cfg;
-    this.time += dt;
-    this.rot += dt * cfg.idleRotationSpeed;
     const n = this.count;
+    // the entrance holds the idle spin and the shape loop until it's done
+    const waiting = this.intro === "wait";
+    if (!waiting) {
+      this.time += dt;
+      if (this.intro === "done") this.seqTime += dt;
+      this.rot += dt * cfg.idleRotationSpeed;
+    }
+    if (this.intro === "play") {
+      this.introT += dt;
+      if (this.introT >= cfg.intro) this.intro = "done";
+    }
+    const introP = this.intro === "play" ? clamp01(this.introT / Math.max(0.01, cfg.intro)) : 1;
+    const easeK = (rate: number) => 1 - Math.exp(-dt * rate);
+    this.excite += (this.exciteTarget - this.excite) * easeK(5);
+    this.par.x += (this.par.tx - this.par.x) * easeK(2.5);
+    this.par.y += (this.par.ty - this.par.y) * easeK(2.5);
+
     const { from, to, t, staggered } = this.timeline();
     const A = this.layouts[from];
     const B = this.layouts[to];
@@ -794,9 +986,12 @@ export class GraphSystem {
       const room = Math.max(1, Math.min(cx, w - cx, cy, h - cy) - fitMargin);
       scale = (room / this.maxRadius) * Math.min(1, cfg.scale);
     }
+    // depth: perspective scales near nodes up to 1/(1 - 0.3 depth)
+    const depth = clamp01(cfg.depth);
+    const maxPersp = 1 / (1 - 0.3 * depth);
     const margin = cfg.fitPadding + cfg.sizeMax * 1.6 + 20;
     // left edge stays clear; top/right/bottom may bleed
-    if (cfg.anchorLeft && !cfg.fit) cx = Math.max(cx, margin + this.maxRadius * scale);
+    if (cfg.anchorLeft && !cfg.fit) cx = Math.max(cx, margin + this.maxRadius * scale * maxPersp);
     const R = this.maxRadius * scale;
     const scatter = staggered ? Math.max(0, cfg.morphScatter) : 0;
     if (scatter && blending) {
@@ -806,18 +1001,22 @@ export class GraphSystem {
       this.layers[1].alpha *= dim;
     }
     const DEG = Math.PI / 180;
-    const cosR = Math.cos(this.rot + cfg.rotY * DEG);
-    const sinR = Math.sin(this.rot + cfg.rotY * DEG);
+    // parallax: the network turns toward the pointer
+    const yaw = this.rot + cfg.rotY * DEG + this.par.x * cfg.parallax;
+    const cosR = Math.cos(yaw);
+    const sinR = Math.sin(yaw);
     // slow nodding tilt (around X) layered on top of the constant Y-axis
     // spin — the combination sweeps the camera through varied angles
     // instead of a flat, always-equatorial view.
-    const tiltAngle = Math.sin(this.time * cfg.idleRotationSpeed * 0.6) * cfg.idleTiltAmount + cfg.rotX * DEG;
+    const tiltAngle =
+      Math.sin(this.time * cfg.idleRotationSpeed * 0.6) * cfg.idleTiltAmount + cfg.rotX * DEG - this.par.y * cfg.parallax;
     const cosT = Math.cos(tiltAngle);
     const sinT = Math.sin(tiltAngle);
     const cosZ = Math.cos(cfg.rotZ * DEG);
     const sinZ = Math.sin(cfg.rotZ * DEG);
     const k = 60;
     const damp = 8;
+    const introS = 0.5;
 
     for (let i = 0; i < n; i++) {
       let x = A.x[i];
@@ -849,8 +1048,11 @@ export class GraphSystem {
       const rx = x * cosR + z * sinR;
       const rz = -x * sinR + z * cosR;
       const ry = y * cosT - rz * sinT;
-      let sx = cx + (rx * cosZ - ry * sinZ) * scale;
-      let sy = cy + (rx * sinZ + ry * cosZ) * scale;
+      // depth toward the viewer, -1 (far) .. 1 (near)
+      const zn = (y * sinT + rz * cosT) / this.maxRadius;
+      const persp = depth ? 1 / (1 - 0.3 * depth * zn) : 1;
+      let sx = cx + (rx * cosZ - ry * sinZ) * scale * persp;
+      let sy = cy + (rx * sinZ + ry * cosZ) * scale * persp;
       if (scatter && bell > 0) {
         // fling outward from the center, mirrored so nothing heads left
         const dx = sx - cx;
@@ -860,8 +1062,21 @@ export class GraphSystem {
         sx += (Math.abs(dx) / d) * m;
         sy += (dy / d) * m;
       }
+      // entrance: each node flies in from off to the right/top/bottom
+      let introVis = 1;
+      if (waiting) introVis = 0;
+      else if (introP < 1) {
+        const pi = easeInOutCubic(clamp01((introP * (1 + introS) - this.delay[i] * introS) / 1));
+        const off = (1 - pi) * R * 1.4;
+        sx += this.introDir[i * 2] * off;
+        sy += this.introDir[i * 2 + 1] * off;
+        introVis = pi;
+      }
       this.screenX[i] = sx;
       this.screenY[i] = sy;
+      this.depthAlpha[i] = 1 - depth * 0.5 * (1 - (zn + 1) / 2);
+      this.renderSize[i] = this.size[i] * (1 + depth * 0.45 * zn);
+      this.renderAlpha[i] = introVis; // finished below once highlights are known
 
       const ax = -k * this.offX[i] - damp * this.offVX[i];
       const ay = -k * this.offY[i] - damp * this.offVY[i];
@@ -870,28 +1085,171 @@ export class GraphSystem {
       this.offX[i] += this.offVX[i] * dt;
       this.offY[i] += this.offVY[i] * dt;
     }
+
+    // excite ("ready to activate"): a steady ~1.1 Hz beat of light through
+    // the whole network, strongest at the hub
+    const beat = this.excite * (0.5 + 0.5 * Math.sin(this.time * Math.PI * 2 * 1.1));
+    this.lineGain = (waiting ? 0 : introP * introP) * (1 + 1.2 * beat);
+    // during a sequence hold `blending` is true with t = 0 — only an actual
+    // transition in progress counts as morphing
+    this.updateHighlights(dt, blending && t > 0, from);
+
+    // final node size/alpha: base * depth, plus highlight and excite boosts
+    for (let i = 0; i < n; i++) {
+      const lit = Math.max(this.light[i], i === 0 ? beat : 0);
+      this.renderSize[i] *= 1 + 0.6 * lit + (i === 0 ? 1.2 * beat : 0);
+      this.renderAlpha[i] *= Math.min(1, (this.opacity[i] + 0.6 * lit + 0.35 * beat) * this.depthAlpha[i]);
+    }
   }
 
-  // Ease each node's glow toward its closeness to the pointer (null = no
-  // pointer): a smooth falloff over 1.3x the hover radius, so the highlight
-  // blooms in and fades out rather than snapping.
-  updateGlow(px: number | null, py: number, dt: number) {
+  // Hover glow, hover path, ripple and pulses — everything that lights up
+  // nodes or draws bright segments. Paused mid-morph (layouts in flux).
+  private updateHighlights(dt: number, blending: boolean, from: number) {
+    const cfg = this.cfg;
     const n = this.count;
-    const R = this.cfg.hoverRadius * 1.3;
-    const ease = 1 - Math.exp(-dt * 6);
+    const topo = this.topo[from];
+    const px = (i: number) => this.screenX[i] + this.offX[i];
+    const py = (i: number) => this.screenY[i] + this.offY[i];
+    const glowEase = 1 - Math.exp(-dt * 6);
+    const hoverR = cfg.hoverRadius * 1.3;
+    const p = this.pointer;
+    const hg = cfg.hoverGlow;
+    const ready = this.intro === "done" && !blending;
+
+    // hover path: nearest node -> hub over the mesh, traced segment by segment
+    if (cfg.hoverPath && p && ready) {
+      const node = this.nearest(p.x, p.y, hoverR);
+      if (node !== this.pathNode) {
+        this.pathNode = node;
+        this.path = [];
+        this.pathT = 0;
+        for (let v = node; v >= 0 && this.path.length < MAX_PATH; v = topo.parent[v]) {
+          this.path.push(v);
+          if (v === 0) break;
+        }
+        if (this.path[this.path.length - 1] !== 0) this.path = [];
+      }
+    } else if (!p || !ready) {
+      this.pathNode = -1;
+    }
+    this.pathT += dt;
+    const pathOn = this.pathNode >= 0 && this.path.length > 1;
+    this.pathAlpha += ((pathOn ? 1 : 0) - this.pathAlpha) * (1 - Math.exp(-dt * 5));
+    const pathProgress = this.pathT * 7; // segments per second
+    const onPath = new Uint8Array(n);
+    if (this.pathAlpha > 0.01) {
+      for (let k = 0; k < this.path.length; k++) if (pathProgress >= k) onPath[this.path[k]] = 1;
+    }
+
+    // ripple: a ring of light moving outward ~7 hops/s, fading over 3.5s
+    let rippleR = -1;
+    let rippleFade = 0;
+    if (this.ripple) {
+      const age = this.time - this.ripple.t0;
+      if (age > 3.5 || blending) this.ripple = null;
+      else {
+        rippleR = age * 7;
+        rippleFade = 1 - age / 3.5;
+      }
+    }
+
     for (let i = 0; i < n; i++) {
       let target = 0;
-      if (px !== null) {
-        const dx = this.screenX[i] + this.offX[i] - px;
-        const dy = this.screenY[i] + this.offY[i] - py;
+      if (p && hg > 0) {
+        const dx = px(i) - p.x;
+        const dy = py(i) - p.y;
         const d = Math.sqrt(dx * dx + dy * dy);
-        if (d < R) {
-          const f = 1 - d / R;
-          target = f * f * (3 - 2 * f);
+        if (d < hoverR) {
+          const f = 1 - d / hoverR;
+          target = f * f * (3 - 2 * f) * hg;
         }
       }
-      this.glow[i] += (target - this.glow[i]) * ease;
+      if (onPath[i]) target = Math.max(target, this.pathAlpha);
+      this.glow[i] += (target - this.glow[i]) * glowEase;
+      let lit = this.glow[i];
+      if (this.ripple && this.ripple.dist[i] >= 0) {
+        const dd = this.ripple.dist[i] - rippleR;
+        lit = Math.max(lit, Math.exp(-(dd * dd) / 0.8) * rippleFade);
+      }
+      this.light[i] = lit;
     }
+
+    // --- bright segments: hover path, then pulse trails ---
+    const hl = this.highlights;
+    let h = 0;
+    const seg = (ax: number, ay: number, bx: number, by: number, alpha: number, taper: number) => {
+      const o = h * 6;
+      hl[o] = ax;
+      hl[o + 1] = ay;
+      hl[o + 2] = bx;
+      hl[o + 3] = by;
+      hl[o + 4] = alpha;
+      hl[o + 5] = taper;
+      h++;
+    };
+    if (this.pathAlpha > 0.01) {
+      for (let k = 0; k + 1 < this.path.length && h < MAX_PATH; k++) {
+        const f = clamp01(pathProgress - k);
+        if (f <= 0) break;
+        const a = this.path[k];
+        const b = this.path[k + 1];
+        seg(px(a), py(a), px(a) + (px(b) - px(a)) * f, py(a) + (py(b) - py(a)) * f, this.pathAlpha, 0);
+      }
+    }
+
+    // pulses: walk a few mesh hops toward the hub, then ride a spoke into it
+    const want = ready ? Math.min(MAX_PULSES, Math.round(cfg.pulses * (1 + this.excite))) : 0;
+    if (!ready) this.pulses = [];
+    while (this.pulses.length < want) this.pulses.push(this.spawnPulse(topo, true));
+    if (this.pulses.length > want) this.pulses.length = want;
+    const speed = cfg.pulseSpeed * (1 + 2 * this.excite);
+    let pc = 0;
+    for (let q = 0; q < this.pulses.length; q++) {
+      let pu = this.pulses[q];
+      const len = Math.max(20, Math.hypot(px(pu.b) - px(pu.a), py(pu.b) - py(pu.a)));
+      pu.t += (dt * speed) / len;
+      if (pu.t >= 1) {
+        pu = this.pulses[q] = this.nextHop(pu, topo);
+      }
+      if (pu.t < 0) continue;
+      const t = Math.min(1, pu.t);
+      const ax = px(pu.a);
+      const ay = py(pu.a);
+      const hx = ax + (px(pu.b) - ax) * t;
+      const hy = ay + (py(pu.b) - ay) * t;
+      const L = Math.max(20, Math.hypot(px(pu.b) - ax, py(pu.b) - ay));
+      const tail = Math.max(0, t - 46 / L);
+      const alpha = pu.first ? Math.min(1, t * 5) : 1;
+      if (h < MAX_PATH + MAX_PULSES) seg(ax + (px(pu.b) - ax) * tail, ay + (py(pu.b) - ay) * tail, hx, hy, alpha, 1);
+      const o = pc * 3;
+      this.pulseHeads[o] = hx;
+      this.pulseHeads[o + 1] = hy;
+      this.pulseHeads[o + 2] = alpha;
+      pc++;
+    }
+    this.highlightCount = h;
+    this.pulseCount = pc;
+  }
+
+  private spawnPulse(topo: Topology, stagger: boolean): Pulse {
+    const n = this.count;
+    const a = 1 + Math.floor(this.rng.next() * Math.max(1, n - 1));
+    const par = topo.parent[a];
+    const b = par >= 0 ? par : topo.network ? 0 : (topo.adj[a][0] ?? 0);
+    return { a, b, t: stagger ? -this.rng.next() * 2 : 0, hops: 1 + Math.floor(this.rng.next() * 4), first: true };
+  }
+
+  private nextHop(pu: Pulse, topo: Topology): Pulse {
+    const at = pu.b;
+    if (at === 0) return this.spawnPulse(topo, false);
+    const par = topo.parent[at];
+    if (pu.hops > 0 && par >= 0) return { a: at, b: par, t: 0, hops: pu.hops - 1, first: false };
+    if (topo.network) return { a: at, b: 0, t: 0, hops: 0, first: false };
+    return this.spawnPulse(topo, false);
+  }
+
+  debug() {
+    return { intro: this.intro, activePulses: this.pulses.length, excite: +this.excite.toFixed(2) };
   }
 
   reroll() {

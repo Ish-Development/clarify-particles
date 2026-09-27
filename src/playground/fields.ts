@@ -75,7 +75,7 @@ const shared: Field[] = [
   { folder: "interaction", key: "interactive", control: true, kind: "live" },
   { folder: "interaction", key: "hoverRadius", control: [120, 20, 400, 1], kind: "live" },
   { folder: "interaction", key: "hoverStrength", control: [1.2, 0, 5, 0.1], kind: "live" },
-  { folder: "interaction", key: "clickBehavior", control: select(["burst", "reshuffle", "none"]), kind: "live" },
+  { folder: "interaction", key: "clickBehavior", control: select(["burst", "reshuffle", "ripple", "none"]), kind: "live" },
 ];
 
 export const pointsFields: Field[] = [
@@ -135,6 +135,14 @@ export const graphFields: Field[] = [
   { folder: "sequence", key: "morphSwirl", control: [0, 0, 6.3, 0.05], kind: "live" },
   { folder: "sequence", key: "morphScatter", control: [0, 0, 2, 0.01], kind: "live" },
   { folder: "interaction", key: "hoverGlow", control: [0, 0, 1, 0.01], kind: "live" },
+  { folder: "interaction", key: "hoverPath", control: false, kind: "live" },
+  { folder: "interaction", key: "parallax", control: [0, 0, 0.8, 0.01], kind: "live" },
+  { folder: "effects", key: "pulses", control: [0, 0, 60, 1], kind: "live" },
+  { folder: "effects", key: "pulseSpeed", control: [180, 20, 800, 5], kind: "live" },
+  { folder: "effects", key: "pulseSize", control: [3, 1, 10, 0.5], kind: "live" },
+  { folder: "effects", key: "pulseColor", control: color, kind: "look" },
+  { folder: "effects", key: "depth", control: [0, 0, 1, 0.01], kind: "live" },
+  { folder: "effects", key: "intro", control: [0, 0, 5, 0.1], kind: "rebuild" },
   { folder: "look", key: "color", control: color, kind: "look" },
   { folder: "look", key: "lineColor", control: color, kind: "look" },
   { folder: "look", key: "lineOpacity", control: [0.25, 0, 1, 0.005], kind: "live" },

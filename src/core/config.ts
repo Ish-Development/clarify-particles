@@ -26,7 +26,9 @@ export const SHAPE_NAMES = [
 ] as const;
 export type ShapeName = (typeof SHAPE_NAMES)[number];
 export type ColorMode = "single" | "gradient" | "hueRange";
-export type ClickBehavior = "burst" | "reshuffle" | "none";
+// "ripple" = a light wave spreading through the graph's connections
+// (graph views; points views treat it as "none")
+export type ClickBehavior = "burst" | "reshuffle" | "ripple" | "none";
 
 export interface ParticleConfig {
   seed: number;

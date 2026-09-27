@@ -69,6 +69,20 @@ export interface GraphConfig {
   // letting it bleed off the top, right and bottom — for effects that sit
   // to the right of text
   anchorLeft: boolean;
+  // traveling data pulses: how many in flight, speed (px/s), color, head size
+  pulses: number;
+  pulseSpeed: number;
+  pulseColor: string;
+  pulseSize: number;
+  // 3D depth cues: far nodes smaller/dimmer + perspective (0..1)
+  depth: number;
+  // tilt toward the pointer over the section (radians at the edge)
+  parallax: number;
+  // hovering near a node traces its route through the mesh to the hub
+  hoverPath: boolean;
+  // entrance: seconds for the nodes to fly in once the section is in view
+  // (0 = off)
+  intro: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -109,4 +123,12 @@ export const defaultGraphConfig: GraphConfig = {
   morphSwirl: 0,
   morphScatter: 0,
   anchorLeft: false,
+  pulses: 0,
+  pulseSpeed: 180,
+  pulseColor: "#a4c9e9",
+  pulseSize: 3,
+  depth: 0,
+  parallax: 0,
+  hoverPath: false,
+  intro: 0,
 };

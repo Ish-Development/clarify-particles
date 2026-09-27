@@ -104,6 +104,11 @@ Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`
 | `data-anchor-left` | `false` | Keep only the left edge inside (for effects beside text); it may bleed off top, right and bottom |
 | `data-morph-scatter` | `0` | Scatter & reform: nodes fling outward mid-morph (never leftward), lines dim |
 | `data-hover-glow` | `0` | 0–1: nodes near the cursor grow/brighten, their lines light up |
+| `data-hover-path` | `false` | Hovering near a node traces its route through the network to the hub |
+| `data-pulses` / `data-pulse-speed` / `data-pulse-size` / `data-pulse-color` | `0` / `180` / `3` / `#a4c9e9` | Data pulses traveling the lines toward the hub (count, px/s, size, color) |
+| `data-depth` | `0` | 0–1: perspective, far nodes smaller and dimmer |
+| `data-parallax` | `0` | Tilt toward the cursor anywhere over the section (radians) |
+| `data-intro` | `0` | Seconds for the nodes to fly in once a quarter of the section is visible (0 = off) |
 | `data-opacity-min` / `data-opacity-max` | `0.45` / `1` | Node brightness range |
 | `data-count` | `140` | Nodes |
 | `data-size-min` / `data-size-max` | `4` / `14` | |
@@ -130,9 +135,11 @@ Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`
 | `data-canvas-inset` | `0` | CSS inset of the effect inside the element, e.g. `0 0 0 50%` = right half only |
 | `data-edge-fade` | `0` | px of soft fade on inset edges (hides the clip line) |
 | `data-hover-radius` / `data-hover-strength` | `120` / `1.2` (graph: `140` / `1`) | |
-| `data-click-behavior` | `burst` | `burst`, `reshuffle`, `none` |
+| `data-click-behavior` | `burst` | `burst`, `reshuffle`, `ripple` (graph: a light wave through the connections), `none` |
 
-Clicks on links, buttons, form fields and anything marked `data-particles-ignore` never trigger the click effect.
+Clicks on links, buttons, form fields and anything marked `data-particles-ignore` never trigger the click effect. Clicking the empty effect area never starts a text selection.
+
+**Button tie-in:** add `data-particles-excite` to any element inside the section (the CTA's "Get started" button). Hovering or focusing it makes the network pulse with light, "ready to activate": the hub beats, the lines and nodes throb, and the data pulses speed up.
 
 ## Performance and accessibility (built in)
 

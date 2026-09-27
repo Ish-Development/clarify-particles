@@ -101,13 +101,18 @@ void main() {
 const LINE_VERT = /* glsl */ `
 attribute vec4 aEnds;
 attribute float aWeight;
+attribute float aTaper;
 uniform vec2 uRes;
 uniform float uWidth;
 uniform float uDpr;
 varying float vDist;
 varying float vWeight;
+varying float vAlong;
+varying float vTaper;
 void main() {
   vWeight = aWeight;
+  vAlong = position.x;
+  vTaper = aTaper;
   vec2 a = aEnds.xy;
   vec2 b = aEnds.zw;
   vec2 d = b - a;
@@ -127,9 +132,12 @@ uniform float uWidth;
 uniform float uDpr;
 varying float vDist;
 varying float vWeight;
+varying float vAlong;
+varying float vTaper;
 void main() {
   float cover = clamp((uWidth * 0.5 - abs(vDist)) * uDpr + 0.5, 0.0, 1.0);
-  float a = min(1.0, uAlpha * vWeight) * cover;
+  // taper 1: fades out toward the segment's start (a trail behind a pulse)
+  float a = min(1.0, uAlpha * vWeight) * cover * mix(1.0, vAlong * vAlong, vTaper);
   gl_FragColor = vec4(uColor * a, a);
 }`;
 
@@ -270,6 +278,9 @@ abstract class View {
 
   private readonly resizeObserver: ResizeObserver;
   private readonly visibilityObserver: IntersectionObserver;
+  // fires once, when a quarter of the element is on screen (entrance)
+  private readonly enterObserver: IntersectionObserver;
+  private readonly exciteHandlers: [string, EventListener][];
   private readonly prevStyle: { position: string; isolation: string };
 
   constructor(
@@ -309,6 +320,58 @@ abstract class View {
       },
       { rootMargin: "100px 0px" },
     );
+    this.enterObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        this.enterObserver.disconnect();
+        if (reducedMotion.matches) this.onSkipIntro();
+        else this.onEnter();
+      },
+      { threshold: 0.25 },
+    );
+    // "excite": hovering/focusing an element marked data-particles-excite
+    // inside this element (e.g. the CTA button) makes the effect pulse with
+    // light, "ready to activate"
+    const EXCITE = "[data-particles-excite]";
+    const within = (t: EventTarget | null) => (t instanceof Element ? t.closest(EXCITE) : null);
+    const enter: EventListener = (e) => {
+      if (within(e.target)) this.onExcite(true);
+    };
+    const leave: EventListener = (e) => {
+      const from = within(e.target);
+      if (from && from !== within((e as FocusEvent | PointerEvent).relatedTarget)) this.onExcite(false);
+    };
+    this.exciteHandlers = [
+      ["pointerover", enter],
+      ["focusin", enter],
+      ["pointerout", leave],
+      ["focusout", leave],
+    ];
+    for (const [type, fn] of this.exciteHandlers) el.addEventListener(type, fn);
+  }
+
+  // hooks for effects that need them (graph views)
+  protected onEnter() {}
+  protected onSkipIntro() {}
+  protected onExcite(_on: boolean) {}
+  onSectionPointer(_p: { x: number; y: number } | null) {}
+  // extra live numbers for debugState()
+  stats(): Record<string, unknown> {
+    return {};
+  }
+
+  click(x: number, y: number) {
+    applyClick(this.system, this.cfg, x, y);
+  }
+
+  // Pointer over the whole element as -1..1 (null = outside), for effects
+  // that react beyond the canvas (parallax).
+  sectionPointer(clientX: number, clientY: number) {
+    const r = this.el.getBoundingClientRect();
+    const x = (clientX - r.left) / (r.width || 1);
+    const y = (clientY - r.top) / (r.height || 1);
+    if (x < 0 || y < 0 || x > 1 || y > 1) return null;
+    return { x: x * 2 - 1, y: y * 2 - 1 };
   }
 
   private applyBackground() {
@@ -334,6 +397,7 @@ abstract class View {
     this.resize();
     this.resizeObserver.observe(this.box);
     this.visibilityObserver.observe(this.el);
+    this.enterObserver.observe(this.el);
   }
 
   private measure() {
@@ -367,6 +431,7 @@ abstract class View {
   // Reduced motion: fast-forward the simulation to its settled state and
   // show that single frame.
   drawStill() {
+    this.onSkipIntro();
     for (let i = 0; i < SETTLE_STEPS; i++) this.step(1 / 60);
     this.paint();
   }
@@ -410,6 +475,8 @@ abstract class View {
   dispose() {
     this.resizeObserver.disconnect();
     this.visibilityObserver.disconnect();
+    this.enterObserver.disconnect();
+    for (const [type, fn] of this.exciteHandlers) this.el.removeEventListener(type, fn);
     this.disposeGpu();
     this.box.remove();
     this.el.style.position = this.prevStyle.position;
@@ -522,6 +589,13 @@ class GraphView extends View {
   private readonly nodeColorAttr: BufferAttribute;
   // [outgoing, incoming] — mirrors GraphSystem.layers
   private readonly edgeBuffers: EdgeBuffers[] = [];
+  // bright segments (pulse trails, hover path) and pulse heads
+  private readonly hl: EdgeBuffers & { tapers: InstancedBufferAttribute };
+  private readonly pulseGeometry = new BufferGeometry();
+  private readonly pulseMaterial: ShaderMaterial;
+  private readonly pulsePos: BufferAttribute;
+  private readonly pulseAlpha: BufferAttribute;
+  private readonly pulseColor: BufferAttribute;
 
   constructor(el: HTMLElement, cfg: GraphSpec["config"]) {
     super(el, cfg);
@@ -560,6 +634,37 @@ class GraphView extends View {
       this.edgeBuffers.push({ ends, weights, geometry, material, mesh });
     }
 
+    // highlights: above the mesh, additive so they glow
+    {
+      const hcap = this.system.highlights.length / 6;
+      const ends = new InstancedBufferAttribute(new Float32Array(hcap * 4), 4).setUsage(DynamicDrawUsage);
+      const weights = new InstancedBufferAttribute(new Float32Array(hcap), 1).setUsage(DynamicDrawUsage);
+      const tapers = new InstancedBufferAttribute(new Float32Array(hcap), 1).setUsage(DynamicDrawUsage);
+      const geometry = new InstancedBufferGeometry();
+      geometry.setAttribute("position", new BufferAttribute(EDGE_QUAD, 3));
+      geometry.setAttribute("aEnds", ends);
+      geometry.setAttribute("aWeight", weights);
+      geometry.setAttribute("aTaper", tapers);
+      geometry.instanceCount = 0;
+      const material = makeMaterial(
+        LINE_VERT,
+        LINE_FRAG,
+        {
+          uRes: { value: [1, 1] },
+          uColor: { value: [1, 1, 1] },
+          uAlpha: { value: 0.9 },
+          uWidth: { value: cfg.lineWidth * 1.4 },
+          uDpr: { value: 1 },
+        },
+        "additive",
+      );
+      material.side = DoubleSide;
+      const mesh = new Mesh(geometry, material);
+      mesh.frustumCulled = false;
+      this.scene.add(mesh);
+      this.hl = { ends, weights, tapers, geometry, material, mesh };
+    }
+
     // node size/alpha are written every frame (hover glow scales them)
     this.nodePos = new Float32Array(n * 2);
     this.nodePosAttr = new BufferAttribute(this.nodePos, 2).setUsage(DynamicDrawUsage);
@@ -575,8 +680,46 @@ class GraphView extends View {
     const nodes = new Points(this.nodeGeometry, this.nodeMaterial);
     nodes.frustumCulled = false;
     this.scene.add(nodes);
+
+    // pulse heads: soft glowing dots on top of everything
+    const pcap = this.system.pulseHeads.length / 3;
+    this.pulsePos = new BufferAttribute(new Float32Array(pcap * 2), 2).setUsage(DynamicDrawUsage);
+    this.pulseAlpha = new BufferAttribute(new Float32Array(pcap), 1).setUsage(DynamicDrawUsage);
+    this.pulseColor = new BufferAttribute(new Float32Array(pcap * 3), 3);
+    this.pulseGeometry.setAttribute("position", this.pulsePos);
+    this.pulseGeometry.setAttribute("aSize", new BufferAttribute(new Float32Array(pcap).fill(1), 1));
+    this.pulseGeometry.setAttribute("aAlpha", this.pulseAlpha);
+    this.pulseGeometry.setAttribute("aColor", this.pulseColor);
+    this.pulseGeometry.setDrawRange(0, 0);
+    this.pulseMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(cfg.pulseSize * 4, 1, false), "additive");
+    const heads = new Points(this.pulseGeometry, this.pulseMaterial);
+    heads.frustumCulled = false;
+    this.scene.add(heads);
+
     this.onLook();
     this.start();
+  }
+
+  protected onEnter() {
+    this.system.startIntro();
+  }
+  protected onSkipIntro() {
+    this.system.skipIntro();
+  }
+  protected onExcite(on: boolean) {
+    this.system.setExcite(on);
+    wake();
+  }
+  onSectionPointer(p: { x: number; y: number } | null) {
+    this.system.setSectionPointer(p);
+  }
+  stats() {
+    const s = this.system;
+    return { pulses: s.pulseCount, highlights: s.highlightCount, lineGain: +s.lineGain.toFixed(2), ...s.debug() };
+  }
+  click(x: number, y: number) {
+    if (this.graphCfg.clickBehavior === "ripple") this.system.rippleAt(x, y);
+    else super.click(x, y);
   }
 
   protected onLook() {
@@ -593,10 +736,15 @@ class GraphView extends View {
       b.material.uniforms.uColor.value = lineColor;
       b.material.blendDst = blendDst(cfg.blend);
     }
+    const pulse = hexToRgb01(cfg.pulseColor);
+    this.hl.material.uniforms.uColor.value = pulse;
+    const pc = this.pulseColor.array as Float32Array;
+    for (let i = 0; i < pc.length; i += 3) pc.set(pulse, i);
+    this.pulseColor.needsUpdate = true;
   }
 
-  onPointer(p: { x: number; y: number } | null, dt: number) {
-    if (this.graphCfg.hoverGlow > 0) this.system.updateGlow(p ? p.x : null, p ? p.y : 0, dt);
+  onPointer(p: { x: number; y: number } | null) {
+    this.system.setPointer(p);
   }
 
   step(dt: number) {
@@ -606,18 +754,16 @@ class GraphView extends View {
   protected sync() {
     const s = this.system;
     const cfg = this.graphCfg;
-    const hg = cfg.hoverGlow;
-    const glow = s.glow;
+    const light = s.light;
+    const depthA = s.depthAlpha;
     const pos = this.nodePos;
     const size = this.nodeSizeAttr.array as Float32Array;
     const alpha = this.nodeAlphaAttr.array as Float32Array;
     for (let i = 0; i < s.count; i++) {
       pos[i * 2] = s.screenX[i] + s.offX[i];
       pos[i * 2 + 1] = s.screenY[i] + s.offY[i];
-      // hover: highlighted nodes grow up to 60% and brighten
-      const g = hg * glow[i];
-      size[i] = s.size[i] * (1 + 0.6 * g);
-      alpha[i] = Math.min(1, s.opacity[i] + 0.6 * g);
+      size[i] = s.renderSize[i];
+      alpha[i] = s.renderAlpha[i];
     }
     this.nodePosAttr.needsUpdate = true;
     this.nodeSizeAttr.needsUpdate = true;
@@ -629,7 +775,7 @@ class GraphView extends View {
       b.mesh.visible = count > 0;
       b.geometry.instanceCount = count;
       if (!count) return;
-      b.material.uniforms.uAlpha.value = layer.alpha * cfg.lineOpacity;
+      b.material.uniforms.uAlpha.value = layer.alpha * cfg.lineOpacity * s.lineGain;
       b.material.uniforms.uWidth.value = cfg.lineWidth;
       const ends = b.ends.array as Float32Array;
       const weights = b.weights.array as Float32Array;
@@ -639,32 +785,65 @@ class GraphView extends View {
         ends[e * 4 + 1] = pos[a * 2 + 1];
         ends[e * 4 + 2] = pos[c * 2];
         ends[e * 4 + 3] = pos[c * 2 + 1];
-        // hover: edges touching highlighted nodes light up (up to 4x)
-        const g = hg * Math.max(glow[a], glow[c]);
-        weights[e] = (layer.weight ? layer.weight[e] : 1) * (1 + 3 * g);
+        // edges touching lit nodes light up (up to 4x); far edges dim
+        const g = Math.max(light[a], light[c]);
+        weights[e] = (layer.weight ? layer.weight[e] : 1) * (1 + 3 * g) * 0.5 * (depthA[a] + depthA[c]);
       }
       b.ends.needsUpdate = true;
       b.weights.needsUpdate = true;
     });
+
+    // highlights (hover path, pulse trails) and pulse heads
+    const hc = s.highlightCount;
+    const hs = s.highlights;
+    const hEnds = this.hl.ends.array as Float32Array;
+    const hW = this.hl.weights.array as Float32Array;
+    const hT = this.hl.tapers.array as Float32Array;
+    for (let k = 0; k < hc; k++) {
+      hEnds[k * 4] = hs[k * 6];
+      hEnds[k * 4 + 1] = hs[k * 6 + 1];
+      hEnds[k * 4 + 2] = hs[k * 6 + 2];
+      hEnds[k * 4 + 3] = hs[k * 6 + 3];
+      hW[k] = hs[k * 6 + 4];
+      hT[k] = hs[k * 6 + 5];
+    }
+    this.hl.geometry.instanceCount = hc;
+    this.hl.mesh.visible = hc > 0;
+    this.hl.material.uniforms.uWidth.value = cfg.lineWidth * 1.4;
+    this.hl.ends.needsUpdate = this.hl.weights.needsUpdate = this.hl.tapers.needsUpdate = true;
+    const pp = this.pulsePos.array as Float32Array;
+    const pa = this.pulseAlpha.array as Float32Array;
+    for (let q = 0; q < s.pulseCount; q++) {
+      pp[q * 2] = s.pulseHeads[q * 3];
+      pp[q * 2 + 1] = s.pulseHeads[q * 3 + 1];
+      pa[q] = s.pulseHeads[q * 3 + 2];
+    }
+    this.pulseGeometry.setDrawRange(0, s.pulseCount);
+    this.pulseMaterial.uniforms.uSizeScale.value = cfg.pulseSize * 4;
+    this.pulsePos.needsUpdate = this.pulseAlpha.needsUpdate = true;
   }
 
   protected onResize() {
     const res = [this.w, this.h];
     this.nodeMaterial.uniforms.uRes.value = res;
     this.nodeMaterial.uniforms.uDpr.value = this.dpr;
-    for (const b of this.edgeBuffers) {
+    for (const b of [...this.edgeBuffers, this.hl]) {
       b.material.uniforms.uRes.value = res;
       b.material.uniforms.uDpr.value = this.dpr;
     }
+    this.pulseMaterial.uniforms.uRes.value = res;
+    this.pulseMaterial.uniforms.uDpr.value = this.dpr;
   }
 
   protected disposeGpu() {
     this.nodeGeometry.dispose();
     this.nodeMaterial.dispose();
-    for (const b of this.edgeBuffers) {
+    for (const b of [...this.edgeBuffers, this.hl]) {
       b.geometry.dispose();
       b.material.dispose();
     }
+    this.pulseGeometry.dispose();
+    this.pulseMaterial.dispose();
   }
 }
 
@@ -702,6 +881,7 @@ function frame(now: number) {
     const p = pointer.active && view.cfg.interactive ? view.localPointer(pointer.x, pointer.y) : null;
     if (p) applyHover(view.system, view.cfg, p.x, p.y, dt);
     view.onPointer(p, dt);
+    view.onSectionPointer(pointer.active && view.cfg.interactive ? view.sectionPointer(pointer.x, pointer.y) : null);
     view.step(dt);
     view.paint();
   }
@@ -735,7 +915,22 @@ function onPointerDown(e: PointerEvent) {
   for (const view of views.values()) {
     if (!view.running || !view.cfg.interactive) continue;
     const p = view.localPointer(e.clientX, e.clientY);
-    if (p) applyClick(view.system, view.cfg, p.x, p.y);
+    if (p) view.click(p.x, p.y);
+  }
+}
+
+// Clicking the empty effect area lands on the section element itself (the
+// canvas never takes pointer events); without this, a click or double-click
+// there starts selecting the section's text. Presses on actual content
+// (text, links, buttons) are left alone.
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return;
+  for (const view of views.values()) {
+    if (!view.cfg.interactive || e.target !== view.el) continue;
+    if (view.localPointer(e.clientX, e.clientY)) {
+      e.preventDefault();
+      return;
+    }
   }
 }
 
@@ -807,6 +1002,8 @@ function listen(on: boolean) {
   const opts = { passive: true };
   window[m]("pointermove", onPointerMove as EventListener, opts);
   window[m]("pointerdown", onPointerDown as EventListener, opts);
+  // not passive: needs preventDefault
+  window[m]("mousedown", onMouseDown as EventListener);
   window[m]("pointerup", onPointerEnd as EventListener, opts);
   window[m]("pointercancel", onPointerEnd as EventListener, opts);
   document[m]("pointerout", onPointerOut as EventListener, opts);
@@ -887,7 +1084,7 @@ export function debugState() {
     loop: rafId ? "running" : "idle",
     lastFrameMsAgo: Math.round(performance.now() - lastFrameAt),
     context: !stage ? "none" : stage.lost || stage.renderer.getContext().isContextLost() ? "LOST" : "ok",
-    sections: [...views.values()].map((v) => ({ visible: v.visible, running: v.running })),
+    sections: [...views.values()].map((v) => ({ visible: v.visible, running: v.running, ...v.stats() })),
     events: [...events],
   };
 }

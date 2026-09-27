@@ -34,6 +34,7 @@ export function applyClick(sys: Steerable, cfg: InteractionConfig, px: number, p
     }
     return;
   }
+  if (cfg.clickBehavior !== "burst") return;
   const radius = 220;
   const r2 = radius * radius;
   for (let i = 0; i < sys.count; i++) {
