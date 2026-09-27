@@ -83,7 +83,7 @@
       "mode": "sequence",
       "sequence": "constellation,clusters,spiral",
       "holdTime": 6,
-      "morphTime": 3,
+      "morphTime": 2,
       "stagger": 0.4,
       "morphSpeed": 0,
       "morphHold": 0.75,
