@@ -5,6 +5,7 @@ import { createDialKit, createDialRoot, type DialKitController } from "dialkit/v
 import "dialkit/vanilla/styles.css";
 import { graphDefaults, pointsDefaults, type GraphViewConfig, type PointsConfig } from "../runtime/defaults";
 import { getView, mount, refreshLook, remount, unmount } from "../runtime/engine";
+import { COMPONENT, createHost } from "../runtime/host";
 import type { Preset } from "../runtime/presets";
 import type { ViewSpec } from "../runtime/spec";
 import { applyValues, buildDialConfig, cfgToValues, diffConfig, graphFields, pointsFields, type Field } from "./fields";
@@ -13,7 +14,8 @@ import "../sections/sections.css";
 import ctaHtml from "../sections/cta.html?raw";
 
 // Real section markup to tune a look in context, keyed by frame value. The
-// effect mounts on the template's [data-particles-target] element.
+// effect mounts like on the site: in a div created inside the template's
+// [data-particles-component] (see runtime/host.ts).
 const TEMPLATES: Record<string, string> = { cta: ctaHtml };
 
 type Type = "points" | "graph";
@@ -25,6 +27,7 @@ const area = document.getElementById("area")!;
 const stage = document.getElementById("stage")!;
 // element the effect is mounted on: the stage, or a section template's card
 let target: HTMLElement = stage;
+let targetRoot: HTMLElement = stage;
 const toastEl = document.getElementById("toast")!;
 
 const defaultsFor = (t: Type): AnyConfig => ({ ...(t === "graph" ? graphDefaults : pointsDefaults) });
@@ -47,7 +50,7 @@ function toast(msg: string) {
 }
 
 const spec = (): ViewSpec => ({ type, config: cfg }) as ViewSpec;
-const rebuild = () => remount(target, spec(), { editor: true });
+const rebuild = () => remount(target, spec(), { editor: true, root: targetRoot });
 
 // --- presets (src/runtime/presets.json via the dev server) ---
 
@@ -103,15 +106,18 @@ function setFrame(frame: string) {
   if (template !== undefined) {
     stage.dataset.template = frame;
     stage.innerHTML = template;
-    target = stage.querySelector<HTMLElement>("[data-particles-target]")!;
+    const component = stage.querySelector<HTMLElement>(COMPONENT)!;
+    target = createHost(component).el;
+    targetRoot = component;
   } else {
     delete stage.dataset.template;
     stage.innerHTML = "";
     stage.style.transform = "";
     target = stage;
+    targetRoot = stage;
   }
   fitTemplate();
-  mount(target, spec(), { editor: true });
+  mount(target, spec(), { editor: true, root: targetRoot });
 }
 
 function sectionConfig() {

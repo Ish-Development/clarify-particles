@@ -4,8 +4,8 @@ One entry per site section: Figma source, where the effect mounts, the preset, a
 
 Workflow for a new section:
 1. **Figma context:** get the design context, variables and screenshot for the section node.
-2. **Template:** build `src/sections/<name>.html` using the tokens in `src/sections/tokens.css`. Mark the mount element with `data-particles-target`, and add CSS to `sections.css`.
-3. **Register it** as a frame in the playground (`TEMPLATES` / `FRAMES` in `src/playground/main.ts`), in `sections.html`, and in `SECTIONS` in `scripts/build-demo.mjs`.
+2. **Template:** build `src/sections/<name>.html` using the tokens in `src/sections/tokens.css`, with the Webflow component markup (`data-particles-component` + `data-preset` on the component, `data-particles-wrap`, and `data-particles-excite` on any trigger). Style `.u-particles-threejs` for it in `sections.css`, the way Webflow will.
+3. **Register it** as a frame in the playground (`TEMPLATES` / `FRAMES` in `src/playground/main.ts`), in `sections.html` (`addSection`), and in `SECTIONS` in `scripts/build-demo.mjs`.
 4. **Tune and save:** tune in the playground (`?frame=<name>`) and save the preset under the section's name.
 5. **Review** with the client on the stable preview (port 4791), then release (see CLAUDE.md).
 
@@ -14,7 +14,7 @@ Workflow for a new section:
 ## CTA: "See how Clarify solves yours"
 
 - **Figma:** frame `13311:5898` (1512 wide); card `13311:5899`. The artwork in Figma was a static export of the old playground's burst↔sphere graph (lines `#E8E8E8` at 0.062, 2.08 px).
-- **Mount:** a particles div over the right 55% of the card (`.cta__particles`, `left: 45%`; `.u-particles-threejs` on staging). The card has `overflow: clip` and radius 24.
+- **Markup (v1.2):** the card is `data-particles-component data-particles-wrap data-preset="cta"`. The script creates `div.u-particles-threejs`, styled `absolute; top/right/bottom: 0; left: 45%`. The card has `overflow: clip` and radius 24.
 - **Excite:** the "Get started" button carries `data-particles-excite`.
 - **Preset:** `cta` (graph).
 
@@ -28,7 +28,7 @@ Workflow for a new section:
 | solid, softness | true, 0 | Filled dots, lines don't show through |
 | opacity | 0.30–0.85, tiers 3 | Darker dots |
 | lineOpacity / lineWidth | 0.18 / 2 | Darker lines |
-| (layout) | particles div at `left: 45%` | Effect in the right 55%; tried 50% and 60%. Set in Webflow on the div since v1.1.0 (was `canvasInset` in the preset) |
+| (layout) | `.u-particles-threejs` at `left: 45%` | Effect in the right 55%; tried 50% and 60%. Styled in Webflow since v1.1/1.2 (was `canvasInset` in the preset) |
 | anchorLeft, scale | true, 2.7 | Big: bleeds off top, right and bottom; left edge never over the text |
 | centerX / centerY | 0.5 / 0.5 | With anchorLeft, the center is pushed right until the left edge clears the margin |
 | rotZ | 9 | Swings the hub fan toward the bottom right, as in Figma |
@@ -42,7 +42,7 @@ Workflow for a new section:
 | intro | 0 | Entrance animation rejected |
 
 - **Background token:** `bg-secondary` changed in Figma to `#080a0c` (from `#0f1215`). It's reflected in `tokens.css`.
-- **Staging implementation:** the dev mounts the effect on their own `.u-particles-threejs` div (absolute, left 45%) inside `.cta1_component`, with the button outside it. In v1.1.0 the canvas fills that div exactly, and the button reaches the effect from outside (v1.0.1+). The container caps the card at 1512 px.
+- **Staging:** v1.2 component markup agreed with the dev: component = card, the script creates `.u-particles-threejs` (styled in Webflow), and the button is scoped by the component. Before that, staging used legacy markup (the dev's own `.u-particles-threejs` div with `data-particles`), which still works. The container caps the card at 1512 px.
 - **Open:**
   - **Mobile layout:** not designed.
   - **Figma copy:** the body text in Figma starts with a stray leading space; it's omitted in our markup.

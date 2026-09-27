@@ -258,10 +258,15 @@ abstract class View {
   private readonly enterObserver: IntersectionObserver;
   private readonly prevStyle: { position: string; isolation: string };
 
+  // the component this effect belongs to: scope for its excite buttons,
+  // parallax and click handling (the element itself for legacy markup)
+  root: HTMLElement;
+
   constructor(
     readonly el: HTMLElement,
     readonly cfg: ViewConfig,
   ) {
+    this.root = el;
     this.ctx = this.canvas.getContext("2d")!;
     this.applyBackground();
 
@@ -320,7 +325,7 @@ abstract class View {
   // Pointer over the whole element as -1..1 (null = outside), for effects
   // that react beyond the canvas (parallax).
   sectionPointer(clientX: number, clientY: number) {
-    const r = this.el.getBoundingClientRect();
+    const r = this.root.getBoundingClientRect();
     const x = (clientX - r.left) / (r.width || 1);
     const y = (clientY - r.top) / (r.height || 1);
     if (x < 0 || y < 0 || x > 1 || y > 1) return null;
@@ -878,7 +883,11 @@ function onPointerDown(e: PointerEvent) {
 function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return;
   for (const view of views.values()) {
-    if (!view.cfg.interactive || e.target !== view.el) continue;
+    // the press landed on the effect's element or one of its ancestors
+    // within the component (wrap, card) — not on text or other content
+    const t = e.target;
+    const onEffect = t === view.el || (t instanceof Element && t.contains(view.el) && view.root.contains(t));
+    if (!view.cfg.interactive || !onEffect) continue;
     if (view.localPointer(e.clientX, e.clientY)) {
       e.preventDefault();
       return;
@@ -893,7 +902,15 @@ function onMouseDown(e: MouseEvent) {
 const EXCITE = "[data-particles-excite]";
 const exciteOf = (t: EventTarget | null) => (t instanceof Element ? t.closest(EXCITE) : null);
 
+const COMPONENT = "[data-particles-component]";
+
 function viewFor(trigger: Element): View | null {
+  // component markup: the effect of the trigger's own component
+  const component = trigger.closest(COMPONENT);
+  if (component) {
+    for (const view of views.values()) if (view.root === component) return view;
+  }
+  // legacy markup: the effect sharing the closest container
   for (let a: Element | null = trigger; a; a = a.parentElement) {
     for (const view of views.values()) if (a.contains(view.el)) return view;
   }
@@ -996,7 +1013,8 @@ function listen(on: boolean) {
 // --- public API (used by index.ts) ---
 
 // `editor` = the playground: exact config (no mobile particle reduction).
-export function mount(el: HTMLElement, spec: ViewSpec, { editor = false } = {}) {
+// `root` = the component the effect belongs to (defaults to `el`).
+export function mount(el: HTMLElement, spec: ViewSpec, { editor = false, root }: { editor?: boolean; root?: HTMLElement } = {}) {
   if (views.has(el)) return;
   if (!stage) {
     try {
@@ -1011,6 +1029,7 @@ export function mount(el: HTMLElement, spec: ViewSpec, { editor = false } = {}) 
     watchdog = window.setInterval(checkLoop, 1000);
   }
   const view = spec.type === "graph" ? new GraphView(el, spec.config) : new PointsView(el, spec.config, editor);
+  view.root = root ?? el;
   views.set(el, view);
 }
 
@@ -1049,10 +1068,11 @@ export function setPaused(p: boolean) {
 
 // Replace an element's view (new particle buffers) while keeping the shared
 // GL context alive — unmount + mount would tear it down and recreate it.
-export function remount(el: HTMLElement, spec: ViewSpec, opts?: { editor?: boolean }) {
+export function remount(el: HTMLElement, spec: ViewSpec, opts?: { editor?: boolean; root?: HTMLElement }) {
+  const root = views.get(el)?.root;
   views.get(el)?.dispose();
   views.delete(el);
-  mount(el, spec, opts);
+  mount(el, spec, { root, ...opts });
 }
 
 // Live state for the ?debug overlay / support: is the loop running, is the

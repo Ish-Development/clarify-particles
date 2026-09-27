@@ -6,17 +6,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
-// section template -> preset name (add new sections here)
-const SECTIONS = [["src/sections/cta.html", "cta"]];
+// section templates, in page order (add new sections here); each carries
+// its Webflow component markup and preset
+const SECTIONS = ["src/sections/cta.html"];
 
 const css = read("src/sections/tokens.css") + "\n" + read("src/sections/sections.css").replace(/@import[^;]+;/, "");
-// swap the template's mount marker attribute (inside a tag — not any
-// mention of it in a comment) for the site attributes
-const body = SECTIONS.map(([file, preset]) => {
+const body = SECTIONS.map((file) => {
   const html = read(file);
-  const out = html.replace(/(<[a-z][^>]*?\s)data-particles-target(?=[\s>])/i, `$1data-particles data-preset="${preset}"`);
-  if (out === html) throw new Error(`${file}: no data-particles-target attribute found`);
-  return out;
+  if (!/<[a-z][^>]*\sdata-particles-component[\s>=]/i.test(html)) throw new Error(`${file}: no data-particles-component element`);
+  return html;
 }).join("\n");
 
 writeFileSync(

@@ -8,7 +8,16 @@ export type GraphSpec = { type: "graph"; config: GraphViewConfig };
 export type ViewSpec = PointsSpec | GraphSpec;
 
 // Reserved dataset keys that aren't config fields.
-const RESERVED = new Set(["particles", "preset", "config"]);
+const RESERVED = new Set([
+  "particles",
+  "preset",
+  "config",
+  "particlesComponent",
+  "particlesWrap",
+  "particlesHost",
+  "particlesExcite",
+  "particlesIgnore",
+]);
 
 function warn(el: Element, msg: string) {
   console.warn(`[particles] ${msg}`, el);
@@ -28,8 +37,13 @@ function coerce(raw: string, like: unknown): unknown {
 //   type defaults -> data-preset -> data-config (JSON) -> individual data-* attributes
 // Individual attributes map 1:1 onto config keys via dataset camelCasing,
 // e.g. data-size-min -> sizeMin, data-hover-radius -> hoverRadius.
-export function parseSpec(el: HTMLElement): ViewSpec {
-  const ds = el.dataset;
+// `sources`: elements whose data-* attributes configure the effect, later
+// ones winning — [component, wrap] in component markup, or the single
+// [data-particles] element.
+export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
+  const list = Array.isArray(sources) ? sources : [sources];
+  const el = list[list.length - 1];
+  const ds: Record<string, string | undefined> = Object.assign({}, ...list.map((s) => ({ ...s.dataset })));
   const preset = ds.preset ? PRESETS[ds.preset] : undefined;
   if (ds.preset && !preset) warn(el, `unknown preset "${ds.preset}"`);
 
@@ -38,7 +52,8 @@ export function parseSpec(el: HTMLElement): ViewSpec {
     warn(el, `no data-preset — showing the default look. Available presets: ${Object.keys(PRESETS).join(", ")}`);
   }
 
-  const type = ds.particles === "graph" || (!ds.particles && preset?.type === "graph") ? "graph" : "points";
+  const typeAttr = ds.particles || ds.particlesComponent;
+  const type = typeAttr === "graph" || (!typeAttr && preset?.type === "graph") ? "graph" : "points";
   const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : pointsDefaults) };
 
   if (preset) {

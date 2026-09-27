@@ -13,7 +13,8 @@ src/core/          simulation, no rendering: shared by runtime and playground
   interaction.ts     pointer forces (hover push, click burst/reshuffle)
   noise.ts, rng.ts, color.ts
 src/runtime/       what ships to Webflow
-  index.ts           LOADER (eager, ~3 kB gz): finds [data-particles], waits, imports engine
+  index.ts           LOADER (eager, ~3 kB gz): finds components / [data-particles], waits, imports engine
+  host.ts            component markup: creates div.u-particles-threejs in the wrap
   spec.ts            attribute/preset/JSON parsing + validation
   defaults.ts        runtime defaults (points/graph + RuntimeOptions)
   presets.json       named section looks (written by the playground)
@@ -29,13 +30,18 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
 ## Runtime flow
 
 1. **Loader** (`index.ts`):
-   - An IntersectionObserver with a `50%` rootMargin watches every `[data-particles]` element.
+   - An IntersectionObserver with a `50%` rootMargin watches every `[data-particles-component]`, plus any legacy `[data-particles]` element.
    - The first time one approaches the viewport, it waits for `pageReady` (`window.load` + `requestIdleCallback`, 300 ms cap).
-   - Then `import("./engine.js")` fetches the engine once, and the loader calls `mount(el, parseSpec(el))`.
+   - Then `import("./engine.js")` fetches the engine once, and the loader creates the host div and calls `mount(host, parseSpec([component, wrap]), { root: component })`.
 2. **Engine** (`engine.ts`):
    - **One `Stage`:** one `WebGLRenderer` with its own offscreen canvas.
    - **One `View` per element:**
-     - **DOM:** it inserts a 2D `<canvas>` as the element's first child: absolute, 100% × 100%, no wrapper, no inset. The site sizes the element, and the script only draws. The dev asked for this in v1.1.0; earlier versions had a wrapper box and a `canvasInset` option.
+     - **DOM (v1.2, dev's spec):**
+       - **The div:** for each `[data-particles-component]`, the loader creates `div.u-particles-threejs` inside its `[data-particles-wrap]` (`host.ts`). Webflow styles that class.
+       - **The canvas:** the engine puts a 2D `<canvas>` in that div at 100% × 100%, with no inset.
+       - **Scope:** the component is the view's `root`, which scopes its excite buttons, parallax and click handling.
+       - **Legacy:** a `[data-particles]` element gets the canvas directly.
+       - **Earlier versions:** a wrapper box and a `canvasInset` option (removed in v1.1).
      - **Each frame:** the view's scene is rendered into the shared GL buffer, and `drawImage` copies it into the view's own canvas.
      - **Why:** browsers cap WebGL contexts at about 16, and each costs GPU memory. A per-element 2D canvas also stacks, clips and scrolls natively with the Webflow layout. A single fixed full-page GL canvas can't sit behind content and above section backgrounds at the same time.
 3. **Views:**

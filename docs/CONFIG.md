@@ -1,6 +1,6 @@
 # Configuration reference
 
-The effect always fills its element (canvas at 100% × 100%). Position and size the element itself to control the area.
+Markup: `[data-particles-component]` > `[data-particles-wrap]`. The script creates `div.u-particles-threejs` in the wrap, with the canvas at 100% × 100% inside it. Style that class in Webflow to set the effect's area (see runtime/README.md). Settings go on the component or the wrap, and the wrap wins.
 
 Every setting can be part of a preset (`src/runtime/presets.json`, the recommended route) or be set per element. Resolution order, later wins:
 
@@ -11,7 +11,7 @@ Every setting can be part of a preset (`src/runtime/presets.json`, the recommend
 
 Unknown keys and invalid values print a `[particles]` console warning that names the element. Webflow's own `data-w-*` / `data-wf-*` attributes are ignored.
 
-The type comes from the `data-particles` value: empty for **points** (a particle-field shape), or `graph` for a **node graph**. A preset carries its own type.
+The type comes from the preset (it carries its own). Without a preset, `data-particles-component="graph"` (or legacy `data-particles="graph"`) selects a **node graph**, and anything else gives **points** (a particle-field shape).
 
 ## Shared (both types)
 
@@ -98,5 +98,7 @@ The type comes from the `data-particles` value: empty for **points** (a particle
 
 | Attribute | Effect |
 |---|---|
-| `data-particles-excite` | Hovering or focusing it "excites" the nearest particle effect (graph: lights up / breathes). It targets the effect sharing the closest container with it; the button doesn't need to be inside the effect's element. |
+| `data-particles-component` | The component root: settings + scope for its excite buttons |
+| `data-particles-wrap` | Inside a component: where the script creates `div.u-particles-threejs` (defaults to the component) |
+| `data-particles-excite` | Hovering or focusing it "excites" its component's effect (graph: lights up / breathes). In legacy markup: the nearest effect sharing a container. |
 | `data-particles-ignore` | Clicks on this element never trigger the click effect (links, buttons and form fields are already excluded) |

@@ -19,21 +19,18 @@
       import "/src/sections/sections.css";
       import cta from "/src/sections/cta.html?raw";
 
-      // in Webflow the card carries these attributes; the playground's
-      // template marks it data-particles-target instead
-      function addSection(html, preset) {
+      // templates carry the Webflow component markup; ?cta=<preset>
+      // previews a variant (e.g. ?cta=cta-morph)
+      const params = new URLSearchParams(location.search);
+      function addSection(html, presetParam) {
         const tpl = document.createElement("template");
         tpl.innerHTML = html;
-        const target = tpl.content.querySelector("[data-particles-target]");
-        target.removeAttribute("data-particles-target");
-        target.setAttribute("data-particles", "");
-        target.setAttribute("data-preset", preset);
+        const component = tpl.content.querySelector("[data-particles-component]");
+        if (presetParam && params.get(presetParam)) component.setAttribute("data-preset", params.get(presetParam));
         document.getElementById("sections").append(tpl.content);
       }
 
-      // ?cta=<preset> previews a variant (e.g. ?cta=cta-morph)
-      const params = new URLSearchParams(location.search);
-      addSection(cta, params.get("cta") || "cta");
+      addSection(cta, "cta");
       await import("/src/runtime/index.ts");
 
       // ?debug: live engine state in the corner, also posted to the dev

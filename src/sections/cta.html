@@ -1,9 +1,8 @@
 <section class="cta">
-  <div class="cta__card">
-    <!-- particles layer, sized by CSS over the right of the card (marked
-         below for the playground; in Webflow: data-particles
-         data-preset="cta" on this div) -->
-    <div class="cta__particles" data-particles-target></div>
+  <!-- the card is the particles component (scope + preset) and its wrap:
+       the script creates div.u-particles-threejs inside it, which the CSS
+       places over the right of the card (Webflow styles that class) -->
+  <div class="cta__card" data-particles-component data-particles-wrap data-preset="cta">
     <div class="cta__content">
       <div class="eyebrow">
         <span class="eyebrow__grid" aria-hidden="true"
