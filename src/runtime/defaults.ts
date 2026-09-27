@@ -1,5 +1,5 @@
 import { defaultConfig, type ParticleConfig } from "../core/config";
-import { defaultGraphConfig, type GraphConfig } from "../core/graph";
+import { defaultGraphConfig, type GraphConfig } from "../core/graphConfig";
 
 // Runtime-only options layered on top of the simulation configs.
 export interface RuntimeOptions {

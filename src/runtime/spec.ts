@@ -1,5 +1,5 @@
 import { defaultConfig, SHAPE_NAMES } from "../core/config";
-import { defaultGraphConfig, GRAPH_MODES } from "../core/graph";
+import { defaultGraphConfig, GRAPH_MODES } from "../core/graphConfig";
 import { graphDefaults, pointsDefaults, type GraphViewConfig, type PointsConfig } from "./defaults";
 import { PRESETS } from "./presets";
 
