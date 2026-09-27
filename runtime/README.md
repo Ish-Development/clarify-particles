@@ -23,6 +23,14 @@ Each site section has its own look, saved as a named **preset** in this repo (`s
 | `data-particles` | *(empty)* |
 | `data-preset` | `hero` *(the section's preset name)* |
 
+### Sections
+
+| Section | Put the attributes on | Preset |
+|---|---|---|
+| CTA ("See how Clarify solves yours", Figma `13311:5898`) | the rounded card (`13311:5899`), not the outer section | `cta` |
+
+The card must keep `overflow: clip` (or `hidden`) and its border radius as in Figma. The graph is larger than the card, and the card crops it.
+
 That's all. Looks are designed and changed in the playground, not in Webflow. To restyle a section later, update its preset and release a new version. The Webflow markup stays the same. The script adds a `<canvas>` inside the element:
 
 - **Background:** it sits behind the element's content but above the element's own background color or image.
@@ -73,6 +81,11 @@ Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`
 | `data-count` | `140` | Nodes |
 | `data-size-min` / `data-size-max` | `4` / `14` | |
 | `data-color` / `data-line-color` | `#e8e8e8` | |
+| `data-line-opacity` / `data-line-width` | `0.25` / `1` | Line width in CSS px |
+| `data-center-x` / `data-center-y` / `data-scale` | `0.5` / `0.5` / `1` | Placement in the element |
+| `data-rot-x` / `-y` / `-z` | `0` | Base orientation in degrees |
+| `data-tiers` | `0` | Quantize node sizes into N steps |
+| `data-morph-hold` | `0.5` | Morph position when `data-morph-speed="0"` |
 | `data-morph-speed` | `0.4` | Morph modes only |
 | `data-idle-rotation-speed` | `0.08` | |
 | `data-idle-tilt-amount` | `0.35` | |
@@ -85,6 +98,7 @@ Attribute names are the config keys in kebab-case (`sizeMin` → `data-size-min`
 | `data-background` | `transparent` | `transparent` shows the Webflow background; a hex color paints the canvas |
 | `data-blend` | `additive` (points), `normal` (graph) | Use `normal` for dark particles on light backgrounds |
 | `data-interactive` | `true` | Hover repel and click reactions |
+| `data-softness` | `1` | Dot edge: `1` soft glow, `0` solid disc |
 | `data-hover-radius` / `data-hover-strength` | `120` / `1.2` (graph: `140` / `1`) | |
 | `data-click-behavior` | `burst` | `burst`, `reshuffle`, `none` |
 

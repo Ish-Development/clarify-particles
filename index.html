@@ -4,21 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Particle Playground</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@500&display=swap" rel="stylesheet" />
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1a1c; font-family: system-ui, sans-serif; }
-      /* the stage stands in for a Webflow section: its background is the
-         section's own color, the engine's canvas mounts inside it */
-      #stage { position: fixed; inset: 0; background: var(--section-color, #0b0b0c); margin: auto; transition: width 0.3s, height 0.3s, border-radius 0.3s; }
-      #stage[data-frame="section"] { width: min(100vw, 1280px); height: min(56.25vw, 720px); }
-      #stage[data-frame="card"] { width: min(520px, 80vw); height: min(520px, 80vw); border-radius: 24px; overflow: hidden; }
-      #stage[data-frame="mobile"] { width: 390px; height: min(844px, 92vh); border-radius: 32px; overflow: hidden; }
+      body { display: grid; grid-template-columns: 1fr 320px; }
+      #area { position: relative; overflow: hidden; container-type: size; }
+      #panel { overflow-y: auto; background: #111113; border-left: 1px solid #26262a; }
+      /* plain frames: the stage stands in for a Webflow section and gets the
+         section color; the engine's canvas mounts inside it */
+      #stage { position: absolute; inset: 0; margin: auto; background: var(--section-color, #0b0b0c); transition: width 0.3s, height 0.3s, border-radius 0.3s; }
+      #stage[data-frame="section"] { width: min(100cqw, 1280px); height: min(56.25cqw, 720px); }
+      #stage[data-frame="card"] { width: min(520px, 80cqmin); height: min(520px, 80cqmin); border-radius: 24px; overflow: hidden; }
+      #stage[data-frame="mobile"] { width: 390px; height: min(844px, 92%); border-radius: 32px; overflow: hidden; }
       #stage:not([data-frame="full"]) { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08); }
-      #toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px); padding: 10px 16px; border-radius: 999px; background: #fff; color: #000; font-size: 13px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 100; }
+      /* section frames: real section markup at its 1512px design width (the Figma frame width),
+         scaled to fit (the engine renders at layout size, so it matches) */
+      #stage[data-template] { inset: auto; left: 0; top: 50%; width: 1512px; height: auto; margin: 0; background: none; transform-origin: 0 0; }
+      #toast { position: fixed; left: calc(50% - 160px); bottom: 24px; transform: translate(-50%, 12px); padding: 10px 16px; border-radius: 999px; background: #fff; color: #000; font-size: 13px; font-weight: 500; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 100; }
       #toast.show { opacity: 1; transform: translate(-50%, 0); }
     </style>
   </head>
   <body>
-    <div id="stage" data-frame="full"></div>
+    <main id="area"><div id="stage" data-frame="full"></div></main>
+    <aside id="panel" data-particles-ignore></aside>
     <div id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/src/playground/main.ts"></script>
   </body>

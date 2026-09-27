@@ -1,0 +1,54 @@
+@import "./tokens.css";
+
+/* Section markup mirroring the Figma frames — the playground's tuning
+   backdrop, and a reference for the Webflow build. */
+
+.section-frame { width: 1512px; font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased; }
+.section-frame * { box-sizing: border-box; }
+
+/* --- shared components --- */
+
+.eyebrow { display: flex; align-items: center; gap: var(--space-2); }
+.eyebrow__grid { display: grid; grid-template-columns: repeat(4, 2px); gap: 1px; }
+.eyebrow__grid i { width: 2px; height: 2px; background: var(--mist-500); }
+.eyebrow__grid i.on { background: var(--mist-600); }
+.eyebrow__label {
+  font: 500 var(--eyebrow-size-eyebrow-large) / 1 var(--family-text-secondary);
+  color: var(--text-text-secondary);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-small);
+  font: 500 var(--buttons-size-button-large) / 1 var(--family-text-primary);
+  text-decoration: none; white-space: nowrap;
+}
+.btn--primary { background: var(--button-primary-bg); color: var(--button-primary-text); border: 1px solid rgba(255, 255, 255, 0.12); }
+
+/* --- CTA (Figma 13311:5898) --- */
+
+.cta { background: var(--background-bg-primary); padding: var(--section-space-m) var(--grid-margin); }
+.cta__card {
+  position: relative;
+  overflow: clip;
+  background: var(--background-bg-secondary);
+  border: 1px solid var(--border-border-primary);
+  border-radius: var(--radius-x-large);
+  padding: var(--section-space-xxl) var(--space-8);
+}
+.cta__content { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-6); }
+.cta__text { display: flex; flex-direction: column; gap: var(--space-4); width: 488px; }
+.cta__title {
+  margin: 0; width: 311px;
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+  color: var(--text-text-primary);
+}
+.cta__body {
+  margin: 0; width: 456px;
+  font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary);
+  color: var(--text-text-secondary);
+}

@@ -11,6 +11,8 @@ export interface GraphConfig {
   sizeMax: number;
   mode: GraphMode;
   morphSpeed: number;
+  // morph position (0 = first layout, 1 = second) held when morphSpeed = 0
+  morphHold: number;
   idleRotationSpeed: number;
   idleTiltAmount: number;
   hoverRadius: number;
@@ -19,6 +21,22 @@ export interface GraphConfig {
   background: string;
   color: string;
   lineColor: string;
+  lineOpacity: number;
+  // edge thickness in CSS px
+  lineWidth: number;
+  // placement in the container: center as a fraction of width/height, and
+  // a size multiplier (1 = fits comfortably; >1 overflows, cropped by the box)
+  centerX: number;
+  centerY: number;
+  scale: number;
+  // base orientation in degrees, added to the idle rotation/tilt
+  rotX: number;
+  rotY: number;
+  // in-plane rotation of the projected graph (swings e.g. the burst hub
+  // toward a corner)
+  rotZ: number;
+  // quantize node weights into N size/brightness steps (0 = continuous)
+  tiers: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -28,6 +46,7 @@ export const defaultGraphConfig: GraphConfig = {
   sizeMax: 14,
   mode: "hubBurst",
   morphSpeed: 0.4,
+  morphHold: 0.5,
   idleRotationSpeed: 0.08,
   idleTiltAmount: 0.35,
   hoverRadius: 140,
@@ -36,6 +55,15 @@ export const defaultGraphConfig: GraphConfig = {
   background: "#050505",
   color: "#e8e8e8",
   lineColor: "#e8e8e8",
+  lineOpacity: 0.25,
+  lineWidth: 1,
+  centerX: 0.5,
+  centerY: 0.5,
+  scale: 1,
+  rotX: 0,
+  rotY: 0,
+  rotZ: 0,
+  tiers: 0,
 };
 
 interface Layout {
@@ -283,7 +311,9 @@ export class GraphSystem {
     this.screenX = new Float32Array(n);
     this.screenY = new Float32Array(n);
     for (let i = 0; i < n; i++) {
-      const wgt = this.layoutA.weight[i];
+      const raw = this.layoutA.weight[i];
+      const steps = Math.round(cfg.tiers);
+      const wgt = steps > 1 ? Math.round(raw * (steps - 1)) / (steps - 1) : raw;
       this.size[i] = cfg.sizeMin + wgt * (cfg.sizeMax - cfg.sizeMin);
       this.opacity[i] = 0.45 + wgt * 0.55;
     }
@@ -299,21 +329,24 @@ export class GraphSystem {
     const n = this.count;
     const A = this.layoutA;
     const B = this.layoutB;
-    const morphT = B ? 0.5 + 0.5 * Math.sin(this.time * cfg.morphSpeed) : 0;
+    const morphT = !B ? 0 : cfg.morphSpeed > 0 ? 0.5 + 0.5 * Math.sin(this.time * cfg.morphSpeed) : cfg.morphHold;
     this.edgeAlphaA = B ? 1 - morphT : 1;
     this.edgeAlphaB = B ? morphT : 0;
 
-    const cx = w / 2;
-    const cy = h / 2;
-    const scale = Math.min(w, h) * 0.32;
-    const cosR = Math.cos(this.rot);
-    const sinR = Math.sin(this.rot);
+    const cx = w * cfg.centerX;
+    const cy = h * cfg.centerY;
+    const scale = Math.min(w, h) * 0.32 * cfg.scale;
+    const DEG = Math.PI / 180;
+    const cosR = Math.cos(this.rot + cfg.rotY * DEG);
+    const sinR = Math.sin(this.rot + cfg.rotY * DEG);
     // slow nodding tilt (around X) layered on top of the constant Y-axis
     // spin — the combination sweeps the camera through varied angles
     // instead of a flat, always-equatorial view.
-    const tiltAngle = Math.sin(this.time * cfg.idleRotationSpeed * 0.6) * cfg.idleTiltAmount;
+    const tiltAngle = Math.sin(this.time * cfg.idleRotationSpeed * 0.6) * cfg.idleTiltAmount + cfg.rotX * DEG;
     const cosT = Math.cos(tiltAngle);
     const sinT = Math.sin(tiltAngle);
+    const cosZ = Math.cos(cfg.rotZ * DEG);
+    const sinZ = Math.sin(cfg.rotZ * DEG);
     const k = 60;
     const damp = 8;
 
@@ -329,8 +362,8 @@ export class GraphSystem {
       const rx = x * cosR + z * sinR;
       const rz = -x * sinR + z * cosR;
       const ry = y * cosT - rz * sinT;
-      this.screenX[i] = cx + rx * scale;
-      this.screenY[i] = cy + ry * scale;
+      this.screenX[i] = cx + (rx * cosZ - ry * sinZ) * scale;
+      this.screenY[i] = cy + (rx * sinZ + ry * cosZ) * scale;
 
       const ax = -k * this.offX[i] - damp * this.offVX[i];
       const ay = -k * this.offY[i] - damp * this.offVY[i];

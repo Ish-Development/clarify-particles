@@ -95,9 +95,9 @@ export function buildGraphSvg(view: View, cfg: GraphViewConfig): string {
   const py = (i: number) => (s.screenY[i] + s.offY[i]).toFixed(2);
   const addEdges = (edges: [number, number][], alpha: number) => {
     if (alpha <= 0.002) return;
-    const op = (alpha * 0.25).toFixed(3);
+    const op = (alpha * cfg.lineOpacity).toFixed(3);
     for (const [a, b] of edges) {
-      parts.push(`<line x1="${px(a)}" y1="${py(a)}" x2="${px(b)}" y2="${py(b)}" stroke="${cfg.lineColor}" stroke-opacity="${op}"/>`);
+      parts.push(`<line x1="${px(a)}" y1="${py(a)}" x2="${px(b)}" y2="${py(b)}" stroke="${cfg.lineColor}" stroke-opacity="${op}" stroke-width="${cfg.lineWidth}"/>`);
     }
   };
   addEdges(s.edgesA, s.edgeAlphaA);

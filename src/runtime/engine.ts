@@ -17,8 +17,11 @@ import {
   Camera,
   Color,
   CustomBlending,
+  DoubleSide,
   DynamicDrawUsage,
-  LineSegments,
+  InstancedBufferAttribute,
+  InstancedBufferGeometry,
+  Mesh,
   OneFactor,
   OneMinusSrcAlphaFactor,
   Points,
@@ -60,40 +63,70 @@ uniform float uSizeScale;
 uniform float uMaxSize;
 varying float vAlpha;
 varying vec3 vColor;
+varying float vSize;
 void main() {
   vec2 p = position.xy / uRes * 2.0 - 1.0;
   gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
   gl_PointSize = min(aSize * uSizeScale * uDpr, uMaxSize);
+  vSize = gl_PointSize;
   vAlpha = aAlpha;
   vColor = aColor;
 }`;
 
-// Soft round dot matching the playground's radial-gradient sprite, which
-// fades color -> rgba(0,0,0,0): color and alpha both fall off linearly, so
-// the visible (premultiplied) intensity falls off quadratically.
+// Round dot, blended between two profiles by uSoftness:
+//   1 = soft glow matching the original radial-gradient sprite (color and
+//       alpha both fall off linearly -> quadratic visible falloff)
+//   0 = solid disc with a 1px anti-aliased edge
 const POINT_FRAG = /* glsl */ `
+uniform float uSoftness;
 varying float vAlpha;
 varying vec3 vColor;
+varying float vSize;
 void main() {
   float f = 1.0 - length(gl_PointCoord - 0.5) * 2.0;
   if (f <= 0.0) discard;
-  float a = f * f * vAlpha;
+  float hard = clamp(f * vSize * 0.5, 0.0, 1.0);
+  float a = mix(hard, f * f, uSoftness) * vAlpha;
   gl_FragColor = vec4(vColor * a, a);
 }`;
 
+// Edges are instanced quads, not GL lines (those are always 1 device pixel
+// wide). The base quad spans position.x 0..1 along the edge and position.y
+// -1..1 across it; per-instance aEnds holds both endpoints. The quad is
+// padded by one device pixel so the fragment shader can anti-alias.
 const LINE_VERT = /* glsl */ `
+attribute vec4 aEnds;
 uniform vec2 uRes;
+uniform float uWidth;
+uniform float uDpr;
+varying float vDist;
 void main() {
-  vec2 p = position.xy / uRes * 2.0 - 1.0;
-  gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
+  vec2 a = aEnds.xy;
+  vec2 b = aEnds.zw;
+  vec2 d = b - a;
+  float len = length(d);
+  vec2 dir = len > 0.0 ? d / len : vec2(1.0, 0.0);
+  float hw = uWidth * 0.5 + 1.0 / uDpr;
+  vec2 p = mix(a, b, position.x) + vec2(-dir.y, dir.x) * position.y * hw;
+  vDist = position.y * hw;
+  vec2 c = p / uRes * 2.0 - 1.0;
+  gl_Position = vec4(c.x, -c.y, 0.0, 1.0);
 }`;
 
 const LINE_FRAG = /* glsl */ `
 uniform vec3 uColor;
 uniform float uAlpha;
+uniform float uWidth;
+uniform float uDpr;
+varying float vDist;
 void main() {
-  gl_FragColor = vec4(uColor * uAlpha, uAlpha);
+  float cover = clamp((uWidth * 0.5 - abs(vDist)) * uDpr + 0.5, 0.0, 1.0);
+  float a = uAlpha * cover;
+  gl_FragColor = vec4(uColor * a, a);
 }`;
+
+// Base quad for the instanced edges (two triangles).
+const EDGE_QUAD = new Float32Array([0, -1, 0, 1, -1, 0, 1, 1, 0, 0, -1, 0, 1, 1, 0, 0, 1, 0]);
 
 function makeMaterial(vert: string, frag: string, uniforms: ShaderMaterial["uniforms"], blend: RuntimeOptions["blend"]) {
   return new ShaderMaterial({
@@ -295,12 +328,15 @@ abstract class View {
     stage?.draw(this);
   }
 
-  // Pointer position in this view's local CSS pixels, or null if outside.
+  // Pointer position in this view's local (layout) pixels, or null if
+  // outside. Rescaled by layout/visual size so CSS transforms on the section
+  // (scale animations, scaled previews) don't offset the hover.
   localPointer(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
     const x = clientX - rect.left;
     const y = clientY - rect.top;
-    return x >= 0 && y >= 0 && x <= rect.width && y <= rect.height ? { x, y } : null;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    return { x: (x * this.w) / (rect.width || 1), y: (y * this.h) / (rect.height || 1) };
   }
 
   abstract step(dt: number): void;
@@ -319,8 +355,9 @@ abstract class View {
   }
 }
 
-function pointUniforms(sizeScale: number) {
+function pointUniforms(sizeScale: number, softness: number) {
   return {
+    uSoftness: { value: softness },
     uRes: { value: [1, 1] },
     uDpr: { value: 1 },
     uSizeScale: { value: sizeScale },
@@ -355,7 +392,7 @@ class PointsView extends View {
     this.writeColors();
 
     // 6 = the playground's sprite scale (render.ts: size * 6)
-    this.material = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(6), cfg.blend);
+    this.material = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(6, cfg.softness), cfg.blend);
     const points = new Points(this.geometry, this.material);
     points.frustumCulled = false;
     this.scene.add(points);
@@ -386,6 +423,7 @@ class PointsView extends View {
   protected onLook() {
     this.writeColors();
     this.material.blendDst = blendDst(this.cfg.blend);
+    this.material.uniforms.uSoftness.value = this.cfg.softness;
   }
 
   protected onResize() {
@@ -409,10 +447,10 @@ class GraphView extends View {
   private readonly edgeLayers: {
     edges: [number, number][];
     pos: Float32Array;
-    attr: BufferAttribute;
-    geometry: BufferGeometry;
+    attr: InstancedBufferAttribute;
+    geometry: InstancedBufferGeometry;
     material: ShaderMaterial;
-    lines: LineSegments;
+    lines: Mesh;
   }[] = [];
   private readonly graphCfg: GraphSpec["config"];
   private readonly nodeColorAttr: BufferAttribute;
@@ -429,17 +467,26 @@ class GraphView extends View {
     // during the morph modes
     for (const edges of [sys.edgesA, sys.edgesB]) {
       const pos = new Float32Array(Math.max(1, edges.length) * 4);
-      const attr = new BufferAttribute(pos, 2).setUsage(DynamicDrawUsage);
-      const geometry = new BufferGeometry();
-      geometry.setAttribute("position", attr);
-      geometry.setDrawRange(0, edges.length * 2);
+      const attr = new InstancedBufferAttribute(pos, 4).setUsage(DynamicDrawUsage);
+      const geometry = new InstancedBufferGeometry();
+      geometry.setAttribute("position", new BufferAttribute(EDGE_QUAD, 3));
+      geometry.setAttribute("aEnds", attr);
+      geometry.instanceCount = edges.length;
       const material = makeMaterial(
         LINE_VERT,
         LINE_FRAG,
-        { uRes: { value: [1, 1] }, uColor: { value: lineColor }, uAlpha: { value: 0 } },
+        {
+          uRes: { value: [1, 1] },
+          uColor: { value: lineColor },
+          uAlpha: { value: 0 },
+          uWidth: { value: cfg.lineWidth },
+          uDpr: { value: 1 },
+        },
         cfg.blend,
       );
-      const lines = new LineSegments(geometry, material);
+      // the shader's y-flip reverses triangle winding: don't cull
+      material.side = DoubleSide;
+      const lines = new Mesh(geometry, material);
       lines.frustumCulled = false;
       this.scene.add(lines);
       this.edgeLayers.push({ edges, pos, attr, geometry, material, lines });
@@ -453,7 +500,7 @@ class GraphView extends View {
     this.nodeGeometry.setAttribute("aAlpha", new BufferAttribute(sys.opacity, 1));
     this.nodeGeometry.setAttribute("aColor", this.nodeColorAttr);
     // 2 = the playground's node scale (graphRender.ts: size * 2)
-    this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2), cfg.blend);
+    this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2, cfg.softness), cfg.blend);
     const nodes = new Points(this.nodeGeometry, this.nodeMaterial);
     nodes.frustumCulled = false;
     this.scene.add(nodes);
@@ -468,6 +515,7 @@ class GraphView extends View {
     for (let i = 0; i < this.system.count; i++) colors.set(color, i * 3);
     this.nodeColorAttr.needsUpdate = true;
     this.nodeMaterial.blendDst = blendDst(cfg.blend);
+    this.nodeMaterial.uniforms.uSoftness.value = cfg.softness;
     const lineColor = hexToRgb01(cfg.lineColor);
     for (const layer of this.edgeLayers) {
       layer.material.uniforms.uColor.value = lineColor;
@@ -494,9 +542,8 @@ class GraphView extends View {
       const alpha = alphas[li];
       layer.lines.visible = alpha > 0.002 && layer.edges.length > 0;
       if (!layer.lines.visible) return;
-      // GL lines are always 1 device pixel; the playground's are 1 CSS
-      // pixel. Scaling alpha by dpr keeps the perceived line weight equal.
-      layer.material.uniforms.uAlpha.value = Math.min(1, alpha * 0.25 * this.dpr);
+      layer.material.uniforms.uAlpha.value = alpha * this.graphCfg.lineOpacity;
+      layer.material.uniforms.uWidth.value = this.graphCfg.lineWidth;
       const pos = layer.pos;
       let k = 0;
       for (const [a, b] of layer.edges) {
@@ -513,7 +560,10 @@ class GraphView extends View {
     const res = [this.w, this.h];
     this.nodeMaterial.uniforms.uRes.value = res;
     this.nodeMaterial.uniforms.uDpr.value = this.dpr;
-    for (const layer of this.edgeLayers) layer.material.uniforms.uRes.value = res;
+    for (const layer of this.edgeLayers) {
+      layer.material.uniforms.uRes.value = res;
+      layer.material.uniforms.uDpr.value = this.dpr;
+    }
   }
 
   protected disposeGpu() {

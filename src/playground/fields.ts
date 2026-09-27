@@ -64,6 +64,7 @@ const MODES: [GraphMode, string][] = [
 
 const shared: Field[] = [
   { folder: "look", key: "blend", control: select(["additive", "normal"]), kind: "look" },
+  { folder: "look", key: "softness", control: [1, 0, 1, 0.01], kind: "look" },
   { folder: "look", key: "paintBackground", control: false, kind: "look" },
   { folder: "look", key: "backgroundColor", control: color, kind: "look" },
   { folder: "interaction", key: "interactive", control: true, kind: "live" },
@@ -103,11 +104,21 @@ export const graphFields: Field[] = [
   { folder: "nodes", key: "count", control: [140, 20, 400, 5], kind: "rebuild" },
   { folder: "nodes", key: "sizeMin", control: [4, 1, 20, 0.5], kind: "rebuild" },
   { folder: "nodes", key: "sizeMax", control: [14, 1, 30, 0.5], kind: "rebuild" },
-  { folder: "motion", key: "idleRotationSpeed", control: [0.08, 0, 0.5, 0.01], kind: "live" },
+  { folder: "nodes", key: "tiers", control: [0, 0, 6, 1], kind: "rebuild" },
+  { folder: "placement", key: "centerX", control: [0.5, -0.5, 1.5, 0.01], kind: "live" },
+  { folder: "placement", key: "centerY", control: [0.5, -0.5, 1.5, 0.01], kind: "live" },
+  { folder: "placement", key: "scale", control: [1, 0.2, 5, 0.01], kind: "live" },
+  { folder: "placement", key: "rotX", control: [0, -180, 180, 1], kind: "live" },
+  { folder: "placement", key: "rotY", control: [0, -180, 180, 1], kind: "live" },
+  { folder: "placement", key: "rotZ", control: [0, -180, 180, 1], kind: "live" },
+  { folder: "motion", key: "idleRotationSpeed", control: [0.08, 0, 0.5, 0.005], kind: "live" },
   { folder: "motion", key: "idleTiltAmount", control: [0.35, 0, 1.2, 0.01], kind: "live" },
-  { folder: "motion", key: "morphSpeed", control: [0.4, 0.05, 2, 0.01], kind: "live" },
+  { folder: "motion", key: "morphSpeed", control: [0.4, 0, 2, 0.01], kind: "live" },
+  { folder: "motion", key: "morphHold", control: [0.5, 0, 1, 0.01], kind: "live" },
   { folder: "look", key: "color", control: color, kind: "look" },
   { folder: "look", key: "lineColor", control: color, kind: "look" },
+  { folder: "look", key: "lineOpacity", control: [0.25, 0, 1, 0.005], kind: "live" },
+  { folder: "look", key: "lineWidth", control: [1, 0.25, 6, 0.05], kind: "live" },
   ...shared,
 ];
 

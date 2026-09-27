@@ -1,0 +1,41 @@
+/* Design tokens from the Figma file "Clarify — Website Design Foundation"
+   (variables, as named there). The Webflow site should define the same
+   variables; section markup here only references these. */
+:root {
+  /* color */
+  --background-bg-primary: #060709;
+  --background-bg-secondary: #0f1215;
+  --border-border-primary: #2f323680;
+  --text-text-primary: #f8fbfd;
+  --text-text-secondary: #dee2e8;
+  --neutrals-bone-100: #f4f7fa;
+  --mist-500: #5f8db4;
+  --mist-600: #a4c9e9;
+  --button-primary-bg: #dee2e8;
+  --button-primary-text: #030304;
+
+  /* type */
+  --family-heading-primary: "Geist", system-ui, sans-serif;
+  --family-text-primary: "Geist", system-ui, sans-serif;
+  --family-text-secondary: "Geist Mono", ui-monospace, monospace;
+  --headings-size-h2: 44px;
+  --body-size-text-medium: 18px;
+  --eyebrow-size-eyebrow-large: 14px;
+  --buttons-size-button-large: 16px;
+
+  /* space & layout */
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 64px;
+  --section-space-m: 80px;
+  --section-space-xxl: 240px;
+  --grid-margin: 80px;
+  --grid-gutter: 24px;
+
+  /* radius */
+  --radius-small: 8px;
+  --radius-x-large: 24px;
+}

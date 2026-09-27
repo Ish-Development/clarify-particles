@@ -4,18 +4,27 @@
 import { createDialKit, createDialRoot, type DialKitController } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { graphDefaults, pointsDefaults, type GraphViewConfig, type PointsConfig } from "../runtime/defaults";
-import { getView, mount, refreshLook, remount } from "../runtime/engine";
+import { getView, mount, refreshLook, remount, unmount } from "../runtime/engine";
 import type { Preset } from "../runtime/presets";
 import type { ViewSpec } from "../runtime/spec";
 import { applyValues, buildDialConfig, cfgToValues, diffConfig, graphFields, pointsFields, type Field } from "./fields";
 import { buildGraphSvg, buildPointsSvg, downloadBlob, exportPngSequence, exportVideo } from "./exports";
+import "../sections/sections.css";
+import ctaHtml from "../sections/cta.html?raw";
+
+// Real section markup to tune a look in context, keyed by frame value. The
+// effect mounts on the template's [data-particles-target] element.
+const TEMPLATES: Record<string, string> = { cta: ctaHtml };
 
 type Type = "points" | "graph";
 type AnyConfig = PointsConfig | GraphViewConfig;
 type Values = Record<string, unknown>;
 
 const NEW = "(new)";
+const area = document.getElementById("area")!;
 const stage = document.getElementById("stage")!;
+// element the effect is mounted on: the stage, or a section template's card
+let target: HTMLElement = stage;
 const toastEl = document.getElementById("toast")!;
 
 const defaultsFor = (t: Type): AnyConfig => ({ ...(t === "graph" ? graphDefaults : pointsDefaults) });
@@ -38,7 +47,7 @@ function toast(msg: string) {
 }
 
 const spec = (): ViewSpec => ({ type, config: cfg }) as ViewSpec;
-const rebuild = () => remount(stage, spec(), { editor: true });
+const rebuild = () => remount(target, spec(), { editor: true });
 
 // --- presets (src/runtime/presets.json via the dev server) ---
 
@@ -72,7 +81,38 @@ const FRAMES = [
   { value: "section", label: "Section 16:9" },
   { value: "card", label: "Card (square)" },
   { value: "mobile", label: "Mobile 390×844" },
+  { value: "cta", label: "CTA section (Figma)" },
 ];
+
+// Section templates render at their 1512px design width, scaled to fit.
+function fitTemplate() {
+  if (!stage.dataset.template) return;
+  const k = Math.min(1, area.clientWidth / 1512);
+  stage.style.transform = `translateY(-50%) scale(${k})`;
+  stage.style.transformOrigin = "0 50%";
+}
+new ResizeObserver(fitTemplate).observe(area);
+
+function setFrame(frame: string) {
+  const template = TEMPLATES[frame];
+  const wasTemplate = stage.dataset.template;
+  stage.dataset.frame = frame;
+  if (template === undefined && !wasTemplate) return; // plain frame -> plain frame: CSS only
+  if (wasTemplate === frame) return;
+  unmount(target);
+  if (template !== undefined) {
+    stage.dataset.template = frame;
+    stage.innerHTML = template;
+    target = stage.querySelector<HTMLElement>("[data-particles-target]")!;
+  } else {
+    delete stage.dataset.template;
+    stage.innerHTML = "";
+    stage.style.transform = "";
+    target = stage;
+  }
+  fitTemplate();
+  mount(target, spec(), { editor: true });
+}
 
 function sectionConfig() {
   return {
@@ -108,7 +148,7 @@ function onSectionChange(v: Values) {
   if (syncing) return;
   const prev = lastSection;
   lastSection = { ...v };
-  stage.dataset.frame = v.frame as string;
+  if (v.frame !== prev.frame) setFrame(v.frame as string);
   document.body.style.setProperty("--section-color", v.sectionColor as string);
   if (v.preset !== prev.preset && v.preset !== NEW) loadPreset(v.preset as string);
   else if (v.type !== prev.type && prev.type !== undefined) setType(v.type as Type, defaultsFor(v.type as Type));
@@ -176,7 +216,7 @@ function buildParamKit() {
     if (syncing) return;
     const change = applyValues(fields, values as Values, cfg);
     if (change === "rebuild") rebuild();
-    else if (change === "look") refreshLook(stage);
+    else if (change === "look") refreshLook(target);
   }, false);
 }
 
@@ -221,7 +261,7 @@ function buildExportKit() {
       id: "export",
       defaultCollapsed: true,
       onAction: async (a) => {
-        const view = getView(stage);
+        const view = getView(target);
         if (!view) return;
         const v = kit.getValues();
         if (a === "png") {
@@ -244,11 +284,18 @@ function buildExportKit() {
 // --- boot ---
 
 await loadPresets();
-const root = createDialRoot({ position: "top-right", theme: "dark" });
-// clicks on the panel must not trigger the effect's click burst
-root.element.setAttribute("data-particles-ignore", "");
+// inline in the sidebar (marked data-particles-ignore so panel clicks
+// never trigger the effect's click burst)
+createDialRoot({ mode: "inline", target: document.getElementById("panel")!, theme: "dark" });
 
 sectionKit = createDialKit("Section", sectionConfig(), { id: "section", onAction: onSectionAction });
 buildParamKit();
-mount(stage, spec(), { editor: true });
+mount(target, spec(), { editor: true });
 sectionKit.subscribe((v) => onSectionChange(v as Values));
+
+// deep link: ?preset=cta&frame=cta
+const params = new URLSearchParams(location.search);
+const initial: Values = {};
+if (params.get("frame")) initial.frame = params.get("frame");
+if (params.get("preset") && presets[params.get("preset")!]) initial.preset = params.get("preset");
+if (Object.keys(initial).length) sectionKit.setValues(initial);
