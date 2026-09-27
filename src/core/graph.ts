@@ -194,7 +194,7 @@ function buildClusters(n: number, seed: number): Layout {
   const y = new Float32Array(n);
   const z = new Float32Array(n);
   const weight = new Float32Array(n);
-  const K = 5;
+  const K = 8;
   const GOLDEN_ANGLE = 2.39996322972865332;
   const centers: number[][] = [];
   for (let k = 0; k < K; k++) {
@@ -205,7 +205,7 @@ function buildClusters(n: number, seed: number): Layout {
   const member: number[][] = centers.map(() => []);
   y[0] = 1; // the hub pole
   weight[0] = rng.next();
-  const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 0.36;
+  const gauss = () => (rng.next() + rng.next() + rng.next() - 1.5) * 0.3;
   for (let i = 1; i < n; i++) {
     const k = i % K;
     const c = centers[k];
@@ -213,7 +213,7 @@ function buildClusters(n: number, seed: number): Layout {
     const py = c[1] + gauss();
     const pz = c[2] + gauss();
     const len = Math.hypot(px, py, pz) || 1;
-    const r = 0.72 + rng.next() * 0.28;
+    const r = 0.88 + rng.next() * 0.12;
     x[i] = (px / len) * r;
     y[i] = (py / len) * r;
     z[i] = (pz / len) * r;
@@ -546,9 +546,9 @@ function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig
     // stricter silhouettes than the constellation so they read as distinct
     // shapes, with the constellation's fan strength
     case "clusters":
-      return networkOf(buildClusters(n, seed + 1), n, seed, 0.92, 1 - cfg.morphHold);
+      return networkOf(buildClusters(n, seed + 1), n, seed, 0.85, 1 - cfg.morphHold);
     case "spiral":
-      return networkOf(buildSpiral(n, seed + 1), n, seed, 0.95, 1 - cfg.morphHold);
+      return networkOf(buildSpiral(n, seed + 1), n, seed, 0.88, 1 - cfg.morphHold);
     case "burst":
       return buildHubBurst(n, seed);
     case "sphere":
