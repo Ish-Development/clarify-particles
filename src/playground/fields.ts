@@ -68,8 +68,6 @@ const shared: Field[] = [
   { folder: "look", key: "blend", control: select(["additive", "normal"]), kind: "look" },
   { folder: "look", key: "softness", control: [1, 0, 1, 0.01], kind: "look" },
   { folder: "look", key: "solid", control: false, kind: "look" },
-  { folder: "canvas", key: "canvasInset", control: { type: "text", placeholder: "0 0 0 50%" }, kind: "rebuild" },
-  { folder: "canvas", key: "edgeFade", control: [0, 0, 300, 1], kind: "rebuild" },
   { folder: "look", key: "paintBackground", control: false, kind: "look" },
   { folder: "look", key: "backgroundColor", control: color, kind: "look" },
   { folder: "interaction", key: "interactive", control: true, kind: "live" },

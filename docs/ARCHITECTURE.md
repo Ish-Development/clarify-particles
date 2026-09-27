@@ -35,7 +35,7 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
 2. **Engine** (`engine.ts`):
    - **One `Stage`:** one `WebGLRenderer` with its own offscreen canvas.
    - **One `View` per element:**
-     - **DOM:** it inserts a positioned `<div>` (the box, which takes `canvasInset` and the edge-fade mask) with a 2D `<canvas>` inside.
+     - **DOM:** it inserts a 2D `<canvas>` as the element's first child: absolute, 100% × 100%, no wrapper, no inset. The site sizes the element, and the script only draws. The dev asked for this in v1.1.0; earlier versions had a wrapper box and a `canvasInset` option.
      - **Each frame:** the view's scene is rendered into the shared GL buffer, and `drawImage` copies it into the view's own canvas.
      - **Why:** browsers cap WebGL contexts at about 16, and each costs GPU memory. A per-element 2D canvas also stacks, clips and scrolls natively with the Webflow layout. A single fixed full-page GL canvas can't sit behind content and above section backgrounds at the same time.
 3. **Views:**
@@ -78,7 +78,7 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
   - That was the "animation missing / slow / gone after switching windows" bug. `dt` is clamped ≥ 0.
 - **Sequence hold looked like a morph:** during a hold, `timeline()` returns `from ≠ to` with `t = 0`. "Morphing" means `blending && t > 0`. Before the fix, pulses, the hover path and the ripple silently never ran.
 - **`document.hidden` isn't reliable:** don't gate the loop on it. Arc can leave it stuck `true`, and browsers already stop rAF for hidden pages.
-- **Canvas layout:** a `<canvas>` is a replaced element and won't stretch between insets, hence the wrapper box.
+- **Canvas layout:** a `<canvas>` is a replaced element and won't stretch between insets, so it's sized with `width/height: 100%` rather than insets.
 - **Back-face culling:** the vertex shader flips y, which reverses triangle winding. Line quads need `DoubleSide`.
 - **`sortObjects`:** Three's transparent sorting computes bounding spheres from our 2-component positions and logs NaN, so `renderer.sortObjects = false`. Draw order is explicit.
 - **Loader size:** anything the loader imports from `core/graph.ts` drags the layout builders into the eager chunk. Keep config and defaults in `graphConfig.ts`.

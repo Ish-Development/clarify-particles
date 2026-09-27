@@ -14,7 +14,7 @@ Workflow for a new section:
 ## CTA: "See how Clarify solves yours"
 
 - **Figma:** frame `13311:5898` (1512 wide); card `13311:5899`. The artwork in Figma was a static export of the old playground's burst↔sphere graph (lines `#E8E8E8` at 0.062, 2.08 px).
-- **Mount:** the rounded card (`.cta__card`), with `overflow: clip` and radius 24.
+- **Mount:** a particles div over the right 55% of the card (`.cta__particles`, `left: 45%`; `.u-particles-threejs` on staging). The card has `overflow: clip` and radius 24.
 - **Excite:** the "Get started" button carries `data-particles-excite`.
 - **Preset:** `cta` (graph).
 
@@ -28,7 +28,7 @@ Workflow for a new section:
 | solid, softness | true, 0 | Filled dots, lines don't show through |
 | opacity | 0.30–0.85, tiers 3 | Darker dots |
 | lineOpacity / lineWidth | 0.18 / 2 | Darker lines |
-| canvasInset | `0 0 0 45%` | Effect in the right 55%; tried 50% and 60% |
+| (layout) | particles div at `left: 45%` | Effect in the right 55%; tried 50% and 60%. Set in Webflow on the div since v1.1.0 (was `canvasInset` in the preset) |
 | anchorLeft, scale | true, 2.7 | Big: bleeds off top, right and bottom; left edge never over the text |
 | centerX / centerY | 0.5 / 0.5 | With anchorLeft, the center is pushed right until the left edge clears the margin |
 | rotZ | 9 | Swings the hub fan toward the bottom right, as in Figma |
@@ -42,7 +42,7 @@ Workflow for a new section:
 | intro | 0 | Entrance animation rejected |
 
 - **Background token:** `bg-secondary` changed in Figma to `#080a0c` (from `#0f1215`). It's reflected in `tokens.css`.
-- **Staging implementation (v1.0.1):** the dev mounted the effect on their own `.u-particles-threejs` div (absolute, left 45%) inside `.cta1_component`, with the button outside it. That needs `data-canvas-inset="0"` on the div (otherwise the inset applies twice and the effect uses ~30% of the card). v1.0.1 routes `data-particles-excite` to the nearest effect, so the button works from outside the div. The container caps the card at 1512 px, so the effect doesn't grow past that.
+- **Staging implementation:** the dev mounts the effect on their own `.u-particles-threejs` div (absolute, left 45%) inside `.cta1_component`, with the button outside it. In v1.1.0 the canvas fills that div exactly, and the button reaches the effect from outside (v1.0.1+). The container caps the card at 1512 px.
 - **Open:**
   - **Mobile layout:** not designed.
   - **Figma copy:** the body text in Figma starts with a stray leading space; it's omitted in our markup.

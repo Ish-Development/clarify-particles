@@ -234,36 +234,12 @@ class Stage {
   }
 }
 
-// Soft-fade the canvas edges that are inset from the element (the ones
-// that would otherwise show a hard cut where the effect is clipped). Sides
-// flush with the element are left alone — the element's own edge clips them.
-function applyEdgeFade(box: HTMLElement, inset: string, fade: number) {
-  if (!fade) return;
-  const v = (inset || "0").trim().split(/\s+/);
-  const [top, right = top, bottom = top, left = right] = v;
-  const sides = { top, right, bottom, left } as Record<string, string>;
-  const dir: Record<string, string> = { top: "to bottom", right: "to left", bottom: "to top", left: "to right" };
-  const masks = Object.keys(sides)
-    .filter((side) => parseFloat(sides[side]) !== 0)
-    .map((side) => `linear-gradient(${dir[side]}, transparent, #000 ${fade}px)`);
-  if (!masks.length) return;
-  const mask = masks.join(", ");
-  box.style.setProperty("mask-image", mask);
-  box.style.setProperty("-webkit-mask-image", mask);
-  // several gradients: keep only where all of them are opaque
-  box.style.setProperty("mask-composite", "intersect");
-  box.style.setProperty("-webkit-mask-composite", "source-in");
-}
-
 // --- views (one per [data-particles] element) ---
 
 type ViewConfig = InteractionConfig & RuntimeOptions & { background: string };
 
 abstract class View {
   readonly canvas = document.createElement("canvas");
-  // positioned wrapper: takes canvasInset (a <canvas> is a replaced element
-  // and wouldn't stretch between insets itself) and the edge-fade mask
-  private readonly box = document.createElement("div");
   readonly ctx: CanvasRenderingContext2D;
   readonly scene = new Scene();
   readonly clearColor = new Color();
@@ -295,16 +271,13 @@ abstract class View {
     this.prevStyle = { position: el.style.position, isolation: el.style.isolation };
     if (getComputedStyle(el).position === "static") el.style.position = "relative";
     el.style.isolation = "isolate";
-    this.box.setAttribute("aria-hidden", "true");
-    // starts transparent and fades in on the first drawn frame (paint())
-    this.box.style.cssText = "position:absolute;pointer-events:none;z-index:-1;opacity:0";
-    // canvasInset limits the effect to part of the element (e.g. its right
-    // half); the simulation then works in that box's own size
-    this.box.style.inset = cfg.canvasInset || "0";
-    applyEdgeFade(this.box, cfg.canvasInset, cfg.edgeFade);
-    this.canvas.style.cssText = "display:block;width:100%;height:100%";
-    this.box.append(this.canvas);
-    el.prepend(this.box);
+    // The canvas fills the element exactly (100% x 100%, no wrapper, no
+    // inset): the site sizes and positions the element, the script only
+    // draws. Starts transparent and fades in on the first frame (paint()).
+    this.canvas.setAttribute("aria-hidden", "true");
+    this.canvas.style.cssText =
+      "position:absolute;top:0;left:0;width:100%;height:100%;display:block;pointer-events:none;z-index:-1;opacity:0";
+    el.prepend(this.canvas);
 
     this.measure();
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -375,14 +348,14 @@ abstract class View {
   // Called by subclasses once their GPU resources exist.
   protected start() {
     this.resize();
-    this.resizeObserver.observe(this.box);
+    this.resizeObserver.observe(this.el);
     this.visibilityObserver.observe(this.el);
     this.enterObserver.observe(this.el);
   }
 
   private measure() {
-    this.w = Math.max(1, this.box.clientWidth);
-    this.h = Math.max(1, this.box.clientHeight);
+    this.w = Math.max(1, this.el.clientWidth);
+    this.h = Math.max(1, this.el.clientHeight);
     this.dpr = Math.min(window.devicePixelRatio || 1, isMobile() ? 1.5 : 2);
     this.pw = Math.max(1, Math.round(this.w * this.dpr));
     this.ph = Math.max(1, Math.round(this.h * this.dpr));
@@ -424,8 +397,8 @@ abstract class View {
     if (!this.shown && stage && !stage.lost) {
       this.shown = true;
       // ease in rather than pop; reduced motion shows it immediately
-      if (!reducedMotion.matches) this.box.style.transition = "opacity 0.8s ease-out";
-      this.box.style.opacity = "1";
+      if (!reducedMotion.matches) this.canvas.style.transition = "opacity 0.8s ease-out";
+      this.canvas.style.opacity = "1";
       // lets the site sequence its own intro animations with the effect
       this.el.dispatchEvent(new CustomEvent("particles:ready", { bubbles: true }));
       note("first frame");
@@ -457,7 +430,7 @@ abstract class View {
     this.visibilityObserver.disconnect();
     this.enterObserver.disconnect();
     this.disposeGpu();
-    this.box.remove();
+    this.canvas.remove();
     this.el.style.position = this.prevStyle.position;
     this.el.style.isolation = this.prevStyle.isolation;
   }

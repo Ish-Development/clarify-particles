@@ -15,17 +15,12 @@ export interface RuntimeOptions {
   // opaque dots: brightness comes from dimming the color instead of
   // transparency, so lines and dots behind don't show through
   solid: boolean;
-  // CSS inset of the canvas within the element, e.g. "0 0 0 50%" = right
-  // half only ("0" = the whole element)
-  canvasInset: string;
-  // px of soft fade on inset canvas edges (hides the clip line)
-  edgeFade: number;
 }
 
 export type PointsConfig = ParticleConfig & RuntimeOptions;
 export type GraphViewConfig = GraphConfig & RuntimeOptions;
 
-const runtimeDefaults: RuntimeOptions = { countMobile: 0, blend: "additive", interactive: true, softness: 1, solid: false, canvasInset: "0", edgeFade: 0 };
+const runtimeDefaults: RuntimeOptions = { countMobile: 0, blend: "additive", interactive: true, softness: 1, solid: false };
 
 // What an element gets with no attributes at all. Kept free of presets.json
 // so the playground can import it without hot-reloading on every preset save.

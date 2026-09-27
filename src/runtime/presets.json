@@ -28,8 +28,6 @@
       "solid": true,
       "opacityMin": 0.3,
       "opacityMax": 0.85,
-      "canvasInset": "0 0 0 45%",
-      "edgeFade": 0,
       "fit": false,
       "morphImplode": 0,
       "morphSwirl": 0,

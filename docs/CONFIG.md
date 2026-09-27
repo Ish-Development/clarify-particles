@@ -1,5 +1,7 @@
 # Configuration reference
 
+The effect always fills its element (canvas at 100% × 100%). Position and size the element itself to control the area.
+
 Every setting can be part of a preset (`src/runtime/presets.json`, the recommended route) or be set per element. Resolution order, later wins:
 
 1. **Defaults:** below.
@@ -20,8 +22,6 @@ The type comes from the `data-particles` value: empty for **points** (a particle
 | `interactive` | `true` | Hover and click reactions |
 | `softness` | `1` | Dot edge: `1` soft glow, `0` crisp disc |
 | `solid` | `false` | Opaque dots: brightness from dimming the color, so lines behind don't show through |
-| `canvasInset` | `"0"` | CSS inset of the effect inside the element, e.g. `"0 0 0 45%"` = right 55% |
-| `edgeFade` | `0` | px of soft fade on inset edges |
 | `countMobile` | `0` | Count under 768 px width; `0` = half of `count` (points only) |
 | `hoverRadius` / `hoverStrength` | `120` / `1.2` (graph `140` / `1`) | Pointer push |
 | `clickBehavior` | `burst` | `burst`, `reshuffle`, `ripple` (graph), `none` |

@@ -10,10 +10,10 @@ Interactive particle/network backgrounds for Webflow sections. You don't need a 
 **Site settings → Custom code → Footer code:**
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.1/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.1.0/dist-runtime/particles.js"></script>
 ```
 
-Always pin the version (`@1.0.1`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
+Always pin the version (`@1.1.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
 
 ### Or through the site's `window.libs` loader
 
@@ -22,7 +22,7 @@ Always pin the version (`@1.0.1`), never `@latest` or a branch. Pinned URLs neve
 window.loadParticles = () => {
   if (!document.querySelector("[data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
-    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.1/dist-runtime/particles.js")
+    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.1.0/dist-runtime/particles.js")
   );
 };
 ```
@@ -40,32 +40,27 @@ It must use `import()`, not `window.libs.script()`. The file is an ES module tha
 
 ## 2. Mark up the sections
 
-**Element settings → Custom attributes** on the element named below:
+**You size and position the element in Webflow; the script only draws.** It puts a `<canvas>` directly inside the element (first child, `position: absolute`, 100% × 100%), with no wrapper div and no inset. Whatever box you give it is exactly the area the effect fills.
 
 | Section | Element | Attributes |
 |---|---|---|
-| **CTA**: "See how Clarify solves yours" (Figma `13311:5898`) | the rounded **card** (Figma `13311:5899`), not the outer section | `data-particles` = *(empty)*<br>`data-preset` = `cta` |
-| | the **"Get started" button** in the card | `data-particles-excite` = *(empty)* |
+| **CTA**: "See how Clarify solves yours" (Figma `13311:5898`) | a div inside the card (`13311:5899`), positioned over the card's right side: `position: absolute; top: 0; right: 0; bottom: 0; left: 45%` (the staging `.u-particles-threejs`) | `data-particles` = *(empty)*<br>`data-preset` = `cta` |
+| | the **"Get started" button** (anywhere in the card) | `data-particles-excite` = *(empty)* |
 
-CTA card requirements (as in Figma):
-- **Clipping:** keep `overflow: clip` (or `hidden`) and the 24 px radius. The network bleeds off the card's top, right and bottom, and the card crops it.
-- **Right side:** the effect covers the card's right 55% and never enters the text area on the left.
-- **Button:** hovering or focusing "Get started" makes the network light up.
+CTA requirements (as in Figma):
+- **Card:** keep `overflow: clip` (or `hidden`), the 24 px radius, and `position: relative`. The network bleeds off the top, right and bottom of its div, and the card crops it.
+- **Left edge:** the network's left edge always stays inside the div, so it never reaches the text.
+- **Button:** `data-particles-excite` lights up the nearest effect in the same card; the button doesn't need to be inside the particles div.
 
-**Using your own positioned div** (e.g. a `.u-particles-threejs` div placed over the right of the card, as on staging):
-- Put `data-particles` and `data-preset="cta"` on that div, and also add `data-canvas-inset` = `0`. The preset already limits the effect to the right 55% of its element, so without this it would shrink twice.
-- The button can stay where it is. `data-particles-excite` lights up the nearest effect in the same card, even when the button isn't inside the effect's element.
+What the script does to the element:
+- **Styles:** sets `isolation: isolate`, and `position: relative` only if the element is static (yours is absolute, so it stays absolute).
+- **The canvas:** it sits behind any content of the element and never takes clicks.
 
 **Growth on big screens:** the card follows the site container, which stops at 1512 px wide, so the effect stops growing there too. That's expected.
 
-The script inserts a `<div><canvas></div>` as the element's first child:
-- **Stacking:** it sits behind the element's content and above its background.
-- **Clicks:** it never takes clicks.
-- **Element styles:** the script sets `isolation: isolate` on the element, and `position: relative` if it was static. It changes nothing else.
-
 > Custom code doesn't run in the Webflow **Designer** canvas. Check it in **Preview** or on the published staging site.
 
-**Not designed yet:** mobile. The CTA keeps the right-55% layout at every width. When the card stacks on mobile, the effect needs its own mobile setting. Ask before launch.
+**Not designed yet:** mobile. When the card stacks on mobile, change the particles div's position/size for that breakpoint in Webflow (e.g. the bottom part of the card); the effect follows the div.
 
 ## Behaviour to expect (CTA)
 
