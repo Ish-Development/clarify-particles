@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
@@ -53,9 +53,30 @@ function presetsApi(): Plugin {
   };
 }
 
+// Dev-only: the sections preview (?debug) posts engine state here, one JSON
+// line per entry, so browser behavior can be read without screenshots.
+function debugLog(): Plugin {
+  const file = resolve(__dirname, ".particles-debug.log");
+  return {
+    name: "particles-debug-log",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/__log", (req, res) => {
+        let raw = "";
+        req.on("data", (c) => (raw += c));
+        req.on("end", () => {
+          appendFileSync(file, raw.trim() + "\n");
+          res.statusCode = 204;
+          res.end();
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: "./",
-  plugins: [presetsApi()],
+  plugins: [presetsApi(), debugLog()],
   // the playground uses top-level await
   build: {
     target: "es2022",

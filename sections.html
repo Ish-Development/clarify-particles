@@ -34,17 +34,30 @@
       addSection(cta, "cta");
       await import("/src/runtime/index.ts");
 
-      // ?debug: live engine state in the corner (for diagnosing a stalled
-      // or missing effect — screenshot it and send it over)
+      // ?debug: live engine state in the corner, also posted to the dev
+      // server (.particles-debug.log) every second and on every lifecycle
+      // event — so a stalled or missing effect can be diagnosed from the log
       if (new URLSearchParams(location.search).has("debug")) {
         const box = document.createElement("pre");
         box.style.cssText =
           "position:fixed;left:12px;bottom:12px;z-index:99;margin:0;padding:10px 12px;max-width:420px;" +
           "background:rgba(0,0,0,.85);color:#9fe29f;font:11px/1.4 ui-monospace,monospace;border-radius:8px;pointer-events:none;white-space:pre-wrap";
         document.body.append(box);
-        setInterval(() => {
-          box.textContent = JSON.stringify(window.ClarifyParticles.debug() ?? "engine not loaded yet", null, 1);
-        }, 250);
+        const snapshot = (reason) => ({
+          t: Math.round(performance.now()),
+          reason,
+          ua: navigator.userAgent.match(/(Arc|Chrome|Safari|Firefox)\/[\d.]+/g)?.join(" "),
+          vis: document.visibilityState,
+          focus: document.hasFocus(),
+          state: window.ClarifyParticles.debug(),
+        });
+        const ship = (reason) =>
+          fetch("/__log", { method: "POST", body: JSON.stringify(snapshot(reason)), keepalive: true }).catch(() => {});
+        setInterval(() => (box.textContent = JSON.stringify(snapshot("tick"), null, 1)), 250);
+        setInterval(() => ship("tick"), 1000);
+        for (const ev of ["visibilitychange", "freeze", "resume"]) document.addEventListener(ev, () => ship(ev));
+        for (const ev of ["focus", "blur", "pageshow", "pagehide"]) window.addEventListener(ev, () => ship(ev));
+        ship("start");
       }
     </script>
   </body>

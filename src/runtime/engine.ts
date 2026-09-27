@@ -383,6 +383,7 @@ abstract class View {
       this.box.style.opacity = "1";
       // lets the site sequence its own intro animations with the effect
       this.el.dispatchEvent(new CustomEvent("particles:ready", { bubbles: true }));
+      note("first frame");
     }
   }
 
@@ -690,7 +691,9 @@ function frame(now: number) {
   rafId = 0;
   lastFrameAt = performance.now();
   if (stage?.lost && now - stage.lostAt > 1500 && !document.hidden) replaceStage();
-  const dt = Math.min(0.05, (now - lastT) / 1000);
+  // clamp at 0: a frame's timestamp can be slightly earlier than the
+  // performance.now() recorded when the loop was woken
+  const dt = Math.max(0, Math.min(0.05, (now - lastT) / 1000));
   lastT = now;
   let anyRunning = false;
   for (const view of views.values()) {

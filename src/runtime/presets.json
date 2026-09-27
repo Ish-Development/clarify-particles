@@ -45,10 +45,10 @@
       "sequence": "constellation,knot,atom,icosa,helix,globe",
       "holdTime": 3.2,
       "morphTime": 2.4,
-      "stagger": 0.4,
+      "stagger": 0.45,
       "morphSpeed": 0,
       "morphHold": 0.75,
-      "count": 150,
+      "count": 100,
       "sizeMin": 4,
       "sizeMax": 12,
       "tiers": 3,
@@ -70,8 +70,9 @@
       "canvasInset": "0 0 0 50%",
       "edgeFade": 0,
       "fit": true,
-      "morphImplode": 0.55,
-      "morphSwirl": 2.4
+      "morphImplode": 0,
+      "morphSwirl": 1.8,
+      "fitPadding": 8
     }
   }
 }

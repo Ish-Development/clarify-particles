@@ -9,6 +9,9 @@ type Engine = typeof import("./engine");
 const SELECTOR = "[data-particles]";
 
 let engine: Engine | null = null;
+// load timeline (ms since navigation) for debug()
+const timeline: Record<string, number> = {};
+const mark = (k: string) => (timeline[k] ??= Math.round(performance.now()));
 let enginePromise: Promise<Engine> | null = null;
 const tracked = new Set<HTMLElement>();
 
@@ -20,12 +23,19 @@ const pageReady = new Promise<void>((resolve) => {
     "requestIdleCallback" in window ? requestIdleCallback(() => resolve(), { timeout: 300 }) : setTimeout(resolve, 50);
   if (document.readyState === "complete") idle();
   else window.addEventListener("load", idle, { once: true });
+}).then(() => {
+  mark("pageReady");
 });
 
 // One engine per page, however many sections use it: the import is cached,
 // and all sections share its single WebGL context.
 function loadEngine(): Promise<Engine> {
-  enginePromise ??= pageReady.then(() => import("./engine")).then((m) => (engine = m));
+  enginePromise ??= pageReady
+    .then(() => import("./engine"))
+    .then((m) => {
+      mark("engineLoaded");
+      return (engine = m);
+    });
   return enginePromise;
 }
 
@@ -35,6 +45,7 @@ const approachObserver = new IntersectionObserver(
   (entries) => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
+      mark("sectionNear");
       const el = entry.target as HTMLElement;
       approachObserver.unobserve(el);
       loadEngine().then((m) => {
@@ -79,7 +90,7 @@ function refresh(el?: HTMLElement) {
 
 // Snapshot of the engine's live state (null until the engine has loaded).
 function debug() {
-  return engine?.debugState() ?? null;
+  return { timeline, tracked: tracked.size, engine: engine?.debugState() ?? "not loaded" };
 }
 
 const api = { init, destroy, refresh, debug };

@@ -615,8 +615,8 @@ export class GraphSystem {
     const hold = Math.max(0, cfg.holdTime);
     const morph = Math.max(0.05, cfg.morphTime);
     const period = hold + morph;
-    const cycle = Math.floor(this.time / period);
-    const local = this.time - cycle * period;
+    const cycle = Math.floor(Math.max(0, this.time) / period);
+    const local = Math.max(0, this.time) - cycle * period;
     const from = cycle % L;
     return { from, to: (from + 1) % L, t: local < hold ? 0 : (local - hold) / morph, staggered: true };
   }
