@@ -98,5 +98,5 @@ The type comes from the `data-particles` value: empty for **points** (a particle
 
 | Attribute | Effect |
 |---|---|
-| `data-particles-excite` | On any element inside a particle section: hovering or focusing it "excites" the effect (graph: lights up / breathes) |
+| `data-particles-excite` | Hovering or focusing it "excites" the nearest particle effect (graph: lights up / breathes). It targets the effect sharing the closest container with it; the button doesn't need to be inside the effect's element. |
 | `data-particles-ignore` | Clicks on this element never trigger the click effect (links, buttons and form fields are already excluded) |

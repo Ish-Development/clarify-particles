@@ -10,10 +10,10 @@ Interactive particle/network backgrounds for Webflow sections. You don't need a 
 **Site settings → Custom code → Footer code:**
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.0/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.1/dist-runtime/particles.js"></script>
 ```
 
-Always pin the version (`@1.0.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
+Always pin the version (`@1.0.1`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
 
 ### Or through the site's `window.libs` loader
 
@@ -22,7 +22,7 @@ Always pin the version (`@1.0.0`), never `@latest` or a branch. Pinned URLs neve
 window.loadParticles = () => {
   if (!document.querySelector("[data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
-    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.0/dist-runtime/particles.js")
+    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.1/dist-runtime/particles.js")
   );
 };
 ```
@@ -45,12 +45,18 @@ It must use `import()`, not `window.libs.script()`. The file is an ES module tha
 | Section | Element | Attributes |
 |---|---|---|
 | **CTA**: "See how Clarify solves yours" (Figma `13311:5898`) | the rounded **card** (Figma `13311:5899`), not the outer section | `data-particles` = *(empty)*<br>`data-preset` = `cta` |
-| | the **"Get started" button** inside the card | `data-particles-excite` = *(empty)* |
+| | the **"Get started" button** in the card | `data-particles-excite` = *(empty)* |
 
 CTA card requirements (as in Figma):
 - **Clipping:** keep `overflow: clip` (or `hidden`) and the 24 px radius. The network bleeds off the card's top, right and bottom, and the card crops it.
 - **Right side:** the effect covers the card's right 55% and never enters the text area on the left.
 - **Button:** hovering or focusing "Get started" makes the network light up.
+
+**Using your own positioned div** (e.g. a `.u-particles-threejs` div placed over the right of the card, as on staging):
+- Put `data-particles` and `data-preset="cta"` on that div, and also add `data-canvas-inset` = `0`. The preset already limits the effect to the right 55% of its element, so without this it would shrink twice.
+- The button can stay where it is. `data-particles-excite` lights up the nearest effect in the same card, even when the button isn't inside the effect's element.
+
+**Growth on big screens:** the card follows the site container, which stops at 1512 px wide, so the effect stops growing there too. That's expected.
 
 The script inserts a `<div><canvas></div>` as the element's first child:
 - **Stacking:** it sits behind the element's content and above its background.

@@ -42,6 +42,7 @@ Workflow for a new section:
 | intro | 0 | Entrance animation rejected |
 
 - **Background token:** `bg-secondary` changed in Figma to `#080a0c` (from `#0f1215`). It's reflected in `tokens.css`.
+- **Staging implementation (v1.0.1):** the dev mounted the effect on their own `.u-particles-threejs` div (absolute, left 45%) inside `.cta1_component`, with the button outside it. That needs `data-canvas-inset="0"` on the div (otherwise the inset applies twice and the effect uses ~30% of the card). v1.0.1 routes `data-particles-excite` to the nearest effect, so the button works from outside the div. The container caps the card at 1512 px, so the effect doesn't grow past that.
 - **Open:**
   - **Mobile layout:** not designed.
   - **Figma copy:** the body text in Figma starts with a stray leading space; it's omitted in our markup.

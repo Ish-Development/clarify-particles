@@ -33,6 +33,11 @@ export function parseSpec(el: HTMLElement): ViewSpec {
   const preset = ds.preset ? PRESETS[ds.preset] : undefined;
   if (ds.preset && !preset) warn(el, `unknown preset "${ds.preset}"`);
 
+  const own = Object.keys(ds).filter((k) => !RESERVED.has(k) && !/^w[A-Zf]/.test(k));
+  if (!ds.preset && !ds.config && own.length === 0) {
+    warn(el, `no data-preset — showing the default look. Available presets: ${Object.keys(PRESETS).join(", ")}`);
+  }
+
   const type = ds.particles === "graph" || (!ds.particles && preset?.type === "graph") ? "graph" : "points";
   const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : pointsDefaults) };
 

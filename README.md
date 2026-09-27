@@ -5,7 +5,7 @@ Interactive particle and network backgrounds for the Clarify Webflow site: a pro
 **Webflow devs:** start with [runtime/README.md](runtime/README.md). You need one script tag, and two attributes per section.
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.0/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.0.1/dist-runtime/particles.js"></script>
 ```
 
 | Doc | For |

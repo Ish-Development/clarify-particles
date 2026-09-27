@@ -280,7 +280,6 @@ abstract class View {
   private readonly visibilityObserver: IntersectionObserver;
   // fires once, when a quarter of the element is on screen (entrance)
   private readonly enterObserver: IntersectionObserver;
-  private readonly exciteHandlers: [string, EventListener][];
   private readonly prevStyle: { position: string; isolation: string };
 
   constructor(
@@ -329,31 +328,12 @@ abstract class View {
       },
       { threshold: 0.25 },
     );
-    // "excite": hovering/focusing an element marked data-particles-excite
-    // inside this element (e.g. the CTA button) makes the effect pulse with
-    // light, "ready to activate"
-    const EXCITE = "[data-particles-excite]";
-    const within = (t: EventTarget | null) => (t instanceof Element ? t.closest(EXCITE) : null);
-    const enter: EventListener = (e) => {
-      if (within(e.target)) this.onExcite(true);
-    };
-    const leave: EventListener = (e) => {
-      const from = within(e.target);
-      if (from && from !== within((e as FocusEvent | PointerEvent).relatedTarget)) this.onExcite(false);
-    };
-    this.exciteHandlers = [
-      ["pointerover", enter],
-      ["focusin", enter],
-      ["pointerout", leave],
-      ["focusout", leave],
-    ];
-    for (const [type, fn] of this.exciteHandlers) el.addEventListener(type, fn);
   }
 
   // hooks for effects that need them (graph views)
   protected onEnter() {}
   protected onSkipIntro() {}
-  protected onExcite(_on: boolean) {}
+  onExcite(_on: boolean) {}
   onSectionPointer(_p: { x: number; y: number } | null) {}
   // extra live numbers for debugState()
   stats(): Record<string, unknown> {
@@ -476,7 +456,6 @@ abstract class View {
     this.resizeObserver.disconnect();
     this.visibilityObserver.disconnect();
     this.enterObserver.disconnect();
-    for (const [type, fn] of this.exciteHandlers) this.el.removeEventListener(type, fn);
     this.disposeGpu();
     this.box.remove();
     this.el.style.position = this.prevStyle.position;
@@ -706,7 +685,7 @@ class GraphView extends View {
   protected onSkipIntro() {
     this.system.skipIntro();
   }
-  protected onExcite(on: boolean) {
+  onExcite(on: boolean) {
     this.system.setExcite(on);
     wake();
   }
@@ -934,6 +913,30 @@ function onMouseDown(e: MouseEvent) {
   }
 }
 
+// "excite": hovering/focusing an element marked data-particles-excite
+// lights up the nearest particle effect — the one sharing the closest
+// container with it (e.g. the same card), whether the button is inside the
+// effect's element or next to it.
+const EXCITE = "[data-particles-excite]";
+const exciteOf = (t: EventTarget | null) => (t instanceof Element ? t.closest(EXCITE) : null);
+
+function viewFor(trigger: Element): View | null {
+  for (let a: Element | null = trigger; a; a = a.parentElement) {
+    for (const view of views.values()) if (a.contains(view.el)) return view;
+  }
+  return null;
+}
+
+function onExciteEnter(e: Event) {
+  const t = exciteOf(e.target);
+  if (t) viewFor(t)?.onExcite(true);
+}
+
+function onExciteLeave(e: Event) {
+  const from = exciteOf(e.target);
+  if (from && from !== exciteOf((e as FocusEvent | PointerEvent).relatedTarget)) viewFor(from)?.onExcite(false);
+}
+
 function onPointerEnd(e: PointerEvent) {
   // touch has no hover: stop repelling once the finger lifts
   if (e.pointerType !== "mouse") pointer.active = false;
@@ -1004,6 +1007,10 @@ function listen(on: boolean) {
   window[m]("pointerdown", onPointerDown as EventListener, opts);
   // not passive: needs preventDefault
   window[m]("mousedown", onMouseDown as EventListener);
+  document[m]("pointerover", onExciteEnter, opts);
+  document[m]("focusin", onExciteEnter, opts);
+  document[m]("pointerout", onExciteLeave, opts);
+  document[m]("focusout", onExciteLeave, opts);
   window[m]("pointerup", onPointerEnd as EventListener, opts);
   window[m]("pointercancel", onPointerEnd as EventListener, opts);
   document[m]("pointerout", onPointerOut as EventListener, opts);
