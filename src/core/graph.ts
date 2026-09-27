@@ -175,11 +175,53 @@ function networkOf(b: Layout, n: number, seed: number, mix: number, spokes = 1 -
     y[i] = a.y[i] + (b.y[i] - a.y[i]) * mix;
     z[i] = a.z[i] + (b.z[i] - a.z[i]) * mix;
   }
+  spaceOut(x, y, z);
   const edges = [...a.edges, ...b.edges];
   const edgeWeight = new Float32Array(edges.length);
   edgeWeight.fill(spokes, 0, a.edges.length);
   edgeWeight.fill(1 - spokes, a.edges.length);
   return { x, y, z, weight: a.weight, edges, edgeWeight };
+}
+
+// Minimum spacing: nodes closer than ~80% of the even spacing for this many
+// nodes on a sphere are pushed apart over a few passes, each node keeping
+// its distance from the center (so the round silhouette is unchanged).
+// Node 0, the hub, stays put. O(n^2) per pass, once per rebuild.
+function spaceOut(x: Float32Array, y: Float32Array, z: Float32Array) {
+  const n = x.length;
+  const minD = 0.8 * Math.sqrt((4 * Math.PI) / Math.max(1, n));
+  const min2 = minD * minD;
+  const radius = new Float32Array(n);
+  for (let i = 0; i < n; i++) radius[i] = Math.hypot(x[i], y[i], z[i]);
+  for (let pass = 0; pass < 12; pass++) {
+    let moved = false;
+    for (let i = 1; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const dx = x[j] - x[i];
+        const dy = y[j] - y[i];
+        const dz = z[j] - z[i];
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= min2) continue;
+        const d = Math.sqrt(d2) || 1e-4;
+        const push = (minD - d) / 2 / d;
+        x[i] -= dx * push;
+        y[i] -= dy * push;
+        z[i] -= dz * push;
+        x[j] += dx * push;
+        y[j] += dy * push;
+        z[j] += dz * push;
+        moved = true;
+      }
+    }
+    for (let i = 1; i < n; i++) {
+      const r = Math.hypot(x[i], y[i], z[i]) || 1;
+      const k = radius[i] / r;
+      x[i] *= k;
+      y[i] *= k;
+      z[i] *= k;
+    }
+    if (!moved) break;
+  }
 }
 
 function buildConstellation(n: number, seed: number, mix: number): Layout {

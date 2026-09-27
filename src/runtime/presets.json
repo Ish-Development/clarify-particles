@@ -43,7 +43,7 @@
     "config": {
       "mode": "sequence",
       "sequence": "constellation,clusters,spiral",
-      "holdTime": 3.5,
+      "holdTime": 6,
       "morphTime": 2.6,
       "stagger": 0.4,
       "morphSpeed": 0,
