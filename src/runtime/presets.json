@@ -10,14 +10,14 @@
       "morphSpeed": 0,
       "morphHold": 0.75,
       "count": 220,
-      "sizeMin": 2,
-      "sizeMax": 6,
+      "sizeMin": 1.5,
+      "sizeMax": 4.5,
       "tiers": 3,
       "softness": 0,
       "color": "#f4f7fa",
       "lineColor": "#f4f7fa",
-      "lineOpacity": 0.18,
-      "lineWidth": 2,
+      "lineOpacity": 0.35,
+      "lineWidth": 0.75,
       "centerX": 0.5,
       "centerY": 0.5,
       "scale": 2.7,
@@ -27,7 +27,7 @@
       "hoverGlow": 0.35,
       "solid": true,
       "opacityMin": 0.3,
-      "opacityMax": 0.85,
+      "opacityMax": 0.95,
       "fit": false,
       "morphImplode": 0,
       "morphSwirl": 0,
@@ -43,7 +43,85 @@
       "exciteRate": 0,
       "hoverRadius": 110,
       "hoverStrength": 0.5,
-      "rippleSpeed": 4
-    }
+      "rippleSpeed": 4,
+      "bleed": true,
+      "spokeFraction": 0.4,
+      "nodeGap": 1.5,
+      "gapColor": "#080a0c",
+      "snapSizes": true,
+      "depthSize": false,
+      "mobileDpr": 2,
+      "sizeCurve": 2,
+      "nodeShape": "square"
+    },
+    "breakpoints": [
+      {
+        "maxWidth": 767,
+        "config": {
+          "anchorLeft": false,
+          "centerX": 0.5,
+          "centerY": 0.5,
+          "scale": 2.2,
+          "scaleByWidth": true,
+          "anchorBottom": true,
+          "rotZ": 0,
+          "count": 200
+        }
+      },
+      {
+        "maxWidth": 479,
+        "config": {
+          "centerY": 0.3,
+          "scaleByWidth": false,
+          "count": 130,
+          "spokeFraction": 0.25
+        }
+      },
+      {
+        "maxWidth": 430,
+        "config": {
+          "centerY": 0.4,
+          "count": 100,
+          "lineOpacity": 0.3
+        }
+      }
+    ]
+  },
+  "hero": {
+    "type": "points",
+    "config": {
+      "shape": "sphere",
+      "innerCopies": 3,
+      "count": 7000,
+      "countMobile": 4500,
+      "sizeScaleMobile": 0.6,
+      "sizeMin": 0.4,
+      "sizeMax": 0.75,
+      "opacityMin": 0.25,
+      "opacityMax": 0.65,
+      "colorMode": "single",
+      "color1": "#f4f7fa",
+      "blend": "normal",
+      "softness": 0,
+      "rotX": -20,
+      "rotY": 0,
+      "rotZ": 0,
+      "autoRotate": true,
+      "idleMotion": true,
+      "chaos": 0,
+      "ease": 0.06,
+      "hoverRadius": 100,
+      "hoverStrength": 0.8,
+      "clickBehavior": "burst"
+    },
+    "breakpoints": [
+      {
+        "maxWidth": 991,
+        "config": {
+          "scale": 1.48,
+          "scaleByWidth": true
+        }
+      }
+    ]
   }
 }

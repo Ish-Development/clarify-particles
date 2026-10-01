@@ -1,0 +1,44 @@
+<div class="hero-frame">
+  <!-- reference navbar: site-wide in Webflow, not part of the effect -->
+  <nav class="navbar">
+    <a class="navbar__logo" href="#"><img src="assets/clarify-logo.svg" alt="Clarify" width="98" height="24" /></a>
+    <div class="navbar__links">
+      <a class="navlink" href="#">Industries</a>
+      <a class="navlink" href="#">Platform <img src="assets/arrow-down-s-line.svg" alt="" width="16" height="16" /></a>
+      <a class="navlink" href="#">Customers</a>
+      <a class="navlink" href="#">Articles</a>
+      <a class="navlink" href="#">Company</a>
+    </div>
+    <div class="navbar__actions">
+      <a class="navbar__login" href="#">Login</a>
+      <a class="btn btn--primary btn--small" href="#">Book a demo</a>
+    </div>
+  </nav>
+
+  <!-- the section is the particles component (scope + preset) and its wrap:
+       the script creates div.u-particles-threejs inside it, which the CSS
+       places around the spheres' center (Webflow styles that class) -->
+  <section class="hero" data-particles-component data-particles-wrap data-preset="hero">
+    <div class="hero__content">
+      <div class="hero__intro">
+        <div class="eyebrow">
+          <span class="eyebrow__grid" aria-hidden="true"
+            ><i class="on"></i><i></i><i></i><i></i
+            ><i></i><i class="on"></i><i class="on"></i><i></i
+            ><i></i><i class="on"></i><i class="on"></i><i></i
+            ><i></i><i></i><i></i><i class="on"></i
+          ></span>
+          <span class="eyebrow__label">What Clarify does</span>
+        </div>
+        <div class="hero__text">
+          <h1 class="hero__title">Learn from the past and predict the future</h1>
+          <p class="hero__body">Here's what that means for what you build, what you buy, what you get and what you own.</p>
+        </div>
+      </div>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="#">Book a demo</a>
+        <a class="btn btn--secondary" href="#">Talk to an engineer</a>
+      </div>
+    </div>
+  </section>
+</div>

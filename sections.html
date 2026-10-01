@@ -17,10 +17,11 @@
     <main id="sections"></main>
     <script type="module">
       import "/src/sections/sections.css";
+      import hero from "/src/sections/hero.html?raw";
       import cta from "/src/sections/cta.html?raw";
 
-      // templates carry the Webflow component markup; ?cta=<preset>
-      // previews a variant (e.g. ?cta=cta-morph)
+      // templates carry the Webflow component markup; ?<section>=<preset>
+      // previews a variant (e.g. ?cta=cta-morph, ?hero=hero-calm)
       const params = new URLSearchParams(location.search);
       function addSection(html, presetParam) {
         const tpl = document.createElement("template");
@@ -30,6 +31,7 @@
         document.getElementById("sections").append(tpl.content);
       }
 
+      addSection(hero, "hero");
       addSection(cta, "cta");
       await import("/src/runtime/index.ts");
 

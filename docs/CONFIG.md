@@ -9,6 +9,8 @@ Every setting can be part of a preset (`src/runtime/presets.json`, the recommend
 3. **`data-config='{"key": value, ...}'`:** JSON. The playground's "Copy Webflow attributes" produces this for unsaved looks.
 4. **Individual attributes:** each key in kebab-case, e.g. `sizeMin` → `data-size-min`.
 
+**Breakpoints:** a preset can carry `"breakpoints": [{ "maxWidth": 991, "config": { … } }, { "maxWidth": 430, "config": { … } }]` next to its `"config"`. Like CSS max-width media queries, every tier the screen is at or under applies on top of `config`, widest first, so narrower tiers win (and all before `data-config` and individual attributes). Use them when a smaller screen needs a different composition (e.g. `cta`: stacked band from 991 down, its phone look from 430 down). Crossing any tier's width (resize, rotation) re-mounts every effect so the right set applies. The playground edits `config` only and keeps a preset's `breakpoints` when saving; edit them in `presets.json`.
+
 Unknown keys and invalid values print a `[particles]` console warning that names the element. Webflow's own `data-w-*` / `data-wf-*` attributes are ignored.
 
 The type comes from the preset (it carries its own). Without a preset, `data-particles-component="graph"` (or legacy `data-particles="graph"`) selects a **node graph**, and anything else gives **points** (a particle-field shape).
@@ -22,7 +24,10 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `interactive` | `true` | Hover and click reactions |
 | `softness` | `1` | Dot edge: `1` soft glow, `0` crisp disc |
 | `solid` | `false` | Opaque dots: brightness from dimming the color, so lines behind don't show through |
+| `mobileDpr` | `1.5` | Resolution cap (device-pixel ratio) under 768 px; desktop is 2. `2` is noticeably crisper on 3× phones for ~1.8× the pixels |
+| `bleed` | `false` | The canvas covers the whole component; `.u-particles-threejs` only places and sizes the effect, so nothing is cut at its edges (only by the component's own clipping). Content that should sit above it needs `position: relative; z-index: 1` |
 | `countMobile` | `0` | Count under 768 px width; `0` = half of `count` (points only) |
+| `sizeScaleMobile` | `1` | Dot size multiplier under 768 px width (points only) |
 | `hoverRadius` / `hoverStrength` | `120` / `1.2` (graph `140` / `1`) | Pointer push |
 | `clickBehavior` | `burst` | `burst`, `reshuffle`, `ripple` (graph), `none` |
 | `seed` | `1234` (graph `4321`) | Change for a different random layout |
@@ -44,6 +49,8 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `idleMotion` / `autoRotate` | `true` / `true` | |
 | `rotX` / `rotY` / `rotZ` | `0` | Degrees |
 | `innerCopies` | `1` | Nested copies of 3D shapes |
+| `scale` | `1` | Size multiplier around the canvas center; above 1 the shape bleeds off the canvas |
+| `scaleByWidth` | `false` | Size from the canvas width instead of its shorter side, so a shape fills a wide band (mobile) |
 
 ## Graph (`data-particles="graph"`)
 
@@ -70,14 +77,22 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `tiers` | `0` | Quantize sizes and brightness into N steps (`0` = continuous) |
 | `color` / `lineColor` | `#e8e8e8` | |
 | `lineOpacity` / `lineWidth` | `0.25` / `1` | Width in CSS px |
+| `spokeFraction` | `1` | Share of nodes that keep their spoke to the hub; the same nodes in every shape, so the fan stays steady through morphs |
+| `nodeGap` / `gapColor` | `0` / `#000000` | Ring (CSS px) of `gapColor` (use the section background) around each node, so lines stop short of it |
+| `snapSizes` | `false` | Round node sizes to whole device pixels (crisp edges) |
+| `depthSize` | `true` | Depth also scales node size; `false`: depth only dims (far nodes stay crisp) |
+| `sizeCurve` | `1` | Above 1 skews node sizes small: most nodes tiny, a few big (stronger hierarchy) |
+| `nodeShape` | `round` | `round`, `square` ("pixel" nodes, like the eyebrow icon), or `mixed` (squares, with the biggest tier round) |
 
 ### Placement and motion
 
 | Key | Default | Notes |
 |---|---|---|
 | `centerX` / `centerY` / `scale` | `0.5` / `0.5` / `1` | Center as a fraction of the canvas; size multiplier |
+| `scaleByWidth` | `false` | Size from the canvas width instead of its shorter side, so the shape fills a wide band (mobile) |
 | `fit` / `fitPadding` | `false` / `16` | Keep every shape fully inside the canvas |
 | `anchorLeft` | `false` | Keep only the left edge inside; bleeds off top, right and bottom |
+| `anchorBottom` | `false` | Keep the bottom edge inside (lifts the center when needed); bleeds off top, left and right |
 | `rotX` / `rotY` / `rotZ` | `0` | Base orientation, degrees (`rotZ` is in-plane) |
 | `idleRotationSpeed` / `idleTiltAmount` | `0.08` / `0.35` | |
 | `depth` | `0` | 0–1: perspective, far nodes smaller and dimmer |

@@ -30,11 +30,28 @@ export interface GraphConfig {
   lineOpacity: number;
   // edge thickness in CSS px
   lineWidth: number;
+  // share of nodes that keep their spoke to the hub (1 = all); the same
+  // nodes in every shape, so the fan stays steady through morphs
+  spokeFraction: number;
+  // ring (CSS px) of gapColor around each node: lines stop short of it
+  nodeGap: number;
+  gapColor: string;
+  // round node sizes to whole device pixels (crisp edges)
+  snapSizes: boolean;
+  // depth also scales node size (false: depth only dims them)
+  depthSize: boolean;
+  // > 1 skews node sizes small: most nodes tiny, a few big (hierarchy)
+  sizeCurve: number;
+  // node sprite: round dots, square "pixels", or mixed (squares, with the
+  // biggest tier round)
+  nodeShape: "round" | "square" | "mixed";
   // placement in the container: center as a fraction of width/height, and
   // a size multiplier (1 = fits comfortably; >1 overflows, cropped by the box)
   centerX: number;
   centerY: number;
   scale: number;
+  // size from the canvas width instead of its shorter side (full-width bands)
+  scaleByWidth: boolean;
   // base orientation in degrees, added to the idle rotation/tilt
   rotX: number;
   rotY: number;
@@ -69,6 +86,9 @@ export interface GraphConfig {
   // letting it bleed off the top, right and bottom — for effects that sit
   // to the right of text
   anchorLeft: boolean;
+  // keep the bottom edge inside: lifts the center when the shape would
+  // bleed off the bottom (top/left/right may still bleed)
+  anchorBottom: boolean;
   // traveling data pulses: how many in flight, speed (px/s), color, head size
   pulses: number;
   pulseSpeed: number;
@@ -110,9 +130,17 @@ export const defaultGraphConfig: GraphConfig = {
   lineColor: "#e8e8e8",
   lineOpacity: 0.25,
   lineWidth: 1,
+  spokeFraction: 1,
+  nodeGap: 0,
+  gapColor: "#000000",
+  snapSizes: false,
+  depthSize: true,
+  sizeCurve: 1,
+  nodeShape: "round",
   centerX: 0.5,
   centerY: 0.5,
   scale: 1,
+  scaleByWidth: false,
   rotX: 0,
   rotY: 0,
   rotZ: 0,
@@ -128,6 +156,7 @@ export const defaultGraphConfig: GraphConfig = {
   morphSwirl: 0,
   morphScatter: 0,
   anchorLeft: false,
+  anchorBottom: false,
   pulses: 0,
   pulseSpeed: 180,
   pulseColor: "#a4c9e9",

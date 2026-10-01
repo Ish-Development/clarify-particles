@@ -8,6 +8,10 @@
 
 /* --- shared components --- */
 
+/* typography rule: headings balance their lines, paragraphs avoid orphans */
+:is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
+p { text-wrap: pretty; }
+
 .eyebrow { display: flex; align-items: center; gap: var(--space-2); }
 .eyebrow__grid { display: grid; grid-template-columns: repeat(4, 2px); gap: 1px; }
 .eyebrow__grid i { width: 2px; height: 2px; background: var(--mist-500); }
@@ -27,12 +31,16 @@
   text-decoration: none; white-space: nowrap;
 }
 .btn--primary { background: var(--button-primary-bg); color: var(--button-primary-text); border: 1px solid rgba(255, 255, 255, 0.12); }
+.btn--secondary { background: var(--button-secondary-bg); color: var(--button-secondary-text); border: 1px solid var(--button-secondary-border); }
+.btn--small { padding: var(--space-3) var(--space-4); border: 0; font-size: var(--buttons-size-button-small); line-height: 14px; }
 
 /* --- CTA (Figma 13311:5898) --- */
 
 .cta { background: var(--background-bg-primary); padding: var(--section-space-m) var(--grid-margin); }
 .cta__card {
   position: relative;
+  /* the Webflow site container stops the card at 1512px */
+  max-width: 1512px; margin-inline: auto;
   overflow: clip;
   background: var(--background-bg-secondary);
   border: 1px solid var(--border-border-primary);
@@ -54,4 +62,98 @@
   margin: 0; width: 456px;
   font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary);
   color: var(--text-text-secondary);
+}
+
+/* Mobile rule for every effect: a full-width band, 50% of the screen's
+   height, with the animation centered in it and cropped by the band.
+   (svh: stays put while the mobile address bar shows/hides.) */
+
+/* CTA tablet (768-991px): horizontal like desktop, tightened: less
+   vertical padding, the effect's zone is the right half, the text the left
+   half. With the preset's `bleed`, the canvas covers the card, so the text
+   sits above it (z-index). */
+.cta__content { position: relative; z-index: 1; }
+@media (max-width: 991px) {
+  .cta__card { padding: var(--space-8, 64px) 48px; }
+  .cta__card .u-particles-threejs { left: 50%; }
+  .cta__content { max-width: calc(50% - 24px); }
+  .cta__text, .cta__title, .cta__body { width: 100%; }
+}
+
+/* CTA mobile (Figma 13647:37427): stacked. The zone is a full-width band at
+   the top of the card, 50svh tall (the card's padding-top reserves it), the
+   text is centered below and the button goes full width. */
+@media (max-width: 767px) {
+  .cta__card { padding: calc(50svh + var(--space-7)) var(--space-6) var(--section-space-s); }
+  .cta__card .u-particles-threejs { top: 0; right: 0; bottom: auto; left: 0; height: 50svh; }
+  /* the phone design's content width: 393 - 2 x 16 - 2 x 24 */
+  .cta__content { align-items: stretch; gap: var(--space-6); max-width: 313px; margin-inline: auto; text-align: center; }
+  .cta__content .eyebrow { justify-content: center; }
+  .cta__content .btn { justify-content: center; }
+}
+
+/* --- Hero (Figma 12735:86263 desktop 1512x982, 13651:45904 mobile 393x852) --- */
+
+.hero-frame { position: relative; font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased; }
+.hero-frame, .hero-frame * { box-sizing: border-box; } /* Webflow default */
+.navbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-4) var(--grid-margin);
+  background: var(--navigation-navbar-bg);
+  border-bottom: 1px solid var(--navigation-navbar-border);
+}
+.navbar__logo { display: flex; }
+.navbar__links { display: flex; }
+.navlink, .navbar__login {
+  display: flex; align-items: center; gap: var(--space-1);
+  font: 500 var(--buttons-size-button-small) / 14px var(--family-text-primary);
+  text-decoration: none; white-space: nowrap;
+}
+.navlink { padding: var(--space-2) var(--space-4); border-radius: var(--radius-x-small); color: var(--navigation-navlinks-text); }
+.navbar__actions { flex: 1 0 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); }
+.navbar__login { padding: var(--space-2) 0; color: var(--button-link-text); }
+
+.hero {
+  position: relative;
+  overflow: clip;
+  min-height: 982px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: var(--section-space-xxl) var(--grid-margin);
+  background: var(--background-bg-primary);
+}
+/* the effect's area: the div the script creates. The spheres are drawn at
+   the center of the div with an outer radius of 38% of its side, so a
+   1063px square centered on (84.26%, 545px) puts the 404px outer shell
+   where Figma has it. It bleeds off the right; the section clips it. */
+.hero .u-particles-threejs {
+  position: absolute; top: 545px; left: 84.26%;
+  width: 1063px; aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+.hero__content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); }
+.hero__intro { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; }
+.hero__text { display: flex; flex-direction: column; gap: var(--space-5); color: var(--text-text-primary); }
+.hero__title {
+  margin: 0; width: 576px;
+  font: 500 var(--headings-size-h1) / 1 var(--family-heading-primary);
+  letter-spacing: -1px;
+  text-box: trim-both cap alphabetic;
+}
+.hero__body { margin: 0; width: 434px; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
+.hero__actions { display: flex; align-items: center; gap: var(--space-3); }
+
+/* Stacked up to 991px (tablet and mobile): the effect is a full-width band,
+   50% of the screen's height, right under the navbar; the hero's
+   padding-top reserves navbar + band + gap, the text follows */
+.hero-frame { --navbar-h: 71px; }
+@media (max-width: 991px) {
+  .hero { min-height: 0; padding: calc(var(--navbar-h) + 50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
+  .hero .u-particles-threejs { top: var(--navbar-h); left: 0; width: 100%; height: 50svh; aspect-ratio: auto; transform: none; }
+  .hero__title, .hero__body { width: 100%; }
+}
+@media (max-width: 767px) {
+  .hero-frame { --navbar-h: 63px; }
+  .navbar__logo img { width: auto; height: 20px; }
+  .navbar__links, .navbar__actions .btn { display: none; }
 }

@@ -12,11 +12,12 @@ import { applyValues, buildDialConfig, cfgToValues, diffConfig, graphFields, poi
 import { buildGraphSvg, buildPointsSvg, downloadBlob, exportPngSequence, exportVideo } from "./exports";
 import "../sections/sections.css";
 import ctaHtml from "../sections/cta.html?raw";
+import heroHtml from "../sections/hero.html?raw";
 
 // Real section markup to tune a look in context, keyed by frame value. The
 // effect mounts like on the site: in a div created inside the template's
 // [data-particles-component] (see runtime/host.ts).
-const TEMPLATES: Record<string, string> = { cta: ctaHtml };
+const TEMPLATES: Record<string, string> = { hero: heroHtml, cta: ctaHtml };
 
 type Type = "points" | "graph";
 type AnyConfig = PointsConfig | GraphViewConfig;
@@ -84,6 +85,7 @@ const FRAMES = [
   { value: "section", label: "Section 16:9" },
   { value: "card", label: "Card (square)" },
   { value: "mobile", label: "Mobile 390×844" },
+  { value: "hero", label: "Hero section (Figma)" },
   { value: "cta", label: "CTA section (Figma)" },
 ];
 
@@ -182,7 +184,10 @@ async function onSectionAction(action: string) {
     if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) return toast("Name: lowercase letters, digits, dashes (e.g. hero)");
     try {
       if (action === "save") {
-        await writePreset({ name, preset: { type, config: diffConfig(cfg, defaultsFor(type)) } as Preset });
+        // the panel edits the desktop config; keep the preset's breakpoint tiers
+        const prev = presets[name];
+        const breakpoints = prev?.type === type ? prev.breakpoints : undefined;
+        await writePreset({ name, preset: { type, config: diffConfig(cfg, defaultsFor(type)), ...(breakpoints && { breakpoints }) } as Preset });
         toast(`Saved preset "${name}" → presets.json`);
       } else {
         if (!presets[name]) return toast(`No preset "${name}"`);

@@ -2,7 +2,7 @@
 
 Interactive particle/network backgrounds for Webflow sections. You don't need a build step or a framework: add one script to the site, then mark each section with two attributes. Each section's look lives in this repo as a named **preset**, so no design settings go into Webflow.
 
-- **Live reference:** [ish-development.github.io/clarify-particles/dist-runtime/demo.html](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html) shows every finished section running the production script.
+- **Live reference:** [ish-development.github.io/clarify-particles/dist-runtime/demo.html](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html) has one tab per finished section: the section running the production script at any screen width (1920 down to 320, or drag to resize), and its exact Webflow implementation (attributes, `.u-particles-threejs` CSS, requirements). A Setup tab repeats steps 1 and 2 below.
 - **All attributes:** [docs/CONFIG.md](../docs/CONFIG.md)
 
 ## 1. Add the script (once, site-wide)
@@ -20,7 +20,7 @@ Always pin the version (`@1.2.0`), never `@latest` or a branch. Pinned URLs neve
 ```js
 /* PARTICLES (Three.js engine) */
 window.loadParticles = () => {
-  if (!document.querySelector("[data-particles]")) return Promise.resolve();
+  if (!document.querySelector("[data-particles-component], [data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
     import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js")
   );
@@ -31,7 +31,7 @@ It must use `import()`, not `window.libs.script()`. The file is an ES module tha
 
 ### What loads, and when
 
-- **`particles.js`** is a loader of about 3 kB gzipped. It finds `[data-particles]` elements and does nothing else up front.
+- **`particles.js`** is a loader of about 3 kB gzipped. It finds `[data-particles-component]` (and legacy `[data-particles]`) elements and does nothing else up front.
 - **`engine.js`** (~147 kB gzipped, mostly Three.js) is fetched only after all three of these:
   - the page's `load` event
   - an idle moment
@@ -54,37 +54,20 @@ Each effect is a **component**:
 - **Settings:** `data-preset` goes on the component (or the wrap, which wins if both have one).
 - **Buttons:** `data-particles-excite` elements inside a component light up **that component's** effect only, so several components on one page each react to their own button.
 
-### CTA ("See how Clarify solves yours", Figma `13311:5898`)
-
-| Element | Attributes |
-|---|---|
-| the card (Figma `13311:5899`) | `data-particles-component`<br>`data-preset` = `cta` |
-| the wrap: the card itself, or an inner div covering the card | `data-particles-wrap` |
-| the **"Get started" button** | `data-particles-excite` |
-
-**`.u-particles-threejs` style for the CTA:** `position: absolute; top: 0; right: 0; bottom: 0; left: 45%` (the right 55% of the card).
-
-Card requirements (as in Figma):
-- **Clipping:** keep `overflow: clip` (or `hidden`), the 24 px radius, and `position: relative`. The network bleeds off the top, right and bottom of its div, and the card crops it.
-- **Left edge:** the network's left edge always stays inside the div, so it never reaches the text.
-
 What the script does to the created div: sets `isolation: isolate` (and `position: relative` only if your class leaves it static). The canvas never takes clicks, and clicking the effect's empty area never selects text.
-
-**Growth on big screens:** the card follows the site container, which stops at 1512 px wide, so the effect stops growing there too. That's expected.
 
 > Custom code doesn't run in the Webflow **Designer** canvas. Check it in **Preview** or on the published staging site.
 
-**Not designed yet:** mobile. Restyle `.u-particles-threejs` for the mobile breakpoint in Webflow (e.g. the bottom part of the card); the effect follows the div.
-
 **Older markup still works:** a single `[data-particles]` element (with `data-preset`) gets the canvas straight inside it, and `data-particles-excite` finds the nearest effect in the same container.
 
-## Behaviour to expect (CTA)
+### Per section
 
-- **Loop:** three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.
-- **Depth:** far nodes are smaller and dimmer, and the network tilts gently toward the cursor.
-- **Hover:** the nodes nearest the cursor softly brighten and are pushed aside.
-- **Click:** clicking the network sends a slow ripple of light through the connections. Clicking the empty effect area never selects text.
-- **Button:** hovering "Get started" lights the whole network up.
+Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requirements and behaviour are on its tab of the [live reference](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html).
+
+| Section | Preset | Component | Tab |
+|---|---|---|---|
+| Hero ("Learn from the past and predict the future") | `hero` | the hero section | [#hero](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#hero) |
+| CTA ("See how Clarify solves yours") | `cta` | the card; the "Get started" button gets `data-particles-excite` | [#cta](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#cta) |
 
 ## Built in
 

@@ -738,6 +738,8 @@ export class GraphSystem {
   light!: Float32Array;
   // depth dimming per node (1 = nearest)
   depthAlpha!: Float32Array;
+  // per node: 0 = round sprite, 1 = square
+  shape!: Float32Array;
   // multiplier on every line's opacity (entrance, excite)
   lineGain = 1;
   // [outgoing, incoming] edge sets for this frame
@@ -828,6 +830,19 @@ export class GraphSystem {
     // consecutive layouts get different seeds so their random weights and
     // jitter differ (matches the original morph modes' seed + 1)
     this.layouts = shapes.map((shape, i) => buildShape(shape, n, cfg.seed + i, cfg));
+    // thin the hub fan: network-style layouts list node i's spoke ([0, i])
+    // first; drop the same nodes' spokes in every shape
+    if (cfg.spokeFraction < 1) {
+      for (const l of this.layouts) {
+        if (!l.edgeWeight) continue;
+        const spokes = l.meshFrom ?? 0;
+        for (let e = 0; e < spokes; e++) {
+          const [a, b] = l.edges[e];
+          const other = a === 0 ? b : b === 0 ? a : -1;
+          if (other > 0 && ((other * 2654435761) >>> 0) / 4294967296 >= cfg.spokeFraction) l.edgeWeight[e] = 0;
+        }
+      }
+    }
     this.topo = this.layouts.map((l) => topology(l, n));
     this.maxEdges = Math.max(...this.layouts.map((l) => l.edges.length));
     // rotation preserves distance from the origin, and a blend of two points
@@ -864,12 +879,15 @@ export class GraphSystem {
     this.light = new Float32Array(n);
     this.depthAlpha = new Float32Array(n).fill(1);
     // node sizes follow the first layout's weights for the whole loop
+    this.shape = new Float32Array(n);
     for (let i = 0; i < n; i++) {
-      const raw = this.layouts[0].weight[i];
+      const raw = Math.pow(Math.max(0, this.layouts[0].weight[i]), Math.max(0.1, cfg.sizeCurve));
       const steps = Math.round(cfg.tiers);
       const wgt = steps > 1 ? Math.round(raw * (steps - 1)) / (steps - 1) : raw;
       this.size[i] = cfg.sizeMin + wgt * (cfg.sizeMax - cfg.sizeMin);
       this.opacity[i] = cfg.opacityMin + wgt * (cfg.opacityMax - cfg.opacityMin);
+      // 1 = square sprite; mixed keeps the top tier (or top quarter) round
+      this.shape[i] = cfg.nodeShape === "square" || (cfg.nodeShape === "mixed" && wgt < 0.75) ? 1 : 0;
     }
     this.pulses = [];
     this.path = [];
@@ -981,8 +999,8 @@ export class GraphSystem {
     const s = staggered ? Math.min(1, Math.max(0, cfg.stagger)) : 0;
 
     let cx = w * cfg.centerX;
-    const cy = h * cfg.centerY;
-    let scale = Math.min(w, h) * 0.32 * cfg.scale;
+    let cy = h * cfg.centerY;
+    let scale = (cfg.scaleByWidth ? w : Math.min(w, h)) * 0.32 * cfg.scale;
     if (cfg.fit) {
       // keep clear: padding + the largest dot (incl. 60% hover growth) +
       // room for the hover push
@@ -996,6 +1014,10 @@ export class GraphSystem {
     const margin = cfg.fitPadding + cfg.sizeMax * 1.6 + 20;
     // left edge stays clear; top/right/bottom may bleed
     if (cfg.anchorLeft && !cfg.fit) cx = Math.max(cx, margin + this.maxRadius * scale * maxPersp);
+    // the lowest point of the round shapes is the hub at the pole, at mid
+    // depth, so no perspective allowance (that left a big gap); just room
+    // for the largest dot
+    if (cfg.anchorBottom && !cfg.fit) cy = Math.min(cy, h - (cfg.sizeMax * 1.6 + 8) - this.maxRadius * scale);
     const R = this.maxRadius * scale;
     const scatter = staggered ? Math.max(0, cfg.morphScatter) : 0;
     if (scatter && blending) {
@@ -1079,7 +1101,7 @@ export class GraphSystem {
       this.screenX[i] = sx;
       this.screenY[i] = sy;
       this.depthAlpha[i] = 1 - depth * 0.5 * (1 - (zn + 1) / 2);
-      this.renderSize[i] = this.size[i] * (1 + depth * 0.45 * zn);
+      this.renderSize[i] = cfg.depthSize ? this.size[i] * (1 + depth * 0.45 * zn) : this.size[i];
       this.renderAlpha[i] = introVis; // finished below once highlights are known
 
       const ax = -k * this.offX[i] - damp * this.offVX[i];

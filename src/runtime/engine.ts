@@ -37,6 +37,7 @@ import { hexToRgb01, particleColor } from "../core/color";
 import type { RuntimeOptions } from "./defaults";
 import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
 
+// = MOBILE_QUERY in presets.ts (kept literal: the engine imports no loader code)
 const isMobile = () => matchMedia("(max-width: 767px)").matches;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -57,18 +58,31 @@ const POINT_VERT = /* glsl */ `
 attribute float aSize;
 attribute float aAlpha;
 attribute vec3 aColor;
+attribute float aShape;
 uniform vec2 uRes;
+uniform vec2 uOffset;
 uniform float uDpr;
 uniform float uSizeScale;
 uniform float uMaxSize;
+uniform float uGap;
+uniform float uSnap;
 varying float vAlpha;
 varying vec3 vColor;
 varying float vSize;
+varying float vPt;
+varying float vShape;
 void main() {
-  vec2 p = position.xy / uRes * 2.0 - 1.0;
+  vShape = aShape;
+  vec2 p = (position.xy + uOffset) / uRes * 2.0 - 1.0;
   gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
-  gl_PointSize = min(aSize * uSizeScale * uDpr, uMaxSize);
-  vSize = gl_PointSize;
+  // dot diameter in device px; snapped to whole pixels for crisp edges
+  float s = aSize * uSizeScale * uDpr;
+  if (uSnap > 0.5) s = max(1.0, floor(s + 0.5));
+  s = min(s, uMaxSize);
+  vSize = s;
+  // the sprite also holds the gap ring around the dot
+  gl_PointSize = s + 2.0 * uGap * uDpr;
+  vPt = gl_PointSize;
   vAlpha = aAlpha;
   vColor = aColor;
 }`;
@@ -77,21 +91,38 @@ void main() {
 //   1 = soft glow matching the original radial-gradient sprite (color and
 //       alpha both fall off linearly -> quadratic visible falloff)
 //   0 = solid disc with a 1px anti-aliased edge
+//   gap ring (nodeGap): an opaque ring of uGapColor around the dot, so lines
+//       stop short of it instead of running into it
 const POINT_FRAG = /* glsl */ `
 uniform float uSoftness;
 uniform float uSolid;
+uniform vec3 uGapColor;
 varying float vAlpha;
 varying vec3 vColor;
 varying float vSize;
+varying float vPt;
+varying float vShape;
 void main() {
-  float f = 1.0 - length(gl_PointCoord - 0.5) * 2.0;
-  if (f <= 0.0) discard;
-  float hard = clamp(f * vSize * 0.5, 0.0, 1.0);
+  // distance from the center in px: round, or square ("pixel" nodes)
+  vec2 q = abs(gl_PointCoord - 0.5) * vPt;
+  float r = vShape > 0.5 ? max(q.x, q.y) : length(q);
+  float R = vSize * 0.5;
+  float ring = (vPt - vSize) * 0.5;
+  float f = 1.0 - r / R;
+  if (f <= 0.0) {
+    float edge = clamp(R + ring - r, 0.0, 1.0);
+    if (ring <= 0.0 || edge <= 0.0) discard;
+    gl_FragColor = vec4(uGapColor * edge, edge);
+    return;
+  }
+  float hard = clamp(f * R, 0.0, 1.0);
   float cover = mix(hard, f * f, uSoftness);
   // solid: opaque disc dimmed by vAlpha; otherwise vAlpha is transparency
   float a = cover * mix(vAlpha, 1.0, uSolid);
   vec3 col = vColor * mix(1.0, vAlpha, uSolid);
-  gl_FragColor = vec4(col * a, a);
+  // inside a gap ring the dot's anti-aliased edge blends into the ring
+  if (ring > 0.0) gl_FragColor = vec4(col * a + uGapColor * (1.0 - a), 1.0);
+  else gl_FragColor = vec4(col * a, a);
 }`;
 
 // Edges are instanced quads, not GL lines (those are always 1 device pixel
@@ -103,6 +134,7 @@ attribute vec4 aEnds;
 attribute float aWeight;
 attribute float aTaper;
 uniform vec2 uRes;
+uniform vec2 uOffset;
 uniform float uWidth;
 uniform float uDpr;
 varying float vDist;
@@ -121,7 +153,7 @@ void main() {
   float hw = uWidth * 0.5 + 1.0 / uDpr;
   vec2 p = mix(a, b, position.x) + vec2(-dir.y, dir.x) * position.y * hw;
   vDist = position.y * hw;
-  vec2 c = p / uRes * 2.0 - 1.0;
+  vec2 c = (p + uOffset) / uRes * 2.0 - 1.0;
   gl_Position = vec4(c.x, -c.y, 0.0, 1.0);
 }`;
 
@@ -244,8 +276,15 @@ abstract class View {
   readonly scene = new Scene();
   readonly clearColor = new Color();
   clearAlpha = 0;
+  // w/h: the zone (the element) the effect is laid out in. cw/ch: the
+  // canvas, which is the zone, or with `bleed` the whole component, the zone
+  // sitting at ox/oy inside it
   w = 1;
   h = 1;
+  cw = 1;
+  ch = 1;
+  ox = 0;
+  oy = 0;
   dpr = 1;
   pw = 1;
   ph = 1;
@@ -361,9 +400,38 @@ abstract class View {
   private measure() {
     this.w = Math.max(1, this.el.clientWidth);
     this.h = Math.max(1, this.el.clientHeight);
-    this.dpr = Math.min(window.devicePixelRatio || 1, isMobile() ? 1.5 : 2);
-    this.pw = Math.max(1, Math.round(this.w * this.dpr));
-    this.ph = Math.max(1, Math.round(this.h * this.dpr));
+    this.cw = this.w;
+    this.ch = this.h;
+    this.ox = this.oy = 0;
+    if (this.cfg.bleed && this.root !== this.el) {
+      // layout px (offsetWidth is unaffected by CSS transforms on ancestors)
+      const z = this.el.getBoundingClientRect();
+      const r = this.root.getBoundingClientRect();
+      const k = this.el.offsetWidth / (z.width || 1);
+      this.cw = Math.max(1, this.root.clientWidth);
+      this.ch = Math.max(1, this.root.clientHeight);
+      this.ox = (z.left - r.left) * k - this.root.clientLeft;
+      this.oy = (z.top - r.top) * k - this.root.clientTop;
+      Object.assign(this.canvas.style, {
+        left: `${-this.ox}px`,
+        top: `${-this.oy}px`,
+        width: `${this.cw}px`,
+        height: `${this.ch}px`,
+      });
+    } else {
+      Object.assign(this.canvas.style, { left: "0", top: "0", width: "100%", height: "100%" });
+    }
+    this.dpr = Math.min(window.devicePixelRatio || 1, isMobile() ? this.cfg.mobileDpr : 2);
+    this.pw = Math.max(1, Math.round(this.cw * this.dpr));
+    this.ph = Math.max(1, Math.round(this.ch * this.dpr));
+  }
+
+  // The component this effect belongs to (set by mount). With `bleed` the
+  // canvas covers it, so its size matters too.
+  setRoot(root: HTMLElement) {
+    this.root = root;
+    if (root !== this.el) this.resizeObserver.observe(root);
+    this.resize();
   }
 
   private resize() {
@@ -414,11 +482,12 @@ abstract class View {
   // outside. Rescaled by layout/visual size so CSS transforms on the section
   // (scale animations, scaled previews) don't offset the hover.
   localPointer(clientX: number, clientY: number) {
+    // anywhere over the canvas counts; coordinates are the zone's (with
+    // `bleed`, negative or past w/h outside the zone)
     const rect = this.canvas.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
-    return { x: (x * this.w) / (rect.width || 1), y: (y * this.h) / (rect.height || 1) };
+    if (clientX < rect.left || clientY < rect.top || clientX > rect.right || clientY > rect.bottom) return null;
+    const k = this.cw / (rect.width || 1);
+    return { x: (clientX - rect.left) * k - this.ox, y: (clientY - rect.top) * k - this.oy };
   }
 
   abstract step(dt: number): void;
@@ -446,9 +515,13 @@ function pointUniforms(sizeScale: number, softness: number, solid: boolean) {
     uSoftness: { value: softness },
     uSolid: { value: solid ? 1 : 0 },
     uRes: { value: [1, 1] },
+    uOffset: { value: [0, 0] },
     uDpr: { value: 1 },
     uSizeScale: { value: sizeScale },
     uMaxSize: { value: stage?.maxPointSize ?? 64 },
+    uGap: { value: 0 },
+    uSnap: { value: 0 },
+    uGapColor: { value: [0, 0, 0] },
   };
 }
 
@@ -463,7 +536,11 @@ class PointsView extends View {
   // cfg is used BY REFERENCE: the simulation reads it every frame, so the
   // playground's live edits (chaos, ease, rotation, hover…) apply instantly.
   constructor(el: HTMLElement, cfg: PointsSpec["config"], editor: boolean) {
-    if (!editor && isMobile()) cfg.count = cfg.countMobile || Math.round(cfg.count * 0.5);
+    if (!editor && isMobile()) {
+      cfg.count = cfg.countMobile || Math.round(cfg.count * 0.5);
+      cfg.sizeMin *= cfg.sizeScaleMobile;
+      cfg.sizeMax *= cfg.sizeScaleMobile;
+    }
     super(el, cfg);
     this.system = new ParticleSystem(cfg, this.w, this.h);
     const sys = this.system;
@@ -516,7 +593,8 @@ class PointsView extends View {
 
   protected onResize() {
     this.system.resize(this.w, this.h);
-    this.material.uniforms.uRes.value = [this.w, this.h];
+    this.material.uniforms.uRes.value = [this.cw, this.ch];
+    this.material.uniforms.uOffset.value = [this.ox, this.oy];
     this.material.uniforms.uDpr.value = this.dpr;
   }
 
@@ -576,6 +654,7 @@ class GraphView extends View {
         LINE_FRAG,
         {
           uRes: { value: [1, 1] },
+          uOffset: { value: [0, 0] },
           uColor: { value: [1, 1, 1] },
           uAlpha: { value: 0 },
           uWidth: { value: cfg.lineWidth },
@@ -608,6 +687,7 @@ class GraphView extends View {
         LINE_FRAG,
         {
           uRes: { value: [1, 1] },
+          uOffset: { value: [0, 0] },
           uColor: { value: [1, 1, 1] },
           uAlpha: { value: 0.9 },
           uWidth: { value: cfg.lineWidth * 1.4 },
@@ -632,8 +712,10 @@ class GraphView extends View {
     this.nodeGeometry.setAttribute("aSize", this.nodeSizeAttr);
     this.nodeGeometry.setAttribute("aAlpha", this.nodeAlphaAttr);
     this.nodeGeometry.setAttribute("aColor", this.nodeColorAttr);
+    this.nodeGeometry.setAttribute("aShape", new BufferAttribute(this.system.shape, 1));
     // 2 = the playground's node scale (graphRender.ts: size * 2)
     this.nodeMaterial = makeMaterial(POINT_VERT, POINT_FRAG, pointUniforms(2, cfg.softness, cfg.solid), cfg.blend);
+    this.applyNodeLook();
     const nodes = new Points(this.nodeGeometry, this.nodeMaterial);
     nodes.frustumCulled = false;
     this.scene.add(nodes);
@@ -679,6 +761,15 @@ class GraphView extends View {
     else super.click(x, y);
   }
 
+  // crispness options on the node sprites: gap ring, pixel-snapped sizes
+  private applyNodeLook() {
+    const cfg = this.graphCfg;
+    const u = this.nodeMaterial.uniforms;
+    u.uGap.value = Math.max(0, cfg.nodeGap);
+    u.uGapColor.value = hexToRgb01(cfg.gapColor);
+    u.uSnap.value = cfg.snapSizes ? 1 : 0;
+  }
+
   protected onLook() {
     const cfg = this.graphCfg;
     const color = hexToRgb01(cfg.color);
@@ -688,6 +779,7 @@ class GraphView extends View {
     this.nodeMaterial.blendDst = blendDst(cfg.blend);
     this.nodeMaterial.uniforms.uSoftness.value = cfg.softness;
     this.nodeMaterial.uniforms.uSolid.value = cfg.solid ? 1 : 0;
+    this.applyNodeLook();
     const lineColor = hexToRgb01(cfg.lineColor);
     for (const b of this.edgeBuffers) {
       b.material.uniforms.uColor.value = lineColor;
@@ -781,14 +873,18 @@ class GraphView extends View {
   }
 
   protected onResize() {
-    const res = [this.w, this.h];
+    const res = [this.cw, this.ch];
+    const off = [this.ox, this.oy];
     this.nodeMaterial.uniforms.uRes.value = res;
+    this.nodeMaterial.uniforms.uOffset.value = off;
     this.nodeMaterial.uniforms.uDpr.value = this.dpr;
     for (const b of [...this.edgeBuffers, this.hl]) {
       b.material.uniforms.uRes.value = res;
+      b.material.uniforms.uOffset.value = off;
       b.material.uniforms.uDpr.value = this.dpr;
     }
     this.pulseMaterial.uniforms.uRes.value = res;
+    this.pulseMaterial.uniforms.uOffset.value = off;
     this.pulseMaterial.uniforms.uDpr.value = this.dpr;
   }
 
@@ -1029,7 +1125,7 @@ export function mount(el: HTMLElement, spec: ViewSpec, { editor = false, root }:
     watchdog = window.setInterval(checkLoop, 1000);
   }
   const view = spec.type === "graph" ? new GraphView(el, spec.config) : new PointsView(el, spec.config, editor);
-  view.root = root ?? el;
+  view.setRoot(root ?? el);
   views.set(el, view);
 }
 

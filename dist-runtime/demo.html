@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Clarify particles: section reference</title>
+<title>Clarify particles: reference</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@500&display=swap" rel="stylesheet" />
@@ -18,23 +18,33 @@ html, body { margin: 0; background: #060709; }
   --background-bg-secondary: #080a0c;
   --border-border-primary: #2f323680;
   --text-text-primary: #f8fbfd;
-  --text-text-secondary: #dee2e8;
+  --text-text-secondary: #b7bec5;
   --neutrals-bone-100: #f4f7fa;
   --mist-500: #5f8db4;
   --mist-600: #a4c9e9;
   --button-primary-bg: #dee2e8;
   --button-primary-text: #030304;
+  --button-secondary-bg: #080a0c;
+  --button-secondary-border: #23262a80;
+  --button-secondary-text: #dee2e8;
+  --button-link-text: #8e949a;
+  --navigation-navbar-bg: #060709;
+  --navigation-navbar-border: #14171a;
+  --navigation-navlinks-text: #8e949a;
 
   /* type */
   --family-heading-primary: "Geist", system-ui, sans-serif;
   --family-text-primary: "Geist", system-ui, sans-serif;
   --family-text-secondary: "Geist Mono", ui-monospace, monospace;
+  --headings-size-h1: 56px;
   --headings-size-h2: 44px;
   --body-size-text-medium: 18px;
   --eyebrow-size-eyebrow-large: 14px;
   --buttons-size-button-large: 16px;
+  --buttons-size-button-small: 14px;
 
   /* space & layout */
+  --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
@@ -47,8 +57,29 @@ html, body { margin: 0; background: #060709; }
   --grid-gutter: 24px;
 
   /* radius */
+  --radius-x-small: 4px;
   --radius-small: 8px;
   --radius-x-large: 24px;
+}
+
+/* Figma's mobile mode (iPhone frames, 393 wide). Webflow: the mobile
+   landscape breakpoint and below. */
+@media (max-width: 767px) {
+  :root {
+    --headings-size-h1: 34px;
+    --headings-size-h2: 28px;
+    --body-size-text-medium: 16px;
+    --buttons-size-button-large: 14px;
+    --buttons-size-button-small: 12px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --section-space-m: 56px;
+    /* only used by mobile layouts so far (desktop values not in use) */
+    --section-space-s: 32px;
+    --space-7: 36px;
+    --grid-margin: 16px;
+    --grid-gutter: 12px;
+  }
 }
 
 
@@ -60,6 +91,10 @@ html, body { margin: 0; background: #060709; }
 .section-frame * { box-sizing: border-box; }
 
 /* --- shared components --- */
+
+/* typography rule: headings balance their lines, paragraphs avoid orphans */
+:is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
+p { text-wrap: pretty; }
 
 .eyebrow { display: flex; align-items: center; gap: var(--space-2); }
 .eyebrow__grid { display: grid; grid-template-columns: repeat(4, 2px); gap: 1px; }
@@ -80,12 +115,16 @@ html, body { margin: 0; background: #060709; }
   text-decoration: none; white-space: nowrap;
 }
 .btn--primary { background: var(--button-primary-bg); color: var(--button-primary-text); border: 1px solid rgba(255, 255, 255, 0.12); }
+.btn--secondary { background: var(--button-secondary-bg); color: var(--button-secondary-text); border: 1px solid var(--button-secondary-border); }
+.btn--small { padding: var(--space-3) var(--space-4); border: 0; font-size: var(--buttons-size-button-small); line-height: 14px; }
 
 /* --- CTA (Figma 13311:5898) --- */
 
 .cta { background: var(--background-bg-primary); padding: var(--section-space-m) var(--grid-margin); }
 .cta__card {
   position: relative;
+  /* the Webflow site container stops the card at 1512px */
+  max-width: 1512px; margin-inline: auto;
   overflow: clip;
   background: var(--background-bg-secondary);
   border: 1px solid var(--border-border-primary);
@@ -109,11 +148,306 @@ html, body { margin: 0; background: #060709; }
   color: var(--text-text-secondary);
 }
 
+/* Mobile rule for every effect: a full-width band, 50% of the screen's
+   height, with the animation centered in it and cropped by the band.
+   (svh: stays put while the mobile address bar shows/hides.) */
+
+/* CTA tablet (768-991px): horizontal like desktop, tightened: less
+   vertical padding, the effect's zone is the right half, the text the left
+   half. With the preset's `bleed`, the canvas covers the card, so the text
+   sits above it (z-index). */
+.cta__content { position: relative; z-index: 1; }
+@media (max-width: 991px) {
+  .cta__card { padding: var(--space-8, 64px) 48px; }
+  .cta__card .u-particles-threejs { left: 50%; }
+  .cta__content { max-width: calc(50% - 24px); }
+  .cta__text, .cta__title, .cta__body { width: 100%; }
+}
+
+/* CTA mobile (Figma 13647:37427): stacked. The zone is a full-width band at
+   the top of the card, 50svh tall (the card's padding-top reserves it), the
+   text is centered below and the button goes full width. */
+@media (max-width: 767px) {
+  .cta__card { padding: calc(50svh + var(--space-7)) var(--space-6) var(--section-space-s); }
+  .cta__card .u-particles-threejs { top: 0; right: 0; bottom: auto; left: 0; height: 50svh; }
+  /* the phone design's content width: 393 - 2 x 16 - 2 x 24 */
+  .cta__content { align-items: stretch; gap: var(--space-6); max-width: 313px; margin-inline: auto; text-align: center; }
+  .cta__content .eyebrow { justify-content: center; }
+  .cta__content .btn { justify-content: center; }
+}
+
+/* --- Hero (Figma 12735:86263 desktop 1512x982, 13651:45904 mobile 393x852) --- */
+
+.hero-frame { position: relative; font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased; }
+.hero-frame, .hero-frame * { box-sizing: border-box; } /* Webflow default */
+.navbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-4) var(--grid-margin);
+  background: var(--navigation-navbar-bg);
+  border-bottom: 1px solid var(--navigation-navbar-border);
+}
+.navbar__logo { display: flex; }
+.navbar__links { display: flex; }
+.navlink, .navbar__login {
+  display: flex; align-items: center; gap: var(--space-1);
+  font: 500 var(--buttons-size-button-small) / 14px var(--family-text-primary);
+  text-decoration: none; white-space: nowrap;
+}
+.navlink { padding: var(--space-2) var(--space-4); border-radius: var(--radius-x-small); color: var(--navigation-navlinks-text); }
+.navbar__actions { flex: 1 0 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-4); }
+.navbar__login { padding: var(--space-2) 0; color: var(--button-link-text); }
+
+.hero {
+  position: relative;
+  overflow: clip;
+  min-height: 982px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: var(--section-space-xxl) var(--grid-margin);
+  background: var(--background-bg-primary);
+}
+/* the effect's area: the div the script creates. The spheres are drawn at
+   the center of the div with an outer radius of 38% of its side, so a
+   1063px square centered on (84.26%, 545px) puts the 404px outer shell
+   where Figma has it. It bleeds off the right; the section clips it. */
+.hero .u-particles-threejs {
+  position: absolute; top: 545px; left: 84.26%;
+  width: 1063px; aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+.hero__content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); }
+.hero__intro { display: flex; flex-direction: column; gap: var(--space-6); width: 100%; }
+.hero__text { display: flex; flex-direction: column; gap: var(--space-5); color: var(--text-text-primary); }
+.hero__title {
+  margin: 0; width: 576px;
+  font: 500 var(--headings-size-h1) / 1 var(--family-heading-primary);
+  letter-spacing: -1px;
+  text-box: trim-both cap alphabetic;
+}
+.hero__body { margin: 0; width: 434px; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
+.hero__actions { display: flex; align-items: center; gap: var(--space-3); }
+
+/* Stacked up to 991px (tablet and mobile): the effect is a full-width band,
+   50% of the screen's height, right under the navbar; the hero's
+   padding-top reserves navbar + band + gap, the text follows */
+.hero-frame { --navbar-h: 71px; }
+@media (max-width: 991px) {
+  .hero { min-height: 0; padding: calc(var(--navbar-h) + 50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
+  .hero .u-particles-threejs { top: var(--navbar-h); left: 0; width: 100%; height: 50svh; aspect-ratio: auto; transform: none; }
+  .hero__title, .hero__body { width: 100%; }
+}
+@media (max-width: 767px) {
+  .hero-frame { --navbar-h: 63px; }
+  .navbar__logo img { width: auto; height: 20px; }
+  .navbar__links, .navbar__actions .btn { display: none; }
+}
+
+/* --- reference page chrome (not part of the site) --- */
+body { color: var(--text-text-secondary); font: 400 15px/1.55 var(--family-text-primary); -webkit-font-smoothing: antialiased; }
+.ref-bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 32px; padding: 0 24px; height: 52px; background: rgba(6, 7, 9, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--navigation-navbar-border); }
+.ref-bar__brand { color: var(--text-text-primary); font-weight: 500; white-space: nowrap; }
+.ref-bar__brand span { margin-left: 8px; color: var(--navigation-navlinks-text); font: 500 12px var(--family-text-secondary); }
+.ref-tabs { display: flex; flex: 1; align-self: stretch; overflow-x: auto; }
+.ref-tab { display: flex; align-items: center; padding: 0 14px; color: var(--navigation-navlinks-text); font-weight: 500; font-size: 14px; text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+.ref-tab:hover { color: var(--text-text-primary); }
+.ref-tab[aria-selected="true"] { color: var(--text-text-primary); border-bottom-color: var(--mist-600); }
+.ref-tab--end { margin-left: auto; }
+.ref-guide { box-sizing: border-box; max-width: 1512px; margin: 0 auto; padding: 64px 80px 120px; }
+.ref-guide--setup { max-width: 920px; }
+.ref-guide__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px 32px; padding-bottom: 24px; margin-bottom: 8px; border-bottom: 1px solid var(--navigation-navbar-border); }
+.ref-guide h2 { margin: 0; color: var(--text-text-primary); font: 500 28px/1.2 var(--family-heading-primary); letter-spacing: -0.5px; }
+.ref-guide h3 { display: flex; align-items: center; gap: 10px; margin: 40px 0 12px; color: var(--text-text-primary); font: 500 17px/1.3 var(--family-heading-primary); }
+.ref-guide h3 > span:not(.dim) { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: #14171a; color: var(--mist-600); font: 500 12px var(--family-text-secondary); }
+.ref-guide p { margin: 0 0 12px; max-width: 72ch; }
+.ref-guide ul { margin: 0; padding-left: 20px; max-width: 80ch; }
+.ref-guide li { margin: 6px 0; }
+.ref-guide b { color: var(--text-text-primary); font-weight: 500; }
+.ref-guide code { color: var(--text-text-primary); font: 500 0.88em var(--family-text-secondary); }
+.ref-guide a { color: var(--mist-600); }
+.ref-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 14px; }
+.ref-pill { padding: 3px 10px; border: 1px solid var(--button-secondary-border); border-radius: 999px; }
+.dim { color: var(--navigation-navlinks-text); font-weight: 400; }
+.ref-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ref-table th { text-align: left; font-weight: 500; color: var(--navigation-navlinks-text); }
+.ref-table th, .ref-table td { padding: 10px 12px 10px 0; border-bottom: 1px solid var(--navigation-navbar-border); vertical-align: top; }
+.ref-table td code { line-height: 1.8; }
+.ref-code { margin: 12px 0 16px; border: 1px solid var(--navigation-navbar-border); border-radius: 10px; background: #0b0d10; overflow: hidden; }
+.ref-code__bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--navigation-navbar-border); color: var(--navigation-navlinks-text); font: 500 12px var(--family-text-secondary); }
+.ref-copy { padding: 4px 10px; border: 1px solid var(--button-secondary-border); border-radius: 6px; background: none; color: var(--text-text-secondary); font: 500 12px var(--family-text-primary); cursor: pointer; }
+.ref-copy:hover { color: var(--text-text-primary); }
+.ref-code pre { margin: 0; padding: 14px; overflow-x: auto; }
+.ref-code pre code { font-size: 13px; line-height: 1.6; color: var(--text-text-primary); white-space: pre; }
+
+/* viewer: the section in an iframe at a real screen width, scaled to fit */
+.ref-toolbar { position: sticky; top: 52px; z-index: 9; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 32px; padding: 12px 24px; background: rgba(6, 7, 9, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--navigation-navbar-border); }
+.ref-toolbar[hidden] { display: none; }
+.ref-toolbar__end { display: flex; align-items: center; gap: 20px; }
+.ref-bps { display: flex; align-items: center; gap: 20px; overflow-x: auto; }
+.ref-bps__group { display: flex; align-items: center; gap: 10px; }
+.ref-bps__label { color: var(--navigation-navlinks-text); font: 500 11px var(--family-text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
+.ref-seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--navigation-navbar-border); border-radius: 10px; background: #0b0d10; }
+.ref-seg button { position: relative; display: flex; align-items: center; justify-content: center; height: 30px; min-width: 56px; padding: 0 14px; border: 0; border-radius: 7px; background: none; color: var(--navigation-navlinks-text); font: 500 13px/1 var(--family-text-primary); font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap; }
+.ref-seg button:hover { color: var(--text-text-primary); }
+.ref-seg button[aria-pressed="true"] { background: #1a1d21; color: var(--text-text-primary); }
+.ref-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--mist-600); }
+.ref-seg .ref-dot { position: absolute; top: 6px; right: 6px; }
+.ref-legend { display: flex; align-items: center; gap: 6px; color: var(--navigation-navlinks-text); font-size: 12px; white-space: nowrap; }
+.ref-readout { color: var(--navigation-navlinks-text); font: 500 12px var(--family-text-secondary); white-space: nowrap; }
+.ref-stage { padding: 32px 24px; overflow-x: auto; background: #040506; border-bottom: 1px solid var(--navigation-navbar-border); }
+.ref-frame { position: relative; margin: 0 auto; overflow: hidden; outline: 1px solid var(--button-secondary-border); background: var(--background-bg-primary); }
+.ref-frame iframe { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; }
+.ref-handle { position: absolute; right: 0; bottom: 0; z-index: 1; width: 18px; height: 18px; cursor: ew-resize; touch-action: none; background: linear-gradient(135deg, transparent 50%, var(--mist-600) 50%); opacity: 0.7; }
+.ref-handle:hover { opacity: 1; }
+html.dragging, html.dragging * { cursor: ew-resize !important; user-select: none; }
+html.dragging iframe { pointer-events: none; }
+
+@media (max-width: 767px) {
+  .ref-bar { gap: 16px; padding: 0 12px; }
+  .ref-bar__brand span { display: none; }
+  .ref-toolbar { padding: 10px 12px; }
+  .ref-bps__label, .ref-legend { display: none; }
+  .ref-stage { padding: 16px 12px; }
+  .ref-guide { padding: 40px 16px 80px; }
+}
+/* the section itself only renders in ?only=<section> mode (inside the
+   viewer's iframe); the page around it shows the viewer */
+html:not(.only) .ref-live { display: none; }
+html.only .ref-bar, html.only .ref-toolbar, html.only .ref-stage, html.only .ref-guide { display: none; }
+/* scrolls like a phone screen: no scrollbar (it would also eat ~15px of the
+   width and shift the breakpoints) */
+html.only { overflow-x: hidden; scrollbar-width: none; color-scheme: dark; }
+html.only::-webkit-scrollbar { display: none; }
 </style>
 </head>
 <body>
-<!-- Reference build of the Figma sections with the production script.
-     In Webflow, only the data-* attributes and the script tag matter. -->
+<!-- Reference build of the Figma sections with the production script, plus
+     the Webflow implementation guide. In Webflow, only the data-* attributes,
+     the .u-particles-threejs styles and the script tag matter. -->
+<header class="ref-bar">
+  <div class="ref-bar__brand">Clarify particles<span>v1.2.0</span></div>
+  <nav class="ref-tabs"><a class="ref-tab" href="#hero" data-tab="hero">Hero</a><a class="ref-tab" href="#cta" data-tab="cta">CTA</a><a class="ref-tab ref-tab--end" href="#setup" data-tab="setup">Setup</a></nav>
+</header>
+<div class="ref-toolbar" id="ref-toolbar" hidden>
+  <div class="ref-bps" role="group" aria-label="Screen width"><div class="ref-bps__group"><span class="ref-bps__label">Desktop</span><div class="ref-seg"><button type="button" data-w="1920" data-h="1080" title="1920 × 1080">1920</button><button type="button" data-w="1512" data-h="982" title="1512 × 982 (Figma frame)">1512<i class="ref-dot" aria-hidden="true"></i></button><button type="button" data-w="1280" data-h="800" title="1280 × 800">1280</button></div></div><div class="ref-bps__group"><span class="ref-bps__label">Tablet</span><div class="ref-seg"><button type="button" data-w="991" data-h="1024" title="991 × 1024">991</button></div></div><div class="ref-bps__group"><span class="ref-bps__label">Mobile</span><div class="ref-seg"><button type="button" data-w="767" data-h="1024" title="767 × 1024">767</button><button type="button" data-w="479" data-h="900" title="479 × 900">479</button><button type="button" data-w="393" data-h="852" title="393 × 852 (Figma frame)">393<i class="ref-dot" aria-hidden="true"></i></button><button type="button" data-w="320" data-h="568" title="320 × 568">320</button></div></div></div>
+  <div class="ref-toolbar__end">
+    <span class="ref-legend"><i class="ref-dot" aria-hidden="true"></i>Figma frame</span>
+    <span class="ref-readout" id="ref-readout"></span>
+    <div class="ref-seg" role="group" aria-label="Scale"><button type="button" data-scale="fit">Fit</button><button type="button" data-scale="1">100%</button></div>
+  </div>
+</div>
+<main>
+
+<section class="ref-panel" data-panel="hero" hidden>
+  <div class="ref-live">
+<div class="hero-frame">
+  <!-- reference navbar: site-wide in Webflow, not part of the effect -->
+  <nav class="navbar">
+    <a class="navbar__logo" href="#"><img src="assets/clarify-logo.svg" alt="Clarify" width="98" height="24" /></a>
+    <div class="navbar__links">
+      <a class="navlink" href="#">Industries</a>
+      <a class="navlink" href="#">Platform <img src="assets/arrow-down-s-line.svg" alt="" width="16" height="16" /></a>
+      <a class="navlink" href="#">Customers</a>
+      <a class="navlink" href="#">Articles</a>
+      <a class="navlink" href="#">Company</a>
+    </div>
+    <div class="navbar__actions">
+      <a class="navbar__login" href="#">Login</a>
+      <a class="btn btn--primary btn--small" href="#">Book a demo</a>
+    </div>
+  </nav>
+
+  <!-- the section is the particles component (scope + preset) and its wrap:
+       the script creates div.u-particles-threejs inside it, which the CSS
+       places around the spheres' center (Webflow styles that class) -->
+  <section class="hero" data-particles-component data-particles-wrap data-preset="hero">
+    <div class="hero__content">
+      <div class="hero__intro">
+        <div class="eyebrow">
+          <span class="eyebrow__grid" aria-hidden="true"
+            ><i class="on"></i><i></i><i></i><i></i
+            ><i></i><i class="on"></i><i class="on"></i><i></i
+            ><i></i><i class="on"></i><i class="on"></i><i></i
+            ><i></i><i></i><i></i><i class="on"></i
+          ></span>
+          <span class="eyebrow__label">What Clarify does</span>
+        </div>
+        <div class="hero__text">
+          <h1 class="hero__title">Learn from the past and predict the future</h1>
+          <p class="hero__body">Here's what that means for what you build, what you buy, what you get and what you own.</p>
+        </div>
+      </div>
+      <div class="hero__actions">
+        <a class="btn btn--primary" href="#">Book a demo</a>
+        <a class="btn btn--secondary" href="#">Talk to an engineer</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+  </div>
+  <div class="ref-stage">
+    <div class="ref-frame">
+      <iframe title="Hero section" data-src="demo.html?only=hero"></iframe>
+      <div class="ref-handle" title="Drag to resize"></div>
+    </div>
+  </div>
+  <div class="ref-guide">
+    <header class="ref-guide__head">
+      <h2>Hero: “Learn from the past and predict the future”</h2>
+      <div class="ref-meta"><span class="ref-pill">preset <code>hero</code></span><a href="https://www.figma.com/design/Z2um6nL77J4AOzXI1PC35c/?node-id=12735-86263" target="_blank" rel="noopener">Figma: Desktop</a><a href="https://www.figma.com/design/Z2um6nL77J4AOzXI1PC35c/?node-id=13651-45904" target="_blank" rel="noopener">Figma: Mobile</a></div>
+    </header>
+    <div class="ref-guide__main">
+        <h3><span>1</span>Add the script</h3>
+        
+    <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.2.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
+  if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
+  return window.libs.load(&quot;particles&quot;, () =&gt;
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js&quot;)
+  );
+};</code></pre></div>
+        <h3><span>2</span>Attributes</h3>
+        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The hero section</td><td><code>data-particles-component</code><br><code>data-preset=&quot;hero&quot;</code><br><code>data-particles-wrap</code></td></tr></tbody></table>
+        <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
+        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
+        <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>.hero .u-particles-threejs {
+  position: absolute;
+  top: 545px;
+  left: 84.26%;
+  width: 1063px;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+@media (max-width: 991px) {
+  .hero .u-particles-threejs {
+    top: var(--navbar-h);
+    left: 0;
+    width: 100%;
+    height: 50svh;
+    aspect-ratio: auto;
+    transform: none;
+  }
+}</code></pre></div>
+        <h3><span>4</span>Resulting markup</h3>
+        <div class="ref-code"><div class="ref-code__bar"><span>HTML</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;section class=&quot;hero&quot; data-particles-component data-particles-wrap data-preset=&quot;hero&quot;&gt;
+  <span class="dim">&lt;div class=&quot;u-particles-threejs&quot;&gt;   ← created by the script</span>
+    <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;</span>
+  <span class="dim">&lt;/div&gt;</span>
+  <span class="dim">… section content …</span>
+&lt;/section&gt;</code></pre></div>
+        <h3>Requirements</h3>
+        <ul><li>The section needs <code>position: relative</code> and <code>overflow: clip</code> (or <code>hidden</code>). The outer sphere bleeds off the right edge on desktop, and the section crops it.</li><li><b>Desktop:</b> the spheres are drawn at the center of <code>.u-particles-threejs</code>, with the outer shell's radius at 38% of the div's side. To move or resize the spheres, move or resize the div.</li><li><b>Tablet and mobile</b> (991 px and below): the hero stacks. The div is a full-width band, 50% of the screen height (<code>50svh</code>), right under the navbar (<code>--navbar-h</code>: 71 px on tablet, 63 px on mobile; use your navbar's real height). The spheres are centered in it and sized from its width, so they fill it at every width and get cropped top and bottom. The hero's top padding reserves navbar + band + 36 px, and the text follows.</li><li>Keep the hero content above the effect: <code>position: relative; z-index: 1</code> on the content wrapper.</li><li>The navbar is not part of the effect, and needs no attributes.</li></ul>
+        <h3>Behaviour to expect</h3>
+        <ul><li>Three nested dotted spheres, slowly turning.</li><li>On load, the dots gather from a scatter into the spheres.</li><li><b>Hover:</b> dots near the cursor are pushed aside.</li><li><b>Click:</b> the dots burst outward, then reform.</li><li><b>991 px and below:</b> the spheres centered in the band, filling its width. Under 768 px: 4,500 dots at 60% size, instead of 7,000.</li><li><b>Resizing</b> across 992 px or 768 px swaps the layouts.</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="ref-panel" data-panel="cta" hidden>
+  <div class="ref-live">
 <section class="cta">
   <!-- the card is the particles component (scope + preset) and its wrap:
        the script creates div.u-particles-threejs inside it, which the CSS
@@ -139,6 +473,246 @@ html, body { margin: 0; background: #060709; }
   </div>
 </section>
 
+  </div>
+  <div class="ref-stage">
+    <div class="ref-frame">
+      <iframe title="CTA section" data-src="demo.html?only=cta"></iframe>
+      <div class="ref-handle" title="Drag to resize"></div>
+    </div>
+  </div>
+  <div class="ref-guide">
+    <header class="ref-guide__head">
+      <h2>CTA: “See how Clarify solves yours”</h2>
+      <div class="ref-meta"><span class="ref-pill">preset <code>cta</code></span><a href="https://www.figma.com/design/Z2um6nL77J4AOzXI1PC35c/?node-id=13311-5898" target="_blank" rel="noopener">Figma: Desktop</a><a href="https://www.figma.com/design/Z2um6nL77J4AOzXI1PC35c/?node-id=13647-37427" target="_blank" rel="noopener">Figma: Mobile</a></div>
+    </header>
+    <div class="ref-guide__main">
+        <h3><span>1</span>Add the script</h3>
+        
+    <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.2.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
+  if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
+  return window.libs.load(&quot;particles&quot;, () =&gt;
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js&quot;)
+  );
+};</code></pre></div>
+        <h3><span>2</span>Attributes</h3>
+        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The card (Figma <code>13311:5899</code>)</td><td><code>data-particles-component</code><br><code>data-preset=&quot;cta&quot;</code><br><code>data-particles-wrap</code></td></tr><tr><td>The <b>“Get started”</b> button</td><td><code>data-particles-excite</code></td></tr></tbody></table>
+        <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
+        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
+        <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>.cta__card .u-particles-threejs {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 45%;
+}
+@media (max-width: 991px) {
+  .cta__card .u-particles-threejs {
+    left: 50%;
+  }
+}
+@media (max-width: 767px) {
+  .cta__card .u-particles-threejs {
+    top: 0;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    height: 50svh;
+  }
+}</code></pre></div>
+        <h3><span>4</span>Resulting markup</h3>
+        <div class="ref-code"><div class="ref-code__bar"><span>HTML</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;div class=&quot;cta__card&quot; data-particles-component data-particles-wrap data-preset=&quot;cta&quot;&gt;
+  <span class="dim">&lt;div class=&quot;u-particles-threejs&quot;&gt;   ← created by the script</span>
+    <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;</span>
+  <span class="dim">&lt;/div&gt;</span>
+  <span class="dim">… section content …</span>
+  &lt;a class=&quot;btn btn--primary&quot; href=&quot;#&quot; data-particles-excite&gt;Get started&lt;/a&gt;
+&lt;/div&gt;</code></pre></div>
+        <h3>Requirements</h3>
+        <ul><li>The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.</li><li><b>The canvas covers the whole card</b> (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above it.</li><li><b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.</li><li><b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.</li></ul>
+        <h3>Behaviour to expect</h3>
+        <ul><li>Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.</li><li><b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.</li><li><b>Hover:</b> the nodes nearest the cursor softly brighten and are pushed aside.</li><li><b>Click:</b> a slow ripple of light through the connections.</li><li><b>Button:</b> hovering “Get started” lights the whole network up.</li><li><b>Mobile:</b> the same network as a dome filling the band's width, its bottom kept in the band, cropped at the top.</li><li><b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="ref-panel" data-panel="setup" hidden>
+  <div class="ref-guide ref-guide--setup">
+    <header class="ref-guide__head">
+      <h2>Setup</h2>
+      <div class="ref-meta"><span class="ref-pill">v1.2.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
+    </header>
+    <h3><span>1</span>Add the script, once, site-wide</h3>
+    
+    <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.2.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
+  if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
+  return window.libs.load(&quot;particles&quot;, () =&gt;
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.2.0/dist-runtime/particles.js&quot;)
+  );
+};</code></pre></div>
+    <h3><span>2</span>Mark up each section</h3>
+    <p>Each effect is a <b>component</b>. Every section tab lists its exact attributes.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>Structure</span><button class="ref-copy" type="button">Copy</button></div><pre><code>[data-particles-component]   <span class="dim">the component: its preset, and the scope for its buttons</span>
+  [data-particles-wrap]      <span class="dim">where the effect goes (optional: defaults to the component)</span>
+    div.u-particles-threejs  <span class="dim">CREATED BY THE SCRIPT: style this class in Webflow</span>
+      &lt;canvas&gt;               <span class="dim">created by the script, 100% × 100% of that div</span></code></pre></div>
+    <ul><li><code>data-preset</code> goes on the component (or the wrap, which wins). The look lives in the preset, so no design settings go into Webflow.</li><li><code>data-particles-excite</code> on a button inside a component lights up <b>that</b> component's effect when hovered or focused.</li><li>If the div ends up with no size, the console warns you.</li></ul>
+    <h3>Site-wide typography</h3>
+    <p>From the design: headings balance their lines and paragraphs avoid one-word last lines. Add once (site CSS or Head custom code):</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
+p { text-wrap: pretty; }</code></pre></div>
+    <h3><span>3</span>Check it</h3>
+    <ul><li>Custom code doesn't run in the Webflow <b>Designer</b>. Check in <b>Preview</b> or on the published staging site.</li><li>Console warnings start with <code>[particles]</code> and name the element and the bad attribute or preset.</li><li><code>ClarifyParticles.debug()</code> in the console shows the live state.</li></ul>
+    <h3>Built in</h3>
+    <ul><li>The engine (~147 kB gzipped, Three.js included) loads after the page's <code>load</code> event, once a particle section is within half a screen. All sections share one WebGL context.</li><li>Stops completely when no particle section is on screen. <code>prefers-reduced-motion</code> gets a still frame. Without WebGL, the section shows its normal design.</li><li>No restart on resize, including the mobile address bar.</li></ul>
+    <h3>JavaScript API (optional)</h3>
+    <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>ClarifyParticles.init(container?)   // mount new components (after CMS load / page transition)
+ClarifyParticles.destroy(element?)  // tear down one component, or all
+ClarifyParticles.refresh(element?)  // re-read attributes after changing them
+ClarifyParticles.debug()            // live state
+
+// fires (bubbling) on each component's first frame, as the effect fades in
+el.addEventListener(&quot;particles:ready&quot;, () =&gt; { /* … */ });</code></pre></div>
+  </div>
+</section>
+</main>
+<script>
+  (() => {
+    const params = new URLSearchParams(location.search);
+    const panels = [...document.querySelectorAll("[data-panel]")];
+    const ids = panels.map((p) => p.dataset.panel);
+    // ?<section>=<preset>: preview another preset in that section
+    for (const p of panels) {
+      const variant = params.get(p.dataset.panel);
+      const component = p.querySelector("[data-particles-component]");
+      if (variant && component) component.setAttribute("data-preset", variant);
+    }
+    const only = params.get("only");
+    if (only) document.documentElement.classList.add("only");
+
+    // --- viewer: screen width (breakpoint buttons or drag), scale (fit / 100%) ---
+    const store = {
+      get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+      set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+    };
+    const MIN = 320, MAX = 2560;
+    let width = Math.min(MAX, Math.max(MIN, +store.get("ref-width") || 1512));
+    let height = Math.min(1600, Math.max(480, +store.get("ref-height") || 982));
+    let scaleMode = store.get("ref-scale") === "1" ? "1" : "fit";
+    let current = null; // the open section panel
+    let dragK = 0; // scale frozen while dragging, so the corner follows the cursor
+    const toolbar = document.getElementById("ref-toolbar");
+    const readout = document.getElementById("ref-readout");
+    const webflow = (w) => (w >= 992 ? "desktop" : w >= 768 ? "tablet" : w >= 480 ? "mobile landscape" : "mobile portrait");
+
+    function layout() {
+      if (!current) return;
+      const stage = current.querySelector(".ref-stage");
+      const frame = stage.querySelector(".ref-frame");
+      const iframe = frame.querySelector("iframe");
+      const avail = stage.clientWidth - parseFloat(getComputedStyle(stage).paddingLeft) * 2;
+      const k = dragK || (scaleMode === "fit" ? Math.min(1, avail / width) : 1);
+      const h = height;
+      iframe.style.width = width + "px";
+      iframe.style.height = h + "px";
+      iframe.style.transform = "scale(" + k + ")";
+      frame.style.width = width * k + "px";
+      frame.style.height = h * k + "px";
+      readout.textContent = width + " × " + h + " · Webflow " + webflow(width) + " · " + Math.round(k * 100) + "%";
+      for (const b of toolbar.querySelectorAll("[data-w]")) b.setAttribute("aria-pressed", String(+b.dataset.w === width));
+      for (const b of toolbar.querySelectorAll("[data-scale]")) b.setAttribute("aria-pressed", String(b.dataset.scale === scaleMode));
+    }
+    function setWidth(w, save) {
+      width = Math.round(Math.min(MAX, Math.max(MIN, w)));
+      if (save) store.set("ref-width", width);
+      layout();
+    }
+    toolbar.addEventListener("click", (e) => {
+      const b = e.target.closest("button");
+      if (!b) return;
+      if (b.dataset.w) {
+        height = +b.dataset.h;
+        store.set("ref-height", height);
+        setWidth(+b.dataset.w, true);
+      }
+      if (b.dataset.scale) { scaleMode = b.dataset.scale; store.set("ref-scale", scaleMode); layout(); }
+    });
+    addEventListener("resize", layout);
+
+    // drag the frame's corner: any width in between
+    document.addEventListener("pointerdown", (e) => {
+      const handle = e.target.closest(".ref-handle");
+      if (!handle) return;
+      e.preventDefault();
+      const frame = handle.parentElement;
+      const stage = frame.parentElement;
+      const k0 = frame.getBoundingClientRect().width / width;
+      // a centered frame grows both ways, so the corner moves half as far
+      const centered = frame.offsetWidth < stage.clientWidth - 1 ? 2 : 1;
+      const x0 = e.clientX, w0 = width;
+      dragK = k0;
+      document.documentElement.classList.add("dragging");
+      handle.setPointerCapture(e.pointerId);
+      const move = (ev) => setWidth(w0 + ((ev.clientX - x0) * centered) / k0);
+      const up = () => {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        document.documentElement.classList.remove("dragging");
+        dragK = 0;
+        setWidth(width, true);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
+    });
+
+    // the viewer's iframe (this page, ?only=<section>) loads after this
+    // page's load event
+    function loadFrame(panel) {
+      const iframe = panel.querySelector("iframe[data-src]");
+      if (!iframe || iframe.src) return;
+      const go = () => (iframe.src = iframe.dataset.src + location.search.replace(/^\?/, "&"));
+      if (document.readyState === "complete") go();
+      else addEventListener("load", go, { once: true });
+    }
+
+    // hidden panels have no size, so their effects never mount (or stop)
+    // until their tab opens
+    function show() {
+      const id = only || (ids.includes(location.hash.slice(1)) ? location.hash.slice(1) : ids[0]);
+      current = null;
+      for (const p of panels) {
+        const on = p.dataset.panel === id;
+        p.hidden = !on;
+        if (on && !only && p.querySelector(".ref-stage")) {
+          current = p;
+          loadFrame(p);
+        }
+      }
+      toolbar.hidden = !current;
+      for (const t of document.querySelectorAll("[data-tab]")) t.setAttribute("aria-selected", String(t.dataset.tab === id));
+      layout();
+    }
+    addEventListener("hashchange", () => (show(), scrollTo(0, 0)));
+    show();
+
+    document.addEventListener("click", async (e) => {
+      const btn = e.target.closest(".ref-copy");
+      if (!btn) return;
+      await navigator.clipboard.writeText(btn.closest(".ref-code").querySelector("code").textContent.replace(/ *← created by the script/, ""));
+      btn.textContent = "Copied";
+      setTimeout(() => (btn.textContent = "Copy"), 1500);
+    });
+  })();
+</script>
 <script type="module" src="./particles.js"></script>
 </body>
 </html>

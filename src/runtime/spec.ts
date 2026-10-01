@@ -1,7 +1,7 @@
 import { defaultConfig, SHAPE_NAMES } from "../core/config";
 import { defaultGraphConfig, GRAPH_MODES } from "../core/graphConfig";
 import { graphDefaults, pointsDefaults, type GraphViewConfig, type PointsConfig } from "./defaults";
-import { PRESETS } from "./presets";
+import { maxWidthQuery, PRESETS } from "./presets";
 
 export type PointsSpec = { type: "points"; config: PointsConfig };
 export type GraphSpec = { type: "graph"; config: GraphViewConfig };
@@ -58,7 +58,11 @@ export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
 
   if (preset) {
     if (preset.type !== type) warn(el, `preset "${ds.preset}" is a ${preset.type} preset`);
-    else Object.assign(cfg, preset.config);
+    else {
+      Object.assign(cfg, preset.config);
+      const tiers = [...(preset.breakpoints ?? [])].sort((a, b) => b.maxWidth - a.maxWidth);
+      for (const t of tiers) if (matchMedia(maxWidthQuery(t.maxWidth)).matches) Object.assign(cfg, t.config);
+    }
   }
 
   if (ds.config) {

@@ -92,10 +92,16 @@ export class ParticleSystem {
     const tChaos = t + this.idleTime;
     const three = makeShape3D(cfg.rotX, cfg.rotY, cfg.rotZ, this.rotTime, cfg.innerCopies);
     const out = this.scratch;
+    // shapes size themselves from min(w, h): scaleByWidth re-bases on w
+    const s = cfg.scale * (cfg.scaleByWidth ? w / Math.min(w, h) : 1);
     const k = 60;
     const damp = 8;
     for (let i = 0; i < n; i++) {
       shapePoint(cfg.shape, i, n, w, h, t, this.noise, out, three, tChaos);
+      if (s !== 1) {
+        out.x = w / 2 + (out.x - w / 2) * s;
+        out.y = h / 2 + (out.y - h / 2) * s;
+      }
       const driftX = this.noise.noise(this.scatterSeed[i], tChaos * 0.15) * 0.5 + 0.5;
       const driftY = this.noise.noise(this.scatterSeed[i] + 500, tChaos * 0.15) * 0.5 + 0.5;
       const scatterX = ((this.scatterBaseX[i] + driftX * 0.15) % 1) * w;

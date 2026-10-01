@@ -48,6 +48,10 @@ export interface ParticleConfig {
   rotZ: number;
   autoRotate: boolean;
   innerCopies: number;
+  // size multiplier around the canvas center (1 = the shape's own size)
+  scale: number;
+  // size from the canvas width instead of its shorter side (full-width bands)
+  scaleByWidth: boolean;
   idleMotion: boolean;
   chaos: number;
   speed: number;
@@ -76,6 +80,8 @@ export const defaultConfig: ParticleConfig = {
   rotZ: 0,
   autoRotate: true,
   innerCopies: 1,
+  scale: 1,
+  scaleByWidth: false,
   idleMotion: true,
   chaos: 0,
   speed: 0,

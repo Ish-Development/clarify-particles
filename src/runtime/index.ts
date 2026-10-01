@@ -3,6 +3,7 @@
 // before downloading the WebGL engine chunk (Three.js). A page whose
 // particle sections sit below the fold pays nothing for them up front.
 import { COMPONENT, createHost, removeHost, type Host } from "./host";
+import { maxWidthQuery, MOBILE_QUERY, PRESETS } from "./presets";
 import { parseSpec } from "./spec";
 
 type Engine = typeof import("./engine");
@@ -150,4 +151,11 @@ if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => init());
 } else {
   init();
+}
+
+// Crossing a breakpoint (window resize, rotation) re-mounts everything:
+// presets' breakpoint tiers and mobile counts/sizes apply at mount.
+const tierQueries = Object.values(PRESETS).flatMap((p) => (p.breakpoints ?? []).map((t) => maxWidthQuery(t.maxWidth)));
+for (const q of new Set([MOBILE_QUERY, ...tierQueries])) {
+  matchMedia(q).addEventListener("change", () => refresh());
 }

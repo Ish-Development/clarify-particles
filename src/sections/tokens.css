@@ -7,23 +7,33 @@
   --background-bg-secondary: #080a0c;
   --border-border-primary: #2f323680;
   --text-text-primary: #f8fbfd;
-  --text-text-secondary: #dee2e8;
+  --text-text-secondary: #b7bec5;
   --neutrals-bone-100: #f4f7fa;
   --mist-500: #5f8db4;
   --mist-600: #a4c9e9;
   --button-primary-bg: #dee2e8;
   --button-primary-text: #030304;
+  --button-secondary-bg: #080a0c;
+  --button-secondary-border: #23262a80;
+  --button-secondary-text: #dee2e8;
+  --button-link-text: #8e949a;
+  --navigation-navbar-bg: #060709;
+  --navigation-navbar-border: #14171a;
+  --navigation-navlinks-text: #8e949a;
 
   /* type */
   --family-heading-primary: "Geist", system-ui, sans-serif;
   --family-text-primary: "Geist", system-ui, sans-serif;
   --family-text-secondary: "Geist Mono", ui-monospace, monospace;
+  --headings-size-h1: 56px;
   --headings-size-h2: 44px;
   --body-size-text-medium: 18px;
   --eyebrow-size-eyebrow-large: 14px;
   --buttons-size-button-large: 16px;
+  --buttons-size-button-small: 14px;
 
   /* space & layout */
+  --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
@@ -36,6 +46,27 @@
   --grid-gutter: 24px;
 
   /* radius */
+  --radius-x-small: 4px;
   --radius-small: 8px;
   --radius-x-large: 24px;
+}
+
+/* Figma's mobile mode (iPhone frames, 393 wide). Webflow: the mobile
+   landscape breakpoint and below. */
+@media (max-width: 767px) {
+  :root {
+    --headings-size-h1: 34px;
+    --headings-size-h2: 28px;
+    --body-size-text-medium: 16px;
+    --buttons-size-button-large: 14px;
+    --buttons-size-button-small: 12px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --section-space-m: 56px;
+    /* only used by mobile layouts so far (desktop values not in use) */
+    --section-space-s: 32px;
+    --space-7: 36px;
+    --grid-margin: 16px;
+    --grid-gutter: 12px;
+  }
 }
