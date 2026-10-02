@@ -2,18 +2,18 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-01, paused, branch `wip/hero-cta-mobile`, not released)
+## Status (2026-10-02, v1.3.0 released)
 
-- **Released to the devs:** v1.2.0 (CTA desktop only).
-- **Done locally, unreleased (next release v1.3.0):**
-  - **CTA:** mobile + tablet layouts, crisp square-pixel look (now `cta`), bleed, breakpoint tiers, density falling with width.
-  - **Hero:** built from Figma (desktop + stacked up to 991). Motion not reviewed with the client; button glow parked ("CTA first").
-  - **Reference page:** tabbed site (`dist-runtime/demo.html`) with a breakpoint viewer and per-section Webflow guide (CDN + JS in every tab).
-  - **New engine settings** (all off by default): `breakpoints` tiers, `bleed`, `anchorBottom`, `scaleByWidth`, points `scale`, `sizeScaleMobile`, `mobileDpr`, `spokeFraction`, `nodeGap`/`gapColor`, `snapSizes`, `depthSize`, `sizeCurve`, `nodeShape`.
+- **Released to the devs:** v1.3.0 (2026-10-02):
+  - **CTA:** desktop, tablet (horizontal) and mobile (stacked 50svh band); crisp square-pixel look; bleed; breakpoint tiers; touch interaction (drag to spin, hold to grab, no hover on touch; checked on an iPhone).
+  - **Hero:** preset `hero` ships too, but its motion isn't reviewed with the client yet.
+  - **Reference page:** tabbed site (`dist-runtime/demo.html`) with a breakpoint viewer and per-section Webflow guide.
+  - **New engine settings** (all off by default): `breakpoints` tiers, `bleed`, `anchorBottom`, `scaleByWidth`, points `scale`, `sizeScaleMobile`, `mobileDpr`, `spokeFraction`, `nodeGap`/`gapColor`, `snapSizes`, `depthSize`, `sizeCurve`, `nodeShape`, `touchHover`, `touchSpin`, `touchHold`.
+- **Tell the devs:** bump the pinned version to `@1.3.0` (script tag or their `window.libs` loader; the loader snippet must match `[data-particles-component]`, as in `runtime/README.md`).
 - **Next:**
-  1. Review the CTA on a real phone (performance of `mobileDpr` 2).
-  2. Hero: motion review; whether the hero gets the crisp/pixel treatment and button glow.
-  3. Release v1.3.0: bump `package.json` first, `npm run build:runtime`, merge to `main`, tag, push; update the version in `runtime/README.md`; tell the devs (their libs loader snippet needed the `[data-particles-component]` fix).
+  1. CTA: more work (user, 2026-10-02).
+  2. Hero: motion review; whether it gets the crisp/pixel treatment and button glow.
+  3. CTA perf on a real phone (`mobileDpr` 2) wasn't checked item by item.
 
 Workflow for a new section:
 1. **Figma context:** get the design context, variables and screenshot for the section node.
