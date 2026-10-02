@@ -296,6 +296,8 @@ abstract class View {
   // fires once, when a quarter of the element is on screen (entrance)
   private readonly enterObserver: IntersectionObserver;
   private readonly prevStyle: { position: string; isolation: string };
+  // inline styles set for touchSpin/touchHold, restored on dispose
+  private readonly touchStyle: Record<string, string> = {};
 
   // the component this effect belongs to: scope for its excite buttons,
   // parallax and click handling (the element itself for legacy markup)
@@ -352,6 +354,16 @@ abstract class View {
   protected onSkipIntro() {}
   onExcite(_on: boolean) {}
   onSectionPointer(_p: { x: number; y: number } | null) {}
+  // touch "drag to spin" (graph views); dx/dy in CSS px of finger travel
+  readonly canSpin: boolean = false;
+  grab(_on: boolean, _held?: boolean) {}
+  spinBy(_dx: number, _dy: number, _dt: number) {}
+  // the effect's own zone (.u-particles-threejs), in client px: a drag
+  // spins it only from here, never from the text around it
+  inZone(clientX: number, clientY: number) {
+    const r = this.el.getBoundingClientRect();
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  }
   // extra live numbers for debugState()
   stats(): Record<string, unknown> {
     return {};
@@ -431,7 +443,28 @@ abstract class View {
   setRoot(root: HTMLElement) {
     this.root = root;
     if (root !== this.el) this.resizeObserver.observe(root);
+    if (this.canSpin && this.cfg.touchSpin) {
+      if (this.cfg.touchHold > 0) {
+        // touch-action stays auto: a held finger must be able to claim
+        // vertical moves, so the script decides on the first move instead
+        // (onSpinTouchMove). A resting finger mustn't bring up iOS's
+        // callout/loupe or select.
+        this.setTouchStyle("-webkit-touch-callout", "none");
+        this.setTouchStyle("-webkit-user-select", "none");
+        this.setTouchStyle("user-select", "none");
+        root.addEventListener("touchmove", onSpinTouchMove, { passive: false });
+      } else {
+        // sideways drags are ours (spin); vertical swipes and pinch-zoom
+        // stay the browser's
+        this.setTouchStyle("touch-action", "pan-y pinch-zoom");
+      }
+    }
     this.resize();
+  }
+
+  private setTouchStyle(prop: string, value: string) {
+    if (!(prop in this.touchStyle)) this.touchStyle[prop] = this.el.style.getPropertyValue(prop);
+    this.el.style.setProperty(prop, value);
   }
 
   private resize() {
@@ -503,10 +536,13 @@ abstract class View {
     this.resizeObserver.disconnect();
     this.visibilityObserver.disconnect();
     this.enterObserver.disconnect();
+    if (spin?.view === this) endSpin();
     this.disposeGpu();
     this.canvas.remove();
     this.el.style.position = this.prevStyle.position;
     this.el.style.isolation = this.prevStyle.isolation;
+    for (const [prop, value] of Object.entries(this.touchStyle)) this.el.style.setProperty(prop, value);
+    this.root.removeEventListener("touchmove", onSpinTouchMove);
   }
 }
 
@@ -752,6 +788,18 @@ class GraphView extends View {
   onSectionPointer(p: { x: number; y: number } | null) {
     this.system.setSectionPointer(p);
   }
+  readonly canSpin = true;
+  grab(on: boolean, held = false) {
+    this.system.grab(on);
+    // a hold lights it up: the grab "took" (released with the finger)
+    if (held || !on) this.system.setExcite(on && held);
+    wake();
+  }
+  spinBy(dx: number, dy: number, dt: number) {
+    // a drag across the whole zone turns it half way round
+    const k = Math.PI / Math.max(240, this.w);
+    this.system.spinBy(dx * k, -dy * k, dt);
+  }
   stats() {
     const s = this.system;
     return { pulses: s.pulseCount, highlights: s.highlightCount, lineGain: +s.lineGain.toFixed(2), ...s.debug() };
@@ -917,7 +965,14 @@ function note(e: string) {
   events.push(`${(performance.now() / 1000).toFixed(1)}s ${e}`);
   if (events.length > 8) events.shift();
 }
-const pointer = { x: 0, y: 0, active: false };
+// touch = the last pointer was a finger or pen; down = it's pressed
+const pointer = { x: 0, y: 0, active: false, touch: false, down: false };
+// a view's hover reactions follow the pointer; without touchHover, a finger
+// only drives them while it's pressed (the glow follows it, lift = off)
+const hovers = (view: View) => pointer.active && view.cfg.interactive && (!pointer.touch || view.cfg.touchHover || pointer.down);
+// parallax stays mouse-only without touchHover: tilting toward the finger
+// would fight the drag-to-spin
+const parallaxes = (view: View) => hovers(view) && (!pointer.touch || view.cfg.touchHover);
 
 function frame(now: number) {
   rafId = 0;
@@ -931,10 +986,11 @@ function frame(now: number) {
   for (const view of views.values()) {
     if (!view.running) continue;
     anyRunning = true;
-    const p = pointer.active && view.cfg.interactive ? view.localPointer(pointer.x, pointer.y) : null;
+    const on = hovers(view);
+    const p = on ? view.localPointer(pointer.x, pointer.y) : null;
     if (p) applyHover(view.system, view.cfg, p.x, p.y, dt);
     view.onPointer(p, dt);
-    view.onSectionPointer(pointer.active && view.cfg.interactive ? view.sectionPointer(pointer.x, pointer.y) : null);
+    view.onSectionPointer(parallaxes(view) ? view.sectionPointer(pointer.x, pointer.y) : null);
     view.step(dt);
     view.paint();
   }
@@ -957,12 +1013,15 @@ function onPointerMove(e: PointerEvent) {
   pointer.x = e.clientX;
   pointer.y = e.clientY;
   pointer.active = true;
+  pointer.touch = e.pointerType !== "mouse";
+  if (spin && e.pointerId === spin.id) moveSpin(e);
   // any interaction revives an idle loop
   if (!rafId) wake();
 }
 
 function onPointerDown(e: PointerEvent) {
   onPointerMove(e);
+  pointer.down = true;
   if (e.button !== 0 || reducedMotion.matches) return;
   if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return;
   for (const view of views.values()) {
@@ -970,6 +1029,109 @@ function onPointerDown(e: PointerEvent) {
     const p = view.localPointer(e.clientX, e.clientY);
     if (p) view.click(p.x, p.y);
   }
+  if (e.pointerType === "touch" && e.isPrimary) startSpin(e);
+}
+
+// --- touch "drag to spin" (touchSpin) ---
+// The zone has touch-action: pan-y, so an up/down swipe scrolls the page as
+// usual (the browser takes it and cancels the pointer), while a sideways
+// drag comes to us and turns the network; it coasts on after release.
+// touchHold (ms) adds: a finger held still that long grabs it outright (it
+// lights up), and then up/down drags turn it too instead of scrolling. The
+// zone keeps touch-action auto then (browsers hand pan-y moves straight to
+// scrolling), and the first move past the slop decides: sideways or after
+// a hold = ours (the touchmove is cancelled), otherwise = a scroll.
+const HOLD_SLOP = 10;
+let spin: {
+  view: View;
+  id: number;
+  x0: number;
+  y0: number;
+  x: number;
+  y: number;
+  t: number;
+  grabbed: boolean;
+  // grabbed by a hold: owns vertical moves too
+  held: boolean;
+  timer: number;
+} | null = null;
+
+function startSpin(e: PointerEvent) {
+  endSpin();
+  for (const view of views.values()) {
+    if (!view.canSpin || !view.cfg.touchSpin || !view.cfg.interactive || !view.running) continue;
+    if (!view.inZone(e.clientX, e.clientY)) {
+      if (view.cfg.touchHold > 0 && view.localPointer(e.clientX, e.clientY)) note("spin: down outside the zone");
+      continue;
+    }
+    const s = { view, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: e.timeStamp, grabbed: false, held: false, timer: 0 };
+    if (view.cfg.touchHold > 0) {
+      s.timer = window.setTimeout(() => {
+        if (spin !== s || s.grabbed) return;
+        s.grabbed = s.held = true;
+        s.t = performance.now();
+        view.grab(true, true);
+        note("spin hold");
+      }, view.cfg.touchHold);
+    }
+    spin = s;
+    return;
+  }
+}
+
+// Not grabbed yet and the finger is at (x, y): grab it, wait, or (mostly
+// vertical, with touchHold) give it up as a scroll. True = grabbed.
+function claimSpin(x: number, y: number) {
+  const s = spin!;
+  if (s.grabbed) return true;
+  if (s.view.cfg.touchHold > 0) {
+    // small jitter isn't a drag yet
+    const dx = x - s.x0;
+    const dy = y - s.y0;
+    if (Math.hypot(dx, dy) < HOLD_SLOP) return false;
+    if (Math.abs(dy) > Math.abs(dx)) {
+      note(`spin: scroll (moved ${Math.round(Math.hypot(dx, dy))}px before the hold)`);
+      endSpin();
+      return false;
+    }
+  }
+  clearTimeout(s.timer);
+  s.grabbed = true;
+  s.view.grab(true);
+  return true;
+}
+
+function moveSpin(e: PointerEvent) {
+  const s = spin!;
+  if (!claimSpin(e.clientX, e.clientY)) return;
+  const dt = Math.max(0, (e.timeStamp - s.t) / 1000);
+  s.view.spinBy(e.clientX - s.x, e.clientY - s.y, dt);
+  s.x = e.clientX;
+  s.y = e.clientY;
+  s.t = e.timeStamp;
+}
+
+function endSpin() {
+  if (!spin) return;
+  clearTimeout(spin.timer);
+  if (spin.grabbed) spin.view.grab(false);
+  spin = null;
+}
+
+// non-passive, on each touchHold component: stops the page scrolling once
+// the finger is ours (sideways drag or a hold). Decides here too, as the
+// browser may send it before the matching pointermove. Two fingers = a
+// pinch: let it go.
+function onSpinTouchMove(e: TouchEvent) {
+  if (!spin) return;
+  if (e.touches.length > 1) return endSpin();
+  const t = e.touches[0];
+  if (t && claimSpin(t.clientX, t.clientY) && e.cancelable) e.preventDefault();
+}
+
+// a long press would otherwise open the context menu
+function onSpinContextMenu(e: Event) {
+  if (spin && spin.view.cfg.touchHold > 0) e.preventDefault();
 }
 
 // Clicking the empty effect area lands on the section element itself (the
@@ -1015,7 +1177,11 @@ function viewFor(trigger: Element): View | null {
 
 function onExciteEnter(e: Event) {
   const t = exciteOf(e.target);
-  if (t) viewFor(t)?.onExcite(true);
+  const view = t && viewFor(t);
+  if (!view) return;
+  // a finger "hovering" the button is just a tap on it
+  if (e instanceof PointerEvent && e.pointerType !== "mouse" && !view.cfg.touchHover) return;
+  view.onExcite(true);
 }
 
 function onExciteLeave(e: Event) {
@@ -1026,6 +1192,11 @@ function onExciteLeave(e: Event) {
 function onPointerEnd(e: PointerEvent) {
   // touch has no hover: stop repelling once the finger lifts
   if (e.pointerType !== "mouse") pointer.active = false;
+  pointer.down = false;
+  if (spin && e.pointerId === spin.id) {
+    if (spin.view.cfg.touchHold > 0 && !spin.grabbed) note(e.type === "pointercancel" ? "spin: browser took it" : "spin: lifted before the hold");
+    endSpin();
+  }
 }
 
 function onPointerOut(e: PointerEvent) {
@@ -1100,6 +1271,7 @@ function listen(on: boolean) {
   window[m]("pointerup", onPointerEnd as EventListener, opts);
   window[m]("pointercancel", onPointerEnd as EventListener, opts);
   document[m]("pointerout", onPointerOut as EventListener, opts);
+  window[m]("contextmenu", onSpinContextMenu);
   document[m]("visibilitychange", resume);
   window[m]("focus", resume);
   window[m]("pageshow", resume);

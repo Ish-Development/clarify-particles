@@ -22,6 +22,9 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `background` | `transparent` | `transparent` shows the element's own background; a hex color paints the canvas |
 | `blend` | `additive` (points) / `normal` (graph) | Use `normal` for dark particles on light backgrounds |
 | `interactive` | `true` | Hover and click reactions |
+| `touchHover` | `true` | A finger drives the hover reactions (glow, push, parallax, the excite button). `false`: touch only taps (and spins, with `touchSpin`), since phones have no hover |
+| `touchSpin` | `false` | Touch "drag to spin" (graph only): a sideways drag on the effect's zone turns it, and it coasts on after release (the tilt from any up/down part eases back). Sets `touch-action: pan-y pinch-zoom` on the zone, so up/down swipes still scroll the page and pinch-zoom still works |
+| `touchHold` | `0` | With `touchSpin`: a finger held still this long (ms) grabs the effect outright (it lights up), and then up/down drags turn it too instead of scrolling. Also turns off the iOS callout/selection on the zone. `0` = off |
 | `softness` | `1` | Dot edge: `1` soft glow, `0` crisp disc |
 | `solid` | `false` | Opaque dots: brightness from dimming the color, so lines behind don't show through |
 | `mobileDpr` | `1.5` | Resolution cap (device-pixel ratio) under 768 px; desktop is 2. `2` is noticeably crisper on 3× phones for ~1.8× the pixels |

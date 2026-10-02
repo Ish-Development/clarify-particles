@@ -21,7 +21,7 @@ npx tsc -b              # typecheck
 
 - **Client review:** always show the client **http://localhost:4791/sections.html**. Rebuild (`npm run build`) after changes and have them refresh.
 - **Why not the dev server:** 4790 hot-reloads background tabs, and restarts break pages.
-- **Variants:** `sections.html?cta=<preset>` previews another preset for a section; `?debug` shows a live state overlay. On the dev server, `?debug` also posts it to `.particles-debug.log`.
+- **Variants:** `sections.html?cta=<preset>` previews another preset for a section; `?debug` shows a live state overlay. `?debug` also posts it to `.particles-debug.log` (dev server and stable preview); `?debug=log` does that with no overlay, for phone tests (preview with `--host`, phone on the LAN IP).
 - **Playground deep link:** `/?preset=cta&frame=cta`.
 
 ## Release (the dev's script URL pins a tag)

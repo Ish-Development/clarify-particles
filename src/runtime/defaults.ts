@@ -23,12 +23,21 @@ export interface RuntimeOptions {
   // and sizes the effect, so nothing is cut at its edges (only by the
   // component's own clipping)
   bleed: boolean;
+  // a finger drives the hover reactions (glow, push, parallax, excite on
+  // touch); false = touch only taps and spins, as phones have no hover
+  touchHover: boolean;
+  // touch "drag to spin": a sideways drag on the effect turns it (graph
+  // only); up/down swipes still scroll the page
+  touchSpin: boolean;
+  // with touchSpin: a finger held still this long (ms) grabs the effect, so
+  // up/down drags turn it too instead of scrolling (0 = off)
+  touchHold: number;
 }
 
 export type PointsConfig = ParticleConfig & RuntimeOptions;
 export type GraphViewConfig = GraphConfig & RuntimeOptions;
 
-const runtimeDefaults: RuntimeOptions = { countMobile: 0, sizeScaleMobile: 1, blend: "additive", interactive: true, softness: 1, solid: false, mobileDpr: 1.5, bleed: false };
+const runtimeDefaults: RuntimeOptions = { countMobile: 0, sizeScaleMobile: 1, blend: "additive", interactive: true, softness: 1, solid: false, mobileDpr: 1.5, bleed: false, touchHover: true, touchSpin: false, touchHold: 0 };
 
 // What an element gets with no attributes at all. Kept free of presets.json
 // so the playground can import it without hot-reloading on every preset save.

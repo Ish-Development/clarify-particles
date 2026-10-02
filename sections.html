@@ -37,9 +37,12 @@
 
       // ?debug: live engine state in the corner, also posted to the dev
       // server (.particles-debug.log) every second and on every lifecycle
-      // event — so a stalled or missing effect can be diagnosed from the log
-      if (new URLSearchParams(location.search).has("debug")) {
+      // event — so a stalled or missing effect can be diagnosed from the log.
+      // ?debug=log: the log only, no overlay (phone tests)
+      const debugMode = new URLSearchParams(location.search).get("debug");
+      if (debugMode !== null) {
         const box = document.createElement("pre");
+        if (debugMode === "log") box.hidden = true;
         box.style.cssText =
           "position:fixed;left:12px;bottom:12px;z-index:99;margin:0;padding:10px 12px;max-width:420px;" +
           "background:rgba(0,0,0,.85);color:#9fe29f;font:11px/1.4 ui-monospace,monospace;border-radius:8px;pointer-events:none;white-space:pre-wrap";

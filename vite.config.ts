@@ -1,4 +1,5 @@
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
@@ -57,19 +58,24 @@ function presetsApi(): Plugin {
 // line per entry, so browser behavior can be read without screenshots.
 function debugLog(): Plugin {
   const file = resolve(__dirname, ".particles-debug.log");
+  const handle = (req: IncomingMessage, res: ServerResponse) => {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    req.on("end", () => {
+      appendFileSync(file, raw.trim() + "\n");
+      res.statusCode = 204;
+      res.end();
+    });
+  };
   return {
     name: "particles-debug-log",
     apply: "serve",
     configureServer(server) {
-      server.middlewares.use("/__log", (req, res) => {
-        let raw = "";
-        req.on("data", (c) => (raw += c));
-        req.on("end", () => {
-          appendFileSync(file, raw.trim() + "\n");
-          res.statusCode = 204;
-          res.end();
-        });
-      });
+      server.middlewares.use("/__log", handle);
+    },
+    // the stable preview too, so a phone test on 4791 can be read from the log
+    configurePreviewServer(server) {
+      server.middlewares.use("/__log", handle);
     },
   };
 }

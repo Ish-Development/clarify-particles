@@ -100,6 +100,13 @@ Workflow for a new section:
 
 - **Crisp + pixel look (2026-10-01, now `cta`; the earlier soft round-dot look is in git history):** the earlier `cta` plus: hairline lines (`lineWidth` 0.75, `lineOpacity` 0.35) in the original white `#f4f7fa` (mist blue tried, rejected), `opacityMax` 0.95, `spokeFraction` 0.4 (hub fan no longer a smear), `nodeGap` 1.5 in `#080a0c` (lines stop short of nodes), `snapSizes`, `depthSize: false` (depth only dims), `mobileDpr` 2, stronger size hierarchy (`sizeMin` 1.5, `sizeMax` 7, `sizeCurve` 2).
 - **Square nodes:** `nodeShape: square`: every node a square "pixel" (the eyebrow icon's motif). `sizeMax` 4.5 (7 made the biggest squares too heavy). `mixed` (biggest tier round) was tried; the user preferred all square. Mobile density falls with width (small screens looked tight and tangled at 170–300 nodes): ≤767 200 nodes, ≤479 130 + `spokeFraction` 0.25, ≤430 100 + `lineOpacity` 0.3.
+- **Touch (2026-10-02, in `cta`; tested on an iPhone):** the user asked for no hover on mobile and a way to turn the network with a finger.
+  - `touchHover: false`: a finger doesn't fire the button's excite, and the glow/push only follow it while it's pressed (lift = off). Parallax stays mouse-only. Taps still ripple.
+  - `touchSpin: true` + `touchHold: 300`: inside the zone, a sideways drag turns it right away; a finger held still 0.3 s grabs it (it lights up) and can then turn it up/down too. It coasts after release and the tilt (capped at 1 rad) eases back. A swipe without the hold still scrolls the page.
+  - Applies to every touch device (phones and tablets), whatever the width.
+  - **Tried and dropped:** hold-only (the first version: awkward, set off iOS's long-press zoom); drag-only with `touch-action: pan-y` (iOS gave vertical moves straight to scrolling, so the hold couldn't take them; the hold mode keeps touch-action auto and decides on the first move).
+  - **Phone log (Safari):** some holds missed because the finger moved 10 to 15 px before the 0.3 s (counted as a scroll). If that keeps happening, the drift allowance (`HOLD_SLOP` 10 px in `engine.ts`) can go up.
+  - **Debug:** `sections.html?debug=log` sends the engine state to `.particles-debug.log` with no overlay (works on the stable preview too), for phone tests.
 - **Explored and rejected** (available as options):
   - **Core sphere** (2026-10-01): the hub as a small dotted sphere at the network's center, lines radiating from it (`cta-core`). Rejected by the user ("bad idea"); the engine option was removed.
   - **Shapes:** torus, helix, galaxy, globe, knot, atom, icosa and wave in the CTA. The flat ones turn edge-on; the others read as "not the constellation style".

@@ -52,7 +52,10 @@
       "depthSize": false,
       "mobileDpr": 2,
       "sizeCurve": 2,
-      "nodeShape": "square"
+      "nodeShape": "square",
+      "touchHover": false,
+      "touchSpin": true,
+      "touchHold": 300
     },
     "breakpoints": [
       {

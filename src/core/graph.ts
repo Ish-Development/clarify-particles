@@ -705,6 +705,8 @@ function hops(adj: number[][], start: number): Int16Array {
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const MAX_PULSES = 64;
 const MAX_PATH = 64;
+// touch spin: how far the finger can tip the network toward/away (radians)
+const SPIN_TILT_MAX = 1;
 
 // Node positions live in flat typed arrays (same convention as
 // ParticleSystem). Layouts are generated once in unit space (~-1..1), then
@@ -772,6 +774,9 @@ export class GraphSystem {
   private par = { x: 0, y: 0, tx: 0, ty: 0 };
   private excite = 0;
   private exciteTarget = 0;
+  // touch "drag to spin": extra yaw/tilt from the finger (radians), their
+  // velocities for the coast after release, and whether a finger holds it
+  private spin = { yaw: 0, tilt: 0, vYaw: 0, vTilt: 0, held: false };
   // own clock for the excite beat, restarted on each hover so every
   // "breath" starts from dim and swells
   private beatT = 0;
@@ -816,6 +821,7 @@ export class GraphSystem {
     this.time = 0;
     this.seqTime = 0;
     this.rot = 0;
+    this.spin = { yaw: 0, tilt: 0, vYaw: 0, vTilt: 0, held: false };
 
     const shapes: GraphShape[] =
       cfg.mode === "hubBurst"
@@ -912,6 +918,23 @@ export class GraphSystem {
     if (on && this.exciteTarget === 0 && this.excite < 0.05) this.beatT = 0;
     this.exciteTarget = on ? 1 : 0;
   }
+  // touch "drag to spin": a finger grabs (true) or lets go (false) of the
+  // network; while held, spinBy turns it (radians) and tracks the speed so
+  // it coasts on after release. The tilt eases back to the designed view.
+  grab(on: boolean) {
+    this.spin.held = on;
+    if (on) this.spin.vYaw = this.spin.vTilt = 0;
+  }
+  spinBy(dYaw: number, dTilt: number, dt: number) {
+    const s = this.spin;
+    s.yaw += dYaw;
+    s.tilt = Math.max(-SPIN_TILT_MAX, Math.min(SPIN_TILT_MAX, s.tilt + dTilt));
+    if (dt > 0) {
+      // smoothed, so one jittery move doesn't set the coast speed
+      s.vYaw += (dYaw / dt - s.vYaw) * 0.5;
+      s.vTilt += (dTilt / dt - s.vTilt) * 0.5;
+    }
+  }
   // entrance: start (section scrolled into view) or skip (reduced motion)
   startIntro() {
     if (this.intro === "wait") {
@@ -983,6 +1006,18 @@ export class GraphSystem {
     this.excite += (this.exciteTarget - this.excite) * easeK(5);
     this.par.x += (this.par.tx - this.par.x) * easeK(2.5);
     this.par.y += (this.par.ty - this.par.y) * easeK(2.5);
+    const sp = this.spin;
+    if (sp.held) {
+      // a finger resting still: no coast left when it lifts
+      sp.vYaw *= 1 - easeK(12);
+      sp.vTilt *= 1 - easeK(12);
+    } else {
+      sp.yaw += sp.vYaw * dt;
+      sp.tilt = Math.max(-SPIN_TILT_MAX, Math.min(SPIN_TILT_MAX, sp.tilt + sp.vTilt * dt));
+      sp.vYaw *= 1 - easeK(2.5);
+      sp.vTilt *= 1 - easeK(6);
+      sp.tilt *= 1 - easeK(1.5);
+    }
 
     const { from, to, t, staggered } = this.timeline();
     const A = this.layouts[from];
@@ -1028,14 +1063,14 @@ export class GraphSystem {
     }
     const DEG = Math.PI / 180;
     // parallax: the network turns toward the pointer
-    const yaw = this.rot + cfg.rotY * DEG + this.par.x * cfg.parallax;
+    const yaw = this.rot + cfg.rotY * DEG + this.par.x * cfg.parallax + sp.yaw;
     const cosR = Math.cos(yaw);
     const sinR = Math.sin(yaw);
     // slow nodding tilt (around X) layered on top of the constant Y-axis
     // spin — the combination sweeps the camera through varied angles
     // instead of a flat, always-equatorial view.
     const tiltAngle =
-      Math.sin(this.time * cfg.idleRotationSpeed * 0.6) * cfg.idleTiltAmount + cfg.rotX * DEG - this.par.y * cfg.parallax;
+      Math.sin(this.time * cfg.idleRotationSpeed * 0.6) * cfg.idleTiltAmount + cfg.rotX * DEG - this.par.y * cfg.parallax + sp.tilt;
     const cosT = Math.cos(tiltAngle);
     const sinT = Math.sin(tiltAngle);
     const cosZ = Math.cos(cfg.rotZ * DEG);
@@ -1281,7 +1316,12 @@ export class GraphSystem {
   }
 
   debug() {
-    return { intro: this.intro, activePulses: this.pulses.length, excite: +this.excite.toFixed(2) };
+    return {
+      intro: this.intro,
+      activePulses: this.pulses.length,
+      excite: +this.excite.toFixed(2),
+      spin: this.spin.held ? "held" : +this.spin.vYaw.toFixed(2),
+    };
   }
 
   reroll() {
