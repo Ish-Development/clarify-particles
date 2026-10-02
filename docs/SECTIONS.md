@@ -2,18 +2,16 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-02, v1.3.0 released)
+## Status (2026-10-02, v1.4.0 released)
 
-- **Released to the devs:** v1.3.0 (2026-10-02):
-  - **CTA:** desktop, tablet (horizontal) and mobile (stacked 50svh band); crisp square-pixel look; bleed; breakpoint tiers; touch interaction (drag to spin, hold to grab, no hover on touch; checked on an iPhone).
-  - **Hero:** preset `hero` ships too, but its motion isn't reviewed with the client yet.
-  - **Reference page:** tabbed site (`dist-runtime/demo.html`) with a breakpoint viewer and per-section Webflow guide.
-  - **New engine settings** (all off by default): `breakpoints` tiers, `bleed`, `anchorBottom`, `scaleByWidth`, points `scale`, `sizeScaleMobile`, `mobileDpr`, `spokeFraction`, `nodeGap`/`gapColor`, `snapSizes`, `depthSize`, `sizeCurve`, `nodeShape`, `touchHover`, `touchSpin`, `touchHold`.
-- **Tell the devs:** bump the pinned version to `@1.3.0` (script tag or their `window.libs` loader; the loader snippet must match `[data-particles-component]`, as in `runtime/README.md`).
+- **Released to the devs:** v1.4.0 (2026-10-02): the finished CTA (grid background with drifting lights and a desktop hover trail, brighter network, `lineGap`), on top of v1.3.0 (CTA tablet/mobile + touch, hero preset, reference site).
+- **Reference page:** GitHub Pages (`dist-runtime/demo.html`) and Vercel (the same files; see `runtime/README.md`).
+- **New engine settings in 1.4** (all off by default): `grid*`, `lineGap`, `glow*` (background glow, tried and dropped for the CTA).
+- **Tune page** `/tune.html?preset=<name>` (dev server): one section at real size with DialKit dials and Figma palettes.
+- **Tell the devs:** bump the pinned version to `@1.4.0`. No markup or CSS changes for the CTA.
 - **Next:**
-  1. CTA: more work (user, 2026-10-02).
-  2. Hero: motion review; whether it gets the crisp/pixel treatment and button glow.
-  3. CTA perf on a real phone (`mobileDpr` 2) wasn't checked item by item.
+  1. The next section (user's call).
+  2. Hero: motion review; whether it gets the crisp/pixel or grid treatment.
 
 Workflow for a new section:
 1. **Figma context:** get the design context, variables and screenshot for the section node.
@@ -107,7 +105,9 @@ Workflow for a new section:
   - **Tried and dropped:** hold-only (the first version: awkward, set off iOS's long-press zoom); drag-only with `touch-action: pan-y` (iOS gave vertical moves straight to scrolling, so the hold couldn't take them; the hold mode keeps touch-action auto and decides on the first move).
   - **Phone log (Safari):** some holds missed because the finger moved 10 to 15 px before the 0.3 s (counted as a scroll). If that keeps happening, the drift allowance (`HOLD_SLOP` 10 px in `engine.ts`) can go up.
   - **Debug:** `sections.html?debug=log` sends the engine state to `.particles-debug.log` with no overlay (works on the stable preview too), for phone tests.
+- **Grid pattern (2026-10-02, now `cta`; was the `cta-grid` variant):** from Figma `13987:10914`: a grid of small squares over the whole card, lit by soft lights that drift over it by themselves (always, desktop and touch) and a hover trail. The Figma frame's three static blurred beams were built, then dropped by the user ("just the drifting"). User's values: pitch 7, drifting Mist/200 `#1a3145` at full strength, 4 lights of 296 px at speed 0.5; hover Mist/800 `#dbeaf7` at full strength, radius 240, fade 0.45 s. All in one WebGL quad (no CSS blur); per-square trail in a float texture, so the CPU only stamps squares near the pointer. Tuned on `/tune.html?preset=cta` (dev server). With it the network got brighter and bolder so it reads over the grid: nodes 0.5–1, lines 0.55 at 1.25 px, hover glow 0.8 within 200 px, `nodeGap` 0.5 (was 1.5), new `lineGap` 1.5 (a strip of card color under each line, so the lines cut through the grid). Mobile (≤ 767): calmer grid (opacity 0.75, spacing 7, square color 0.25, 2 slower lights, lines 1 px / gap 1). A soft top fade (network dissolving into the card's top edge) was tried; the user preferred the hard crop and it was removed. No grid hover below desktop (≤ 991 `gridHot: 0`).
 - **Explored and rejected** (available as options):
+  - **Background glow** (2026-10-02, `cta-pop`): first a mist-blue glow that followed the network ("too much and too light"), then Figma's prototype `13311:5898` (a blurred `#273037`→`#0F1317` ellipse, matched as a gaussian in WebGL, no CSS blur). Ditched by the user. Engine options `glow*` remain, off by default.
   - **Core sphere** (2026-10-01): the hub as a small dotted sphere at the network's center, lines radiating from it (`cta-core`). Rejected by the user ("bad idea"); the engine option was removed.
   - **Shapes:** torus, helix, galaxy, globe, knot, atom, icosa and wave in the CTA. The flat ones turn edge-on; the others read as "not the constellation style".
   - **Fit:** fully inside the canvas. The client preferred big and bleeding.

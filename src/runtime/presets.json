@@ -16,18 +16,18 @@
       "softness": 0,
       "color": "#f4f7fa",
       "lineColor": "#f4f7fa",
-      "lineOpacity": 0.35,
-      "lineWidth": 0.75,
+      "lineOpacity": 0.55,
+      "lineWidth": 1.25,
       "centerX": 0.5,
       "centerY": 0.5,
       "scale": 2.7,
       "rotZ": 9,
       "idleRotationSpeed": 0.05,
       "idleTiltAmount": 0.2,
-      "hoverGlow": 0.35,
+      "hoverGlow": 0.8,
       "solid": true,
-      "opacityMin": 0.3,
-      "opacityMax": 0.95,
+      "opacityMin": 0.5,
+      "opacityMax": 1,
       "fit": false,
       "morphImplode": 0,
       "morphSwirl": 0,
@@ -41,12 +41,12 @@
       "clickBehavior": "ripple",
       "intro": 0,
       "exciteRate": 0,
-      "hoverRadius": 110,
+      "hoverRadius": 200,
       "hoverStrength": 0.5,
       "rippleSpeed": 4,
       "bleed": true,
       "spokeFraction": 0.4,
-      "nodeGap": 1.5,
+      "nodeGap": 0.5,
       "gapColor": "#080a0c",
       "snapSizes": true,
       "depthSize": false,
@@ -55,9 +55,31 @@
       "nodeShape": "square",
       "touchHover": false,
       "touchSpin": true,
-      "touchHold": 300
+      "touchHold": 300,
+      "grid": 1,
+      "gridPitch": 6,
+      "gridDot": 2,
+      "gridHot": 0.38,
+      "gridHotColor": "#7b8a96",
+      "gridHotRadius": 240,
+      "gridHotFade": 1,
+      "gridAuto": "always",
+      "gridAutoCount": 4,
+      "gridAutoSize": 400,
+      "gridAutoSpeed": 0.115,
+      "gridAutoColor": "#3d4952",
+      "gridAutoStrength": 0.46,
+      "lineGap": 1.5,
+      "gridBase": 0.4,
+      "gridColor": "#273037"
     },
     "breakpoints": [
+      {
+        "maxWidth": 991,
+        "config": {
+          "gridHot": 0
+        }
+      },
       {
         "maxWidth": 767,
         "config": {
@@ -68,7 +90,15 @@
           "scaleByWidth": true,
           "anchorBottom": true,
           "rotZ": 0,
-          "count": 200
+          "count": 200,
+          "grid": 0.75,
+          "gridPitch": 7,
+          "gridBase": 0.25,
+          "gridAutoCount": 2,
+          "gridAutoStrength": 0.35,
+          "gridAutoSpeed": 0.08,
+          "lineWidth": 1,
+          "lineGap": 1
         }
       },
       {

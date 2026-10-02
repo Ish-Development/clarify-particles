@@ -17,14 +17,18 @@ import {
   Camera,
   Color,
   CustomBlending,
+  DataTexture,
   DoubleSide,
+  FloatType,
   DynamicDrawUsage,
   InstancedBufferAttribute,
   InstancedBufferGeometry,
   Mesh,
+  NearestFilter,
   OneFactor,
   OneMinusSrcAlphaFactor,
   Points,
+  RGFormat,
   SRGBColorSpace,
   Scene,
   ShaderMaterial,
@@ -40,6 +44,8 @@ import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
 // = MOBILE_QUERY in presets.ts (kept literal: the engine imports no loader code)
 const isMobile = () => matchMedia("(max-width: 767px)").matches;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+// touch-first devices (phones, tablets): no hover to drive the grid lights
+const noHover = matchMedia("(hover: none)");
 
 // Steps used to pre-settle the simulation when drawing a still frame for
 // reduced-motion users (enough for ease >= ~0.04 to converge).
@@ -54,7 +60,21 @@ const INTERACTIVE = "a,button,input,select,textarea,label,summary,[role=button],
 // Output is premultiplied alpha; color values are passed through untouched
 // (no color-space conversion), matching the playground's Canvas2D colors.
 
+// Background glow (graph `glow`): alpha of an elliptical gaussian at a
+// canvas px; center uGlowC and sigma uGlowS in canvas px, 0 peak = off.
+// Matches Figma's heavily blurred ellipse at a fraction of the cost.
+const GLOW_AT = /* glsl */ `
+uniform float uGlow;
+uniform vec2 uGlowC;
+uniform vec2 uGlowS;
+uniform vec3 uGlowColor;
+float glowAt(vec2 px) {
+  vec2 d = (px - uGlowC) / uGlowS;
+  return uGlow * exp(-0.5 * dot(d, d));
+}`;
+
 const POINT_VERT = /* glsl */ `
+${GLOW_AT}
 attribute float aSize;
 attribute float aAlpha;
 attribute vec3 aColor;
@@ -66,13 +86,19 @@ uniform float uSizeScale;
 uniform float uMaxSize;
 uniform float uGap;
 uniform float uSnap;
+uniform vec3 uGapColor;
 varying float vAlpha;
 varying vec3 vColor;
 varying float vSize;
 varying float vPt;
 varying float vShape;
+varying vec3 vGapColor;
 void main() {
   vShape = aShape;
+  // the gap ring is the background behind the node: the card's color with
+  // the glow over it, so it doesn't show as a dark speck on the glow
+  float g = glowAt(position.xy + uOffset);
+  vGapColor = uGapColor * (1.0 - g) + uGlowColor * g;
   vec2 p = (position.xy + uOffset) / uRes * 2.0 - 1.0;
   gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
   // dot diameter in device px; snapped to whole pixels for crisp edges
@@ -96,12 +122,12 @@ void main() {
 const POINT_FRAG = /* glsl */ `
 uniform float uSoftness;
 uniform float uSolid;
-uniform vec3 uGapColor;
 varying float vAlpha;
 varying vec3 vColor;
 varying float vSize;
 varying float vPt;
 varying float vShape;
+varying vec3 vGapColor;
 void main() {
   // distance from the center in px: round, or square ("pixel" nodes)
   vec2 q = abs(gl_PointCoord - 0.5) * vPt;
@@ -112,7 +138,7 @@ void main() {
   if (f <= 0.0) {
     float edge = clamp(R + ring - r, 0.0, 1.0);
     if (ring <= 0.0 || edge <= 0.0) discard;
-    gl_FragColor = vec4(uGapColor * edge, edge);
+    gl_FragColor = vec4(vGapColor * edge, edge);
     return;
   }
   float hard = clamp(f * R, 0.0, 1.0);
@@ -121,7 +147,7 @@ void main() {
   float a = cover * mix(vAlpha, 1.0, uSolid);
   vec3 col = vColor * mix(1.0, vAlpha, uSolid);
   // inside a gap ring the dot's anti-aliased edge blends into the ring
-  if (ring > 0.0) gl_FragColor = vec4(col * a + uGapColor * (1.0 - a), 1.0);
+  if (ring > 0.0) gl_FragColor = vec4(col * a + vGapColor * (1.0 - a), 1.0);
   else gl_FragColor = vec4(col * a, a);
 }`;
 
@@ -172,6 +198,262 @@ void main() {
   float a = min(1.0, uAlpha * vWeight) * cover * mix(1.0, vAlong * vAlong, vTaper);
   gl_FragColor = vec4(uColor * a, a);
 }`;
+
+// Full-canvas quad for the glow; vPx = canvas px (y down).
+const GLOW_VERT = /* glsl */ `
+uniform vec2 uRes;
+varying vec2 vPx;
+void main() {
+  vPx = vec2(position.x + 1.0, 1.0 - position.y) * 0.5 * uRes;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}`;
+
+const GLOW_FRAG = /* glsl */ `
+${GLOW_AT}
+varying vec2 vPx;
+void main() {
+  float a = glowAt(vPx);
+  if (a <= 0.0) discard;
+  // dither: a faint gradient on a dark background bands in 8 bits. The
+  // noise is on alpha, so it's scaled by the color to move the composited
+  // pixel by about one 8-bit level (triangular noise: two hashes)
+  vec2 q = gl_FragCoord.xy;
+  float n = fract(sin(dot(q, vec2(12.9898, 78.233))) * 43758.5453) + fract(sin(dot(q, vec2(39.3468, 11.1357))) * 24634.6345) - 1.0;
+  float c = max(max(uGlowColor.r, uGlowColor.g), max(uGlowColor.b, 0.02));
+  a = clamp(a + n / (255.0 * c), 0.0, 1.0);
+  gl_FragColor = vec4(uGlowColor * a, a);
+}`;
+const FULL_QUAD = new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, 1, 1, 0, -1, 1, 0]);
+
+// Grid pattern (graph `grid`): squares of uDot device px every uPitch,
+// counted from the canvas' top-left, each one flat-lit at its center by its
+// own color, the drifting lights (gaussians in canvas px) and the hover
+// trail (uHeat: per square, peak and time lit).
+const GRID_AUTO = 4;
+const GRID_FRAG = /* glsl */ `
+uniform vec2 uDev;
+uniform float uDpr;
+uniform float uPitch;
+uniform float uDot;
+uniform float uOpacity;
+uniform sampler2D uHeat;
+uniform vec2 uHeatSize;
+uniform float uTime;
+uniform float uFade;
+uniform float uHot;
+uniform vec3 uHotColor;
+uniform vec3 uAuto[${GRID_AUTO}];
+uniform float uAutoSize;
+uniform vec3 uAutoColor;
+uniform float uAutoStrength;
+uniform vec3 uBaseColor;
+uniform float uBase;
+void main() {
+  // device px, y down from the canvas' top-left
+  vec2 dev = vec2(gl_FragCoord.x, uDev.y - gl_FragCoord.y);
+  vec2 cell = floor(dev / uPitch);
+  vec2 inCell = dev - cell * uPitch;
+  if (inCell.x >= uDot || inCell.y >= uDot) discard;
+  // the square's center in canvas CSS px
+  vec2 c = (cell * uPitch + uDot * 0.5) / uDpr;
+  // layers, bottom to top (premultiplied "over"): the squares' own color,
+  // the drifting lights, the hover trail
+  vec3 col = uBaseColor * uBase;
+  float a = uBase;
+  float drift = 0.0;
+  for (int i = 0; i < ${GRID_AUTO}; i++) {
+    vec2 d = (c - uAuto[i].xy) / uAutoSize;
+    drift += uAuto[i].z * exp(-0.5 * dot(d, d));
+  }
+  float k = clamp(drift, 0.0, 1.0) * uAutoStrength;
+  col = uAutoColor * k + col * (1.0 - k);
+  a = k + a * (1.0 - k);
+  float hot = 0.0;
+  vec2 heat = texture2D(uHeat, (cell + 0.5) / uHeatSize).rg;
+  if (heat.r > 0.0) hot = heat.r * exp(-(uTime - heat.g) / uFade);
+  float h = clamp(hot, 0.0, 1.0) * uHot;
+  col = uHotColor * h + col * (1.0 - h);
+  a = h + a * (1.0 - h);
+  gl_FragColor = vec4(col, a) * uOpacity;
+}`;
+
+// The grid pattern behind a graph's network: one full-canvas quad. The
+// hover trail lives in a float texture with one texel per square (peak,
+// time lit): the CPU only stamps the squares near the pointer, the shader
+// does the fading.
+class GridLayer {
+  readonly mesh: Mesh;
+  private readonly geometry = new BufferGeometry();
+  private readonly material: ShaderMaterial;
+  private heat: DataTexture | null = null;
+  private heatData = new Float32Array(2);
+  private nx = 1;
+  private ny = 1;
+  // pitch/dot in device px, and the canvas scale (CSS -> device)
+  private pitch = 3;
+  private dot = 2;
+  private dpr = 1;
+  private time = 0;
+  private last: { x: number; y: number } | null = null;
+  private readonly autoSeeds: number[] = [];
+
+  constructor(private readonly cfg: GraphSpec["config"]) {
+    this.geometry.setAttribute("position", new BufferAttribute(FULL_QUAD, 3));
+    this.material = makeMaterial(
+      GLOW_VERT,
+      GRID_FRAG,
+      {
+        uRes: { value: [1, 1] },
+        uDev: { value: [1, 1] },
+        uDpr: { value: 1 },
+        uPitch: { value: 3 },
+        uDot: { value: 2 },
+        uOpacity: { value: 1 },
+        uHeat: { value: null },
+        uHeatSize: { value: [1, 1] },
+        uTime: { value: 0 },
+        uFade: { value: 1 },
+        uHot: { value: 0 },
+        uHotColor: { value: [0, 0, 0] },
+        // flat array: three uploads uniform arrays of plain numbers as-is
+        uAuto: { value: new Float32Array(GRID_AUTO * 3) },
+        uAutoSize: { value: 1 },
+        uAutoColor: { value: [0, 0, 0] },
+        uAutoStrength: { value: 0 },
+        uBaseColor: { value: [0, 0, 0] },
+        uBase: { value: 0 },
+      },
+      "normal",
+    );
+    this.material.side = DoubleSide;
+    this.mesh = new Mesh(this.geometry, this.material);
+    this.mesh.frustumCulled = false;
+    for (let i = 0; i < GRID_AUTO; i++) this.autoSeeds.push(Math.random() * 100);
+  }
+
+  // canvas size in CSS px and device px
+  resize(cw: number, ch: number, pw: number, ph: number, dpr: number) {
+    const u = this.material.uniforms;
+    this.dpr = dpr;
+    // whole device pixels, so every square is the same crisp size
+    this.pitch = Math.max(2, Math.round(this.cfg.gridPitch * dpr));
+    this.dot = Math.min(this.pitch - 1, Math.max(1, Math.round(this.cfg.gridDot * dpr)));
+    u.uRes.value = [cw, ch];
+    u.uDev.value = [pw, ph];
+    u.uDpr.value = dpr;
+    u.uPitch.value = this.pitch;
+    u.uDot.value = this.dot;
+    const nx = Math.ceil(pw / this.pitch);
+    const ny = Math.ceil(ph / this.pitch);
+    if (!this.heat || nx !== this.nx || ny !== this.ny) {
+      this.heat?.dispose();
+      this.nx = nx;
+      this.ny = ny;
+      this.heatData = new Float32Array(nx * ny * 2);
+      const t = new DataTexture(this.heatData, nx, ny, RGFormat, FloatType);
+      t.magFilter = t.minFilter = NearestFilter;
+      t.needsUpdate = true;
+      this.heat = t;
+      u.uHeat.value = t;
+      u.uHeatSize.value = [nx, ny];
+    }
+  }
+
+  // once per frame: p = pointer in canvas CSS px, or null
+  update(p: { x: number; y: number } | null, dt: number, cw: number, ch: number) {
+    const cfg = this.cfg;
+    const u = this.material.uniforms;
+    this.time += dt;
+    this.mesh.visible = cfg.grid > 0;
+    u.uOpacity.value = Math.min(1, cfg.grid);
+    u.uTime.value = this.time;
+    u.uFade.value = Math.max(0.05, cfg.gridHotFade);
+    u.uHot.value = Math.min(1, cfg.gridHot);
+    u.uHotColor.value = hexToRgb01(cfg.gridHotColor);
+    u.uAutoColor.value = hexToRgb01(cfg.gridAutoColor);
+    u.uAutoStrength.value = Math.min(1, Math.max(0, cfg.gridAutoStrength));
+    u.uBaseColor.value = hexToRgb01(cfg.gridColor);
+    u.uBase.value = Math.min(1, Math.max(0, cfg.gridBase));
+    // drifting lights: slow Lissajous paths over the canvas, each fading in
+    // and out on its own clock
+    const auto = cfg.gridAuto === "always" || (cfg.gridAuto === "touch" && noHover.matches);
+    const n = auto ? Math.min(GRID_AUTO, Math.max(0, Math.round(cfg.gridAutoCount))) : 0;
+    u.uAutoSize.value = Math.max(1, cfg.gridAutoSize);
+    const A: Float32Array = u.uAuto.value;
+    for (let i = 0; i < GRID_AUTO; i++) {
+      if (i >= n) {
+        A.set([0, 0, 0], i * 3);
+        continue;
+      }
+      const t = this.time * cfg.gridAutoSpeed + this.autoSeeds[i];
+      const x = (0.5 + 0.45 * Math.sin(t * 1.3 + i * 2.1)) * cw;
+      const y = (0.5 + 0.45 * Math.sin(t * 0.9 + i * 1.7 + 1)) * ch;
+      const k = 0.5 + 0.5 * Math.sin(t * 2.3 + i * 4.2);
+      A.set([x, y, k * k], i * 3);
+    }
+    if (p && cfg.grid > 0 && cfg.gridHot > 0) this.stampPath(p);
+    this.last = p;
+  }
+
+  // light the squares around p, and along the way from the last position
+  // so a fast move leaves a continuous trail
+  private stampPath(p: { x: number; y: number }) {
+    const r = Math.max(4, this.cfg.gridHotRadius);
+    const from = this.last ?? p;
+    const d = Math.hypot(p.x - from.x, p.y - from.y);
+    const steps = Math.min(32, Math.ceil(d / (r / 3)));
+    let any = false;
+    for (let k = steps; k >= 0; k--) {
+      const t = steps ? k / steps : 0;
+      any = this.stamp(from.x + (p.x - from.x) * (1 - t), from.y + (p.y - from.y) * (1 - t), r) || any;
+    }
+    if (any && this.heat) this.heat.needsUpdate = true;
+  }
+
+  private stamp(x: number, y: number, r: number) {
+    // CSS px -> square index
+    const k = this.dpr / this.pitch;
+    const cx = x * k;
+    const cy = y * k;
+    const rc = r * k;
+    const x0 = Math.max(0, Math.floor(cx - rc));
+    const x1 = Math.min(this.nx - 1, Math.ceil(cx + rc));
+    const y0 = Math.max(0, Math.floor(cy - rc));
+    const y1 = Math.min(this.ny - 1, Math.ceil(cy + rc));
+    const fade = Math.max(0.05, this.cfg.gridHotFade);
+    const data = this.heatData;
+    let any = false;
+    for (let j = y0; j <= y1; j++) {
+      for (let i = x0; i <= x1; i++) {
+        const dd = Math.hypot(i + 0.5 - cx, j + 0.5 - cy) / rc;
+        if (dd >= 1) continue;
+        const v = (1 - dd) * (1 - dd);
+        // texel row j = square row j (the shader samples y-down indices)
+        const o = (j * this.nx + i) * 2;
+        const now = data[o] * Math.exp(-(this.time - data[o + 1]) / fade);
+        if (v > now) {
+          data[o] = v;
+          data[o + 1] = this.time;
+          any = true;
+        }
+      }
+    }
+    return any;
+  }
+
+  dispose() {
+    this.geometry.dispose();
+    this.material.dispose();
+    this.heat?.dispose();
+  }
+}
+
+const glowUniforms = () => ({
+  uGlow: { value: 0 },
+  uGlowC: { value: [0, 0] },
+  uGlowS: { value: [1, 1] },
+  uGlowColor: { value: [0, 0, 0] },
+});
 
 // Base quad for the instanced edges (two triangles).
 const EDGE_QUAD = new Float32Array([0, -1, 0, 1, -1, 0, 1, 1, 0, 0, -1, 0, 1, 1, 0, 0, 1, 0]);
@@ -558,6 +840,7 @@ function pointUniforms(sizeScale: number, softness: number, solid: boolean) {
     uGap: { value: 0 },
     uSnap: { value: 0 },
     uGapColor: { value: [0, 0, 0] },
+    ...glowUniforms(),
   };
 }
 
@@ -646,6 +929,8 @@ interface EdgeBuffers {
   geometry: InstancedBufferGeometry;
   material: ShaderMaterial;
   mesh: Mesh;
+  // lineGap: the same edges, wider, in gapColor, drawn before every line
+  knock?: Mesh;
 }
 
 class GraphView extends View {
@@ -667,6 +952,13 @@ class GraphView extends View {
   private readonly pulsePos: BufferAttribute;
   private readonly pulseAlpha: BufferAttribute;
   private readonly pulseColor: BufferAttribute;
+  private readonly glowGeometry = new BufferGeometry();
+  private readonly glowMaterial: ShaderMaterial;
+  private readonly glowMesh: Mesh;
+  private readonly grid: GridLayer;
+  // pointer (canvas px) and time for the grid, applied at sync
+  private gridPointer: { x: number; y: number } | null = null;
+  private gridDt = 0;
 
   constructor(el: HTMLElement, cfg: GraphSpec["config"]) {
     super(el, cfg);
@@ -676,7 +968,20 @@ class GraphView extends View {
     // sized for the largest layout so a sequence never reallocates
     const cap = Math.max(1, this.system.maxEdges);
 
-    // edges first (drawn under the nodes)
+    // glow: drawn first, behind everything
+    this.glowGeometry.setAttribute("position", new BufferAttribute(FULL_QUAD, 3));
+    this.glowMaterial = makeMaterial(GLOW_VERT, GLOW_FRAG, { uRes: { value: [1, 1] }, ...glowUniforms() }, "normal");
+    this.glowMaterial.side = DoubleSide;
+    this.glowMesh = new Mesh(this.glowGeometry, this.glowMaterial);
+    this.glowMesh.frustumCulled = false;
+    this.scene.add(this.glowMesh);
+    // grid pattern: over the glow, under the network
+    this.grid = new GridLayer(cfg);
+    this.scene.add(this.grid.mesh);
+
+    // edges first (drawn under the nodes); every layer's lineGap strips go
+    // before any line, so no strip covers another layer's line
+    const lineMeshes: Mesh[] = [];
     for (let li = 0; li < 2; li++) {
       const ends = new InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(DynamicDrawUsage);
       const weights = new InstancedBufferAttribute(new Float32Array(cap), 1).setUsage(DynamicDrawUsage);
@@ -702,9 +1007,29 @@ class GraphView extends View {
       material.side = DoubleSide;
       const mesh = new Mesh(geometry, material);
       mesh.frustumCulled = false;
-      this.scene.add(mesh);
-      this.edgeBuffers.push({ ends, weights, geometry, material, mesh });
+      lineMeshes.push(mesh);
+      // same shader and instances: color = gapColor, alpha = the layer's
+      // (not lineOpacity), so a normal edge cuts a solid strip
+      const knockMaterial = makeMaterial(
+        LINE_VERT,
+        LINE_FRAG,
+        {
+          uRes: { value: [1, 1] },
+          uOffset: { value: [0, 0] },
+          uColor: { value: [0, 0, 0] },
+          uAlpha: { value: 0 },
+          uWidth: { value: 1 },
+          uDpr: { value: 1 },
+        },
+        "normal",
+      );
+      knockMaterial.side = DoubleSide;
+      const knock = new Mesh(geometry, knockMaterial);
+      knock.frustumCulled = false;
+      this.scene.add(knock);
+      this.edgeBuffers.push({ ends, weights, geometry, material, mesh, knock });
     }
+    for (const m of lineMeshes) this.scene.add(m);
 
     // highlights: above the mesh, additive so they glow
     {
@@ -828,10 +1153,15 @@ class GraphView extends View {
     this.nodeMaterial.uniforms.uSoftness.value = cfg.softness;
     this.nodeMaterial.uniforms.uSolid.value = cfg.solid ? 1 : 0;
     this.applyNodeLook();
+    const glowColor = hexToRgb01(cfg.glowColor);
+    this.glowMaterial.uniforms.uGlowColor.value = glowColor;
+    this.nodeMaterial.uniforms.uGlowColor.value = glowColor;
     const lineColor = hexToRgb01(cfg.lineColor);
+    const gap = hexToRgb01(cfg.gapColor);
     for (const b of this.edgeBuffers) {
       b.material.uniforms.uColor.value = lineColor;
       b.material.blendDst = blendDst(cfg.blend);
+      if (b.knock) (b.knock.material as ShaderMaterial).uniforms.uColor.value = gap;
     }
     const pulse = hexToRgb01(cfg.pulseColor);
     this.hl.material.uniforms.uColor.value = pulse;
@@ -842,9 +1172,12 @@ class GraphView extends View {
 
   onPointer(p: { x: number; y: number } | null) {
     this.system.setPointer(p);
+    // the grid covers the canvas: its coordinates are the canvas'
+    this.gridPointer = p ? { x: p.x + this.ox, y: p.y + this.oy } : null;
   }
 
   step(dt: number) {
+    this.gridDt += dt;
     this.system.update(dt, this.w, this.h);
   }
 
@@ -865,12 +1198,21 @@ class GraphView extends View {
     this.nodePosAttr.needsUpdate = true;
     this.nodeSizeAttr.needsUpdate = true;
     this.nodeAlphaAttr.needsUpdate = true;
+    this.syncGlow();
+    this.grid.update(this.gridPointer, this.gridDt, this.cw, this.ch);
+    this.gridDt = 0;
 
     s.layers.forEach((layer, li) => {
       const b = this.edgeBuffers[li];
       const count = layer.alpha > 0.002 ? layer.edges.length : 0;
       b.mesh.visible = count > 0;
       b.geometry.instanceCount = count;
+      if (b.knock) {
+        b.knock.visible = count > 0 && cfg.lineGap > 0;
+        const ku = (b.knock.material as ShaderMaterial).uniforms;
+        ku.uAlpha.value = layer.alpha;
+        ku.uWidth.value = cfg.lineWidth + 2 * Math.max(0, cfg.lineGap);
+      }
       if (!count) return;
       b.material.uniforms.uAlpha.value = layer.alpha * cfg.lineOpacity * s.lineGain;
       b.material.uniforms.uWidth.value = cfg.lineWidth;
@@ -920,16 +1262,35 @@ class GraphView extends View {
     this.pulsePos.needsUpdate = this.pulseAlpha.needsUpdate = true;
   }
 
+  // glow placement in canvas px, shared with the node shader for the gap
+  // rings (read every frame, so the playground's sliders apply live)
+  private syncGlow() {
+    const cfg = this.graphCfg;
+    const on = cfg.glow > 0;
+    this.glowMesh.visible = on;
+    for (const m of [this.glowMaterial, this.nodeMaterial]) {
+      const u = m.uniforms;
+      u.uGlow.value = on ? Math.min(1, cfg.glow) : 0;
+      u.uGlowC.value = [cfg.glowX * this.cw, cfg.glowY * this.ch];
+      u.uGlowS.value = [Math.max(1, cfg.glowSizeX * this.cw), Math.max(1, cfg.glowSizeY * this.ch)];
+    }
+  }
+
   protected onResize() {
     const res = [this.cw, this.ch];
+    this.glowMaterial.uniforms.uRes.value = res;
+    this.grid.resize(this.cw, this.ch, this.pw, this.ph, this.dpr);
     const off = [this.ox, this.oy];
     this.nodeMaterial.uniforms.uRes.value = res;
     this.nodeMaterial.uniforms.uOffset.value = off;
     this.nodeMaterial.uniforms.uDpr.value = this.dpr;
     for (const b of [...this.edgeBuffers, this.hl]) {
-      b.material.uniforms.uRes.value = res;
-      b.material.uniforms.uOffset.value = off;
-      b.material.uniforms.uDpr.value = this.dpr;
+      for (const m of [b.material, b.knock?.material as ShaderMaterial | undefined]) {
+        if (!m) continue;
+        m.uniforms.uRes.value = res;
+        m.uniforms.uOffset.value = off;
+        m.uniforms.uDpr.value = this.dpr;
+      }
     }
     this.pulseMaterial.uniforms.uRes.value = res;
     this.pulseMaterial.uniforms.uOffset.value = off;
@@ -937,11 +1298,15 @@ class GraphView extends View {
   }
 
   protected disposeGpu() {
+    this.glowGeometry.dispose();
+    this.glowMaterial.dispose();
+    this.grid.dispose();
     this.nodeGeometry.dispose();
     this.nodeMaterial.dispose();
     for (const b of [...this.edgeBuffers, this.hl]) {
       b.geometry.dispose();
       b.material.dispose();
+      (b.knock?.material as ShaderMaterial | undefined)?.dispose();
     }
     this.pulseGeometry.dispose();
     this.pulseMaterial.dispose();

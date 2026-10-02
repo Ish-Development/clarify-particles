@@ -23,6 +23,7 @@ npx tsc -b              # typecheck
 - **Why not the dev server:** 4790 hot-reloads background tabs, and restarts break pages.
 - **Variants:** `sections.html?cta=<preset>` previews another preset for a section; `?debug` shows a live state overlay. `?debug` also posts it to `.particles-debug.log` (dev server and stable preview); `?debug=log` does that with no overlay, for phone tests (preview with `--host`, phone on the LAN IP).
 - **Playground deep link:** `/?preset=cta&frame=cta`.
+- **Tune page (dev server):** `/tune.html?preset=cta`: the CTA alone at real size (no scaling, so fine patterns render 1:1) with a DialKit panel for the grid pattern and the network's brightness/gaps, a Figma palette in each color folder; "Save preset" writes the desktop config to `presets.json` (keeps the breakpoint tiers), "Copy values" copies every dial as JSON.
 
 ## Release (the dev's script URL pins a tag)
 

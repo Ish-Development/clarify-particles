@@ -82,6 +82,7 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `lineOpacity` / `lineWidth` | `0.25` / `1` | Width in CSS px |
 | `spokeFraction` | `1` | Share of nodes that keep their spoke to the hub; the same nodes in every shape, so the fan stays steady through morphs |
 | `nodeGap` / `gapColor` | `0` / `#000000` | Ring (CSS px) of `gapColor` (use the section background) around each node, so lines stop short of it |
+| `lineGap` | `0` | Strip of `gapColor` (CSS px each side) under every line, so lines cut a clean path through a background pattern (`grid`) and read as on top of it. Fainter lines cut fainter strips |
 | `snapSizes` | `false` | Round node sizes to whole device pixels (crisp edges) |
 | `depthSize` | `true` | Depth also scales node size; `false`: depth only dims (far nodes stay crisp) |
 | `sizeCurve` | `1` | Above 1 skews node sizes small: most nodes tiny, a few big (stronger hierarchy) |
@@ -108,6 +109,18 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `hoverGlow` | `0` | 0–1: nodes near the cursor grow/brighten, their lines light up |
 | `hoverPath` | `false` | Hover traces the route through the mesh to the hub |
 | `rippleSpeed` | `7` | Click ripple speed (hops/s), with `clickBehavior: "ripple"` |
+| `glow` | `0` | Soft background glow behind the network: peak opacity of an elliptical gaussian of `glowColor` (`0` = off). Drawn in WebGL (no CSS blur); node gap rings take its color so they don't show as dark specks |
+| `glowColor` | `#1c2329` | Glow color |
+| `glowX` / `glowY` | `0.5` / `0.5` | Glow center, as a fraction of the canvas width/height (with `bleed`, the whole component) |
+| `glowSizeX` / `glowSizeY` | `0.35` / `0.4` | Glow spread (gaussian sigma), as a fraction of the canvas width/height |
+| `grid` | `0` | Background pattern: a grid of small squares, lit by drifting lights and the hover trail, behind the network (`0` = off; value = overall opacity). One WebGL quad, no CSS |
+| `gridPitch` / `gridDot` | `3` / `2` | Square spacing and size in CSS px, rounded to whole device pixels so the squares stay crisp |
+| `gridColor` / `gridBase` | `#273037` / `0` | Every square's own color before any light, and its opacity |
+| `gridHot` / `gridHotColor` | `0.6` / `#5f8db4` | Squares near the pointer light up in this color, up to this opacity |
+| `gridHotRadius` / `gridHotFade` | `56` / `1.2` | Reach of the pointer light (px) and how long lit squares take to fade (s): a trail |
+| `gridAuto` | `touch` | Soft lights drifting over the grid by themselves: `touch` (devices without hover), `always`, `off` |
+| `gridAutoColor` / `gridAutoStrength` | `#5f8db4` / `0.6` | The drifting lights' own color and peak opacity (separate from the hover's) |
+| `gridAutoCount` / `gridAutoSize` / `gridAutoSpeed` | `3` / `90` / `0.06` | How many drifting lights (max 4), their spread (px) and speed |
 | `exciteRate` | `0.35` | Breaths/s while a `data-particles-excite` element is hovered; `0` = steady light-up |
 | `pulses` / `pulseSpeed` / `pulseSize` / `pulseColor` | `0` / `180` / `3` / `#a4c9e9` | Data pulses traveling the lines to the hub |
 | `intro` | `0` | Seconds for nodes to fly in once 25% of the section is visible (`0` = off) |

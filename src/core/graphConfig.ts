@@ -35,6 +35,10 @@ export interface GraphConfig {
   spokeFraction: number;
   // ring (CSS px) of gapColor around each node: lines stop short of it
   nodeGap: number;
+  // strip (CSS px each side) of gapColor under each line, so the line cuts
+  // a clean path through a background pattern (grid) instead of blending
+  // into it; fainter lines cut fainter strips
+  lineGap: number;
   gapColor: string;
   // round node sizes to whole device pixels (crisp edges)
   snapSizes: boolean;
@@ -108,6 +112,41 @@ export interface GraphConfig {
   exciteRate: number;
   // click ripple speed, in connection hops per second
   rippleSpeed: number;
+  // soft background glow: an elliptical gaussian of glowColor drawn behind
+  // the network (Figma's blurred ellipse, without a CSS blur). glow = its
+  // peak opacity (0 = off); center glowX/glowY and spread (sigma)
+  // glowSizeX/glowSizeY as fractions of the canvas width/height (with
+  // bleed, the whole component)
+  glow: number;
+  glowColor: string;
+  glowX: number;
+  glowY: number;
+  glowSizeX: number;
+  glowSizeY: number;
+  // background pattern: a grid of small squares (gridDot CSS px, every
+  // gridPitch px, snapped to device pixels so they stay crisp), lit by
+  // drifting lights and the hover trail. grid = overall opacity (0 = off)
+  grid: number;
+  gridPitch: number;
+  gridDot: number;
+  // every square's own color before any light (gridBase = its opacity)
+  gridColor: string;
+  gridBase: number;
+  // squares near the pointer light up in gridHotColor (up to gridHot
+  // opacity, within gridHotRadius px) and fade over gridHotFade s, leaving
+  // a trail. gridAuto: soft lights drift over the grid by themselves —
+  // "touch" (devices without hover), "always" or "off"
+  gridHot: number;
+  gridHotColor: string;
+  gridHotRadius: number;
+  gridHotFade: number;
+  gridAuto: "touch" | "always" | "off";
+  // drifting lights' own color and peak opacity
+  gridAutoColor: string;
+  gridAutoStrength: number;
+  gridAutoCount: number;
+  gridAutoSize: number;
+  gridAutoSpeed: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -132,6 +171,7 @@ export const defaultGraphConfig: GraphConfig = {
   lineWidth: 1,
   spokeFraction: 1,
   nodeGap: 0,
+  lineGap: 0,
   gapColor: "#000000",
   snapSizes: false,
   depthSize: true,
@@ -167,4 +207,25 @@ export const defaultGraphConfig: GraphConfig = {
   intro: 0,
   exciteRate: 0.35,
   rippleSpeed: 7,
+  glow: 0,
+  glowColor: "#1c2329",
+  glowX: 0.5,
+  glowY: 0.5,
+  glowSizeX: 0.35,
+  glowSizeY: 0.4,
+  grid: 0,
+  gridPitch: 3,
+  gridDot: 2,
+  gridColor: "#273037",
+  gridBase: 0,
+  gridHot: 0.6,
+  gridHotColor: "#5f8db4",
+  gridHotRadius: 56,
+  gridHotFade: 1.2,
+  gridAuto: "touch",
+  gridAutoColor: "#5f8db4",
+  gridAutoStrength: 0.6,
+  gridAutoCount: 3,
+  gridAutoSize: 90,
+  gridAutoSpeed: 0.06,
 };
