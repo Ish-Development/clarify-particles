@@ -31,6 +31,7 @@ npx tsc -b              # typecheck
 2. `npm run build:runtime`, then commit, **including `dist-runtime/`**, and tag: `git tag vX.Y.Z && git push && git push --tags`.
 3. jsDelivr serves `https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@X.Y.Z/dist-runtime/particles.js`.
 4. Give the dev the new version number, and update it in `runtime/README.md`.
+5. Update the Vercel copy of the reference page (ISH team, project `clarify-particles`, https://clarify-particles.vercel.app): `vercel deploy --prod --scope ish24`. It serves the committed `dist-runtime/` as-is (`vercel.json`, `.vercelignore`); GitHub Pages updates on push by itself.
 
 A tag's files are cached permanently: never re-point or reuse a tag, always release a new version.
 

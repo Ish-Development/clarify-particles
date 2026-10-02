@@ -2,7 +2,7 @@
 
 Interactive particle/network backgrounds for Webflow sections. You don't need a build step or a framework: add one script to the site, then mark each section with two attributes. Each section's look lives in this repo as a named **preset**, so no design settings go into Webflow.
 
-- **Live reference:** [ish-development.github.io/clarify-particles/dist-runtime/demo.html](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html) has one tab per finished section: the section running the production script at any screen width (1920 down to 320, or drag to resize), and its exact Webflow implementation (attributes, `.u-particles-threejs` CSS, requirements). A Setup tab repeats steps 1 and 2 below.
+- **Live reference:** [clarify-particles.vercel.app](https://clarify-particles.vercel.app) (also on [GitHub Pages](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html)) has one tab per finished section: the section running the production script at any screen width (1920 down to 320, or drag to resize), and its exact Webflow implementation (attributes, `.u-particles-threejs` CSS, requirements). A Setup tab repeats steps 1 and 2 below.
 - **All attributes:** [docs/CONFIG.md](../docs/CONFIG.md)
 
 ## 1. Add the script (once, site-wide)

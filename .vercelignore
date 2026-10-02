@@ -1,0 +1,4 @@
+# Vercel serves the prebuilt reference page only: dist-runtime/ (see vercel.json)
+/*
+!/dist-runtime
+!/vercel.json

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "echo 'prebuilt: nothing to install'",
+  "buildCommand": "echo 'prebuilt: dist-runtime is committed (npm run build:runtime)'",
+  "outputDirectory": "dist-runtime",
+  "rewrites": [{ "source": "/", "destination": "/demo.html" }]
+}
