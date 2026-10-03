@@ -2,9 +2,10 @@
 // [data-particles] elements and waits until one approaches the viewport
 // before downloading the WebGL engine chunk (Three.js). A page whose
 // particle sections sit below the fold pays nothing for them up front.
-import { COMPONENT, createHost, removeHost, type Host } from "./host";
+import { COMPONENT, createHost, removeHost, wrapOf, type Host } from "./host";
 import { maxWidthQuery, MOBILE_QUERY, PRESETS } from "./presets";
 import { parseSpec } from "./spec";
+import { hasTabs, setupTabs } from "./tabs";
 
 type Engine = typeof import("./engine");
 
@@ -21,6 +22,24 @@ const mark = (k: string) => (timeline[k] ??= Math.round(performance.now()));
 let enginePromise: Promise<Engine> | null = null;
 // tracked component / legacy element -> its created host (null for legacy)
 const tracked = new Map<HTMLElement, Host | null>();
+// components with tabs (the spatial map) -> their teardown. The tabs are page
+// UI: they run from page load and survive remounts (breakpoint changes).
+const tabbed = new Map<HTMLElement, () => void>();
+
+function startTabs(key: HTMLElement) {
+  if (tabbed.has(key) || !key.matches(COMPONENT) || !hasTabs(key)) return;
+  const wrap = wrapOf(key);
+  const sources = wrap === key ? [key] : [key, wrap];
+  const { autoplay } = parseSpec(sources).config as { autoplay?: number };
+  tabbed.set(
+    key,
+    setupTabs(key, {
+      autoplay: autoplay ?? 0,
+      // the timer waits while the mouse is over the map itself
+      zone: () => key.querySelector(".u-particles-threejs[data-particles-host]") ?? wrap,
+    }),
+  );
+}
 
 // Resolves once the page has fully loaded (images, fonts, other scripts)
 // and the main thread has a moment to spare — the engine never competes
@@ -95,6 +114,7 @@ function init(root: ParentNode = document) {
   ];
   if (root instanceof HTMLElement && root.matches(COMPONENT)) found.push(root);
   for (const key of found) {
+    startTabs(key);
     if (tracked.has(key)) continue;
     tracked.set(key, null);
     approachObserver.observe(key);
@@ -115,6 +135,8 @@ function destroy(el?: HTMLElement) {
     const host = tracked.get(key);
     tracked.delete(key);
     approachObserver.unobserve(key);
+    tabbed.get(key)?.();
+    tabbed.delete(key);
     if (host) {
       engine?.unmount(host.el);
       removeHost(host);
@@ -129,6 +151,7 @@ function refresh(el?: HTMLElement) {
   const keys = el ? [keyOf(el)] : [...tracked.keys()];
   destroy(el);
   for (const key of keys) {
+    startTabs(key);
     tracked.set(key, null);
     approachObserver.observe(key);
   }

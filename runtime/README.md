@@ -10,19 +10,19 @@ Interactive particle/network backgrounds for Webflow sections. You don't need a 
 **Site settings → Custom code → Footer code:**
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.6.0/dist-runtime/particles.js"></script>
 ```
 
-Always pin the version (`@1.5.1`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
+Always pin the version (`@1.6.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
 
 ### Or through the site's `window.libs` loader
 
 ```js
 /* PARTICLES (Three.js engine) */
 window.loadParticles = () => {
-  if (!document.querySelector("[data-particles-component], [data-how-component], [data-particles]")) return Promise.resolve();
+  if (!document.querySelector("[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
-    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js")
+    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.6.0/dist-runtime/particles.js")
   );
 };
 ```
@@ -31,11 +31,12 @@ It must use `import()`, not `window.libs.script()`. The file is an ES module tha
 
 ### What loads, and when
 
-- **`particles.js`** is a loader of about 3 kB gzipped. It finds `[data-particles-component]` (and legacy `[data-particles]`) elements and does nothing else up front.
-- **`engine.js`** (~147 kB gzipped, mostly Three.js) is fetched only after all three of these:
+- **`particles.js`** is a loader of about 5 kB gzipped. It finds `[data-particles-component]` (and legacy `[data-particles]`) elements, runs the map's tabs, and does nothing else up front.
+- **`engine.js`** (~162 kB gzipped, mostly Three.js) is fetched only after all three of these:
   - the page's `load` event
   - an idle moment
   - a particle section coming within half a screen of the viewport
+- **`map-scene.js`** (~37 kB gzipped, the spatial map and its data) is fetched only on pages with the map section.
 - **Once per page:** the engine is fetched once however many sections use it, and they all draw through **one** WebGL context. Three.js is bundled in (only the parts used), so there's no separate Three.js script to add.
 
 ## 2. Mark up the sections
@@ -51,7 +52,8 @@ Each effect is a **component**:
 
 - **Loop:** the script loops through every `[data-particles-component]`, finds its `[data-particles-wrap]`, and creates `<div class="u-particles-threejs">` as the wrap's first child with the canvas inside.
 - **Styling the div:** the script adds no positioning or size to that div, so **style `.u-particles-threejs` in Webflow**. The canvas always fills it at 100% × 100%. If the div ends up with no size, the console warns you.
-- **Hero names:** the hero uses `data-how-component` and `data-how-wrap`. They work exactly like `data-particles-component` and `data-particles-wrap` (either pair works on any section).
+- **Section names:** the hero uses `data-how-component` / `data-how-wrap` and the spatial map `data-fjord-component` / `data-fjord-wrap`. They work exactly like `data-particles-component` / `data-particles-wrap` (any pair works on any section).
+- **Tabs (the spatial map):** `data-fjord-tab="0|1|2"` on each tab. The script runs them: it adds `is-active` to the active tab (style that combo class), sets `--tab-progress` (0 → 1) on it for the timer line, moves on by itself every 7 s, and flies the map's camera. No Webflow Tabs component or interactions needed.
 - **Settings:** `data-preset` goes on the component (or the wrap, which wins if both have one).
 - **Buttons:** `data-particles-excite` elements inside a component light up **that component's** effect only, so several components on one page each react to their own button.
 
@@ -69,6 +71,7 @@ Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requ
 |---|---|---|---|
 | Hero ("Learn from the past and predict the future") | `hero` | the hero section (`data-how-component` + `data-how-wrap`); its "Book a demo" and "Talk to an engineer" buttons get `data-particles-excite` | [#hero](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#hero) |
 | CTA ("See how Clarify solves yours") | `cta` | the card; the "Get started" button gets `data-particles-excite` | [#cta](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#cta) |
+| What Clarify does ("How Clarify helps you earn more, and cut cost") | `fjord` | the section (`data-fjord-component`); the map panel is `data-fjord-wrap`; the tabs get `data-fjord-tab` | [#fjord](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#fjord) |
 
 ## Built in
 

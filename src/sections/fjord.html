@@ -1,0 +1,49 @@
+<section class="fjord" data-fjord-component data-preset="fjord">
+  <!-- the section is the component (observer): it holds the preset and the
+       tabs. The map panel is the wrap (target): the script creates
+       div.u-particles-threejs in it and draws the map there -->
+  <div class="fjord__head">
+    <div class="eyebrow">
+      <span class="eyebrow__grid" aria-hidden="true"
+        ><i class="on"></i><i></i><i></i><i></i
+        ><i></i><i class="on"></i><i class="on"></i><i></i
+        ><i></i><i class="on"></i><i class="on"></i><i></i
+        ><i></i><i></i><i></i><i class="on"></i
+      ></span>
+      <span class="eyebrow__label">What Clarify does</span>
+    </div>
+    <div class="fjord__intro">
+      <h2 class="fjord__title">How Clarify helps you <span>earn more, and cut cost</span></h2>
+      <p class="fjord__lede">Clarify models the parts of every operational call, signals, reasoning, and actions. Every layer and decision is addressable and traceable.</p>
+    </div>
+  </div>
+  <div class="fjord__panel">
+    <!-- data-fjord-tab="0|1|2": the tabs. On desktop these items are the
+         tabs; on mobile they're the text under the tab row (only the active
+         one shows). The script toggles .is-active and runs --tab-progress
+         (the timer line) on the active tab -->
+    <div class="fjord__list">
+      <button class="fjord__item is-active" type="button" data-fjord-tab="0">
+        <span class="fjord__item-title">Act faster on facts</span>
+        <span class="fjord__item-body">Clarify gives you full control over your operational data. So you have the best foundation to troubleshoot when something breaks, find room to improve, and opportunities to innovate with confidence.</span>
+      </button>
+      <button class="fjord__item" type="button" data-fjord-tab="1">
+        <span class="fjord__item-title">Your data is your advantage</span>
+        <span class="fjord__item-body">Clarify lets you turn raw data into high value data products that separate signal from noise. Clarify enriches and filters your data 24/7. Transforming your data from manual burden to automated advantage.</span>
+      </button>
+      <button class="fjord__item" type="button" data-fjord-tab="2">
+        <span class="fjord__item-title">Deliver events to the right actor</span>
+        <span class="fjord__item-body">Data from the physical world, made understandable, available and reliable for both people and AI. Every event reaches the right person or system while action still changes the outcome.</span>
+      </button>
+    </div>
+    <div class="fjord__map" data-fjord-wrap></div>
+    <!-- the mobile tab row (hidden on desktop) -->
+    <div class="fjord__tabs">
+      <button class="fjord__tab is-active" type="button" data-fjord-tab="0">Own</button>
+      <button class="fjord__tab" type="button" data-fjord-tab="1">Refine</button>
+      <button class="fjord__tab" type="button" data-fjord-tab="2">Deliver</button>
+    </div>
+    <!-- required credit for the map data (CC BY 4.0) -->
+    <p class="fjord__credit">Terrain: AWS Terrain Tiles · Imagery: Sentinel-2 cloudless by EOX (contains modified Copernicus Sentinel data 2020)</p>
+  </div>
+</section>

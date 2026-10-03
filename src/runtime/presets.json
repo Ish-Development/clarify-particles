@@ -157,5 +157,17 @@
         }
       }
     ]
+  },
+  "fjord": {
+    "type": "map",
+    "config": {},
+    "breakpoints": [
+      {
+        "maxWidth": 767,
+        "config": {
+          "zoom": 1.4
+        }
+      }
+    ]
   }
 }

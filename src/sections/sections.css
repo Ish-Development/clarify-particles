@@ -164,3 +164,97 @@ p { text-wrap: pretty; }
   .navbar__logo img { width: auto; height: 20px; }
   .navbar__links, .navbar__actions .btn { display: none; }
 }
+
+/* --- What Clarify does: the spatial map (Figma 13311:5140 desktop 1512 wide,
+   13645:31185 mobile 393 wide) --- */
+
+.fjord, .fjord * { box-sizing: border-box; } /* Webflow default */
+.fjord {
+  display: flex; flex-direction: column; gap: var(--space-9);
+  background: var(--background-bg-primary);
+  padding: var(--section-space-l) var(--grid-margin);
+  font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased;
+}
+.fjord__head { display: flex; flex-direction: column; gap: var(--space-6); }
+.fjord__intro { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--grid-gutter); }
+.fjord__title {
+  margin: 0; width: 473px;
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+  color: var(--text-text-primary);
+}
+.fjord__title span { color: var(--text-text-accent); }
+.fjord__lede { margin: 0; width: 451px; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); color: var(--text-text-secondary); }
+/* button reset, at zero specificity so the classes below win */
+:where(.fjord button) { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+
+/* desktop: the tab items on the left, the map on the right */
+.fjord__panel { display: grid; grid-template-columns: 458px 1fr; grid-template-areas: "list map"; }
+.fjord__list { grid-area: list; display: flex; flex-direction: column; }
+.fjord__item {
+  position: relative; flex: 1 0 auto;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-6) var(--space-5);
+  background: var(--background-bg-primary);
+  border: 1px solid var(--border-border-primary); border-width: 0 0 1px 1px;
+  color: var(--text-text-tertiary);
+  transition: background-color 0.3s, color 0.3s;
+}
+.fjord__item:first-child { border-top-width: 1px; border-top-left-radius: var(--radius-small); }
+.fjord__item:last-child { border-bottom-left-radius: var(--radius-small); }
+.fjord__item.is-active { background: var(--background-bg-secondary); color: var(--text-text-primary); }
+.fjord__item-title { font: 500 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
+.fjord__item-body { font: 400 var(--body-size-text-main) / 1.4 var(--family-text-primary); }
+/* the timer line: the active item's right edge fills top to bottom
+   (--tab-progress, 0 to 1, set by the script) */
+.fjord__item::after {
+  content: ""; position: absolute; z-index: 1; top: 0; right: -1px; width: 1px; height: 100%;
+  background: var(--text-text-primary);
+  transform: scaleY(var(--tab-progress, 0)); transform-origin: top;
+}
+.fjord__map {
+  grid-area: map; position: relative; overflow: clip; min-height: 552px;
+  background: var(--background-bg-secondary);
+  border: 1px solid var(--border-border-primary);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+/* the effect's area: the div the script creates, filling the map panel */
+.fjord .u-particles-threejs { position: absolute; inset: 0; }
+/* the data credit (required by the map data's license), under the panel */
+.fjord__credit {
+  grid-column: 1 / -1; justify-self: end; margin: var(--space-3) 0 0;
+  font: 400 11px / 1.3 var(--family-text-primary); color: var(--text-text-tertiary);
+}
+.fjord__tabs { grid-area: tabs; display: none; }
+
+/* tablet and mobile (991px and below; no tablet design, so the mobile
+   layout, wider): stacked. The map on top, the tab row under it, then only
+   the active item's text. */
+@media (max-width: 991px) {
+  .fjord__intro { flex-direction: column; align-items: flex-start; gap: var(--space-4); }
+  .fjord__title, .fjord__lede { width: 100%; max-width: 600px; }
+  .fjord__panel { grid-template-columns: 1fr; grid-template-areas: "map" "tabs" "list"; }
+  .fjord__map { min-height: 0; aspect-ratio: 16 / 10; border-bottom: 0; border-radius: var(--radius-small) var(--radius-small) 0 0; }
+  .fjord__tabs { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .fjord__tab {
+    position: relative; padding: var(--space-2); text-align: center;
+    background: var(--background-bg-primary);
+    border: 1px solid var(--border-border-primary); border-left-width: 0;
+    font: 400 var(--body-size-text-main) / 1.4 var(--family-text-primary);
+    color: var(--text-text-secondary);
+  }
+  .fjord__tab:first-child { border-left-width: 1px; }
+  .fjord__tab.is-active { background: var(--background-bg-secondary); color: var(--text-text-primary); }
+  /* the timer line: under the active tab, filling left to right */
+  .fjord__tab::after {
+    content: ""; position: absolute; z-index: 1; left: 0; bottom: -1px; width: 100%; height: 1px;
+    background: var(--text-text-primary);
+    transform: scaleX(var(--tab-progress, 0)); transform-origin: left;
+  }
+  .fjord__list .fjord__item { display: none; border-width: 0 1px 1px; border-radius: 0 0 var(--radius-small) var(--radius-small); }
+  .fjord__list .fjord__item.is-active { display: flex; }
+  .fjord__item::after { display: none; }
+}
+@media (max-width: 767px) {
+  .fjord__map { aspect-ratio: 1; }
+}

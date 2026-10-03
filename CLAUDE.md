@@ -14,6 +14,7 @@ Read first:
 npm run build:runtime   # production files -> dist-runtime/ (particles.js, engine.js, demo.html)
 npx vite preview --config vite.runtime.config.ts --port 4792 --host   # the reference page: localhost:4792/demo.html (--host: phones on the LAN too, e.g. 192.168.1.134:4792/demo.html?only=hero)
 npx tsc -b              # typecheck
+npm run bake:map        # re-bake the spatial map's geometry (src/runtime/map-data.ts) from ../Clarify - Spatial Data Map
 ```
 
 - **One page (since 2026-10-03):** the reference page is the only page. Work and review on **http://localhost:4792/demo.html** (one tab per section, breakpoint buttons 1920 → 320); the devs get the same page on Vercel. The playground, `sections.html` and the tune page were deleted at the user's request (in git history if ever needed). Rebuild with `npm run build:runtime` after changes and have the user refresh (hard refresh if it looks stale). `build:runtime` rewrites the committed `dist-runtime/`: at release, rebuild after the version bump.

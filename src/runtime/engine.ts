@@ -11,6 +11,7 @@
 // Simulation (shapes, noise, springs, hover/click) is the playground's own
 // code from ../core, so the site behaves exactly like the approved demo.
 import {
+  ACESFilmicToneMapping,
   AddEquation,
   BufferAttribute,
   BufferGeometry,
@@ -25,6 +26,7 @@ import {
   InstancedBufferGeometry,
   Mesh,
   NearestFilter,
+  NoToneMapping,
   OneFactor,
   OneMinusSrcAlphaFactor,
   Points,
@@ -38,8 +40,9 @@ import { ParticleSystem } from "../core/particles";
 import { GraphSystem } from "../core/graph";
 import { applyClick, applyHover, type InteractionConfig, type Steerable } from "../core/interaction";
 import { hexToRgb01, particleColor } from "../core/color";
-import type { RuntimeOptions } from "./defaults";
+import type { MapViewConfig, RuntimeOptions } from "./defaults";
 import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
+import type { MapScene } from "./map-scene";
 
 // = MOBILE_QUERY in presets.ts (kept literal: the engine imports no loader code)
 const isMobile = () => matchMedia("(max-width: 767px)").matches;
@@ -489,6 +492,13 @@ class Stage {
   private readonly camera = new Camera();
   private bufW = 1;
   private bufH = 1;
+  // 3D views (the map: thin lines, depth, perspective) draw with their own
+  // antialiased renderer — a second GL context, created only on pages that
+  // have one, so the dots and networks render exactly as before
+  private aaRenderer: WebGLRenderer | null = null;
+  private aaFailed = false;
+  private aaW = 1;
+  private aaH = 1;
   lost = false;
   lostAt = 0;
 
@@ -503,7 +513,32 @@ class Stage {
     this.renderer.sortObjects = false;
     const gl = this.renderer.getContext();
     this.maxPointSize = (gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE) as Float32Array)[1] || 64;
-    const canvas = this.renderer.domElement;
+    this.watchContext(this.renderer.domElement);
+  }
+
+  private aa(): WebGLRenderer | null {
+    if (this.aaRenderer || this.aaFailed) return this.aaRenderer;
+    try {
+      const r = new WebGLRenderer({ alpha: true, antialias: true, premultipliedAlpha: true });
+      r.setPixelRatio(1);
+      r.setSize(1, 1, false);
+      r.autoClear = false;
+      // React Three Fiber's default, which the map's colors were tuned under
+      r.toneMapping = ACESFilmicToneMapping;
+      this.watchContext(r.domElement);
+      this.aaRenderer = r;
+    } catch {
+      // out of contexts: draw 3D views with the main renderer, unsmoothed
+      this.aaFailed = true;
+    }
+    return this.aaRenderer;
+  }
+
+  contextLost() {
+    return this.lost || this.renderer.getContext().isContextLost() || !!this.aaRenderer?.getContext().isContextLost();
+  }
+
+  private watchContext(canvas: HTMLCanvasElement) {
     canvas.addEventListener("webglcontextlost", (e) => {
       // ask the browser to give it back; resume() replaces the renderer if
       // it doesn't (some browsers never restore a backgrounded tab's context)
@@ -522,29 +557,54 @@ class Stage {
   draw(view: View) {
     if (this.lost) return;
     const { pw, ph } = view;
+    const aa = view.is3d ? this.aa() : null;
+    const r = aa ?? this.renderer;
     // the GL buffer only ever grows (to the largest section seen), so
     // switching between differently sized sections never reallocates it
-    if (pw > this.bufW || ph > this.bufH) {
-      this.bufW = Math.max(this.bufW, pw);
-      this.bufH = Math.max(this.bufH, ph);
-      this.renderer.setSize(this.bufW, this.bufH, false);
+    let bufH: number;
+    if (aa) {
+      if (pw > this.aaW || ph > this.aaH) {
+        this.aaW = Math.max(this.aaW, pw);
+        this.aaH = Math.max(this.aaH, ph);
+        aa.setSize(this.aaW, this.aaH, false);
+      }
+      bufH = this.aaH;
+    } else {
+      if (pw > this.bufW || ph > this.bufH) {
+        this.bufW = Math.max(this.bufW, pw);
+        this.bufH = Math.max(this.bufH, ph);
+        this.renderer.setSize(this.bufW, this.bufH, false);
+      }
+      bufH = this.bufH;
     }
-    const r = this.renderer;
     r.setViewport(0, 0, pw, ph);
     r.setScissor(0, 0, pw, ph);
     r.setScissorTest(true);
     r.setClearColor(view.clearColor, view.clearAlpha);
-    r.clear(true, false, false);
-    r.render(view.scene, this.camera);
+    r.clear(true, view.is3d, false);
+    if (view.is3d && !aa) {
+      // fallback for a 3D view on the main renderer: sort its transparent
+      // layers and tone-map like the antialiased renderer would
+      r.sortObjects = true;
+      r.toneMapping = ACESFilmicToneMapping;
+    }
+    r.render(view.scene, view.camera ?? this.camera);
+    if (view.is3d && !aa) {
+      r.sortObjects = false;
+      r.toneMapping = NoToneMapping;
+    }
     // GL's viewport origin is bottom-left; in image space that region sits
     // at the bottom of the buffer
     view.ctx.clearRect(0, 0, pw, ph);
-    view.ctx.drawImage(r.domElement, 0, this.bufH - ph, pw, ph, 0, 0, pw, ph);
+    view.ctx.drawImage(r.domElement, 0, bufH - ph, pw, ph, 0, 0, pw, ph);
   }
 
   dispose() {
-    this.renderer.dispose();
-    this.renderer.forceContextLoss();
+    for (const r of [this.renderer, this.aaRenderer]) {
+      if (!r) continue;
+      r.dispose();
+      r.forceContextLoss();
+    }
   }
 }
 
@@ -572,6 +632,9 @@ abstract class View {
   ph = 1;
   visible = false;
   abstract readonly system: Steerable;
+  // 3D views (the map) bring their own camera and draw with depth + smoothing
+  camera: Camera | null = null;
+  readonly is3d: boolean = false;
 
   private readonly resizeObserver: ResizeObserver;
   private readonly visibilityObserver: IntersectionObserver;
@@ -1395,6 +1458,165 @@ class GraphView extends View {
   }
 }
 
+// --- the spatial map (3D, tab-driven; the scene itself is map-scene.ts) ---
+
+// The map has no dots to push around: an empty stand-in for the shared
+// hover/click code, which never runs for it (interactive: false).
+const NO_SYSTEM: Steerable = {
+  count: 0,
+  baseX: new Float32Array(0),
+  baseY: new Float32Array(0),
+  offX: new Float32Array(0),
+  offY: new Float32Array(0),
+  offVX: new Float32Array(0),
+  offVY: new Float32Array(0),
+};
+
+// Wait (briefly) for the in-scene text's fonts, so the labels aren't drawn
+// in a fallback face; the site normally has them loaded already.
+function fontsReady(cfg: MapViewConfig) {
+  if (!document.fonts?.load) return Promise.resolve();
+  const load = Promise.all([cfg.fontSans, cfg.fontMono].map((f) => document.fonts.load(`400 64px ${f}`).catch(() => [])));
+  return Promise.race([load, new Promise((r) => setTimeout(r, 2000))]);
+}
+
+class MapView extends View {
+  readonly system = NO_SYSTEM;
+  readonly is3d = true;
+  private map: MapScene | null = null;
+  // something changed since the last draw: the map only redraws then
+  private dirty = false;
+  private disposed = false;
+  private dragging: { id: number; x: number; y: number } | null = null;
+  private readonly prevCursor: string;
+  private readonly prevPointerEvents: string;
+
+  constructor(el: HTMLElement, cfg: MapViewConfig) {
+    super(el, cfg);
+    this.prevCursor = el.style.cursor;
+    this.prevPointerEvents = el.style.pointerEvents;
+    // the scene and its baked data are a separate chunk: pages without a
+    // map never download it
+    Promise.all([import("./map-scene"), fontsReady(cfg)])
+      .then(([m]) => {
+        if (this.disposed) return;
+        const map = new m.MapScene(cfg);
+        this.map = map;
+        this.scene.add(map.root);
+        this.camera = map.camera;
+        this.onResize();
+        map.setStep(this.activeStep(), true);
+        this.dirty = true;
+        if (this.visible && !this.running) this.paint();
+        wake();
+      })
+      .catch((err) => console.warn("[particles] map failed to load", err));
+    if (cfg.drag && matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      el.style.cursor = "grab";
+      el.style.pointerEvents = "auto";
+    }
+    this.start();
+  }
+
+  private get mapCfg() {
+    return this.cfg as MapViewConfig;
+  }
+
+  // the tab the component shows (set by the tabs in index.ts)
+  private activeStep() {
+    return Number(this.root.getAttribute("data-fjord-active")) || 0;
+  }
+
+  setRoot(root: HTMLElement) {
+    this.root.removeEventListener("particles:step", this.onStep);
+    this.root.removeEventListener("pointerdown", this.onDown);
+    super.setRoot(root);
+    root.addEventListener("particles:step", this.onStep);
+    root.addEventListener("pointerdown", this.onDown);
+  }
+
+  private readonly onStep = (e: Event) => {
+    const step = (e as CustomEvent<{ step: number }>).detail?.step ?? this.activeStep();
+    if (!this.map) return;
+    this.map.setStep(step, reducedMotion.matches);
+    this.dirty = true;
+    if (this.visible && !this.running) this.paint();
+    wake();
+  };
+
+  // mouse drag orbits (desktop); fingers keep scrolling the page
+  private readonly onDown = (e: PointerEvent) => {
+    if (!this.map || !this.mapCfg.drag || e.pointerType !== "mouse" || e.button !== 0) return;
+    if (!this.inZone(e.clientX, e.clientY)) return;
+    if (e.target instanceof Element && e.target.closest(INTERACTIVE)) return;
+    e.preventDefault(); // no text selection while dragging
+    this.dragging = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    this.map.setDragging(true);
+    this.el.style.cursor = "grabbing";
+    window.addEventListener("pointermove", this.onMove);
+    window.addEventListener("pointerup", this.onUp);
+    window.addEventListener("pointercancel", this.onUp);
+    wake();
+  };
+  private readonly onMove = (e: PointerEvent) => {
+    const d = this.dragging;
+    if (!d || e.pointerId !== d.id || !this.map) return;
+    this.map.drag(e.clientX - d.x, e.clientY - d.y, this.h);
+    d.x = e.clientX;
+    d.y = e.clientY;
+    wake();
+  };
+  private readonly onUp = (e: PointerEvent) => {
+    if (!this.dragging || e.pointerId !== this.dragging.id) return;
+    this.endDrag();
+  };
+  private endDrag() {
+    this.dragging = null;
+    this.map?.setDragging(false);
+    if (this.mapCfg.drag) this.el.style.cursor = "grab";
+    window.removeEventListener("pointermove", this.onMove);
+    window.removeEventListener("pointerup", this.onUp);
+    window.removeEventListener("pointercancel", this.onUp);
+  }
+
+  stats() {
+    return { map: this.map ? "ready" : "loading", step: this.map?.step ?? null };
+  }
+
+  step(dt: number) {
+    if (this.map?.update(dt)) this.dirty = true;
+  }
+
+  paint() {
+    if (!this.map || !this.dirty) return;
+    this.dirty = false;
+    super.paint();
+  }
+
+  protected sync() {}
+
+  protected onResize() {
+    if (!this.map) return;
+    this.map.setAspect(this.cw / this.ch);
+    this.map.setResolution(this.cw, this.ch);
+    this.dirty = true;
+  }
+
+  protected onLook() {
+    this.dirty = true;
+  }
+
+  protected disposeGpu() {
+    this.disposed = true;
+    this.endDrag();
+    this.root.removeEventListener("particles:step", this.onStep);
+    this.root.removeEventListener("pointerdown", this.onDown);
+    this.el.style.cursor = this.prevCursor;
+    this.el.style.pointerEvents = this.prevPointerEvents;
+    this.map?.dispose();
+  }
+}
+
 // --- loop & pointer routing ---
 
 let stage: Stage | null = null;
@@ -1607,7 +1829,7 @@ function onMouseDown(e: MouseEvent) {
 const EXCITE = "[data-particles-excite]";
 const exciteOf = (t: EventTarget | null) => (t instanceof Element ? t.closest(EXCITE) : null);
 
-const COMPONENT = "[data-particles-component], [data-how-component]";
+const COMPONENT = "[data-particles-component], [data-how-component], [data-fjord-component]";
 
 function viewFor(trigger: Element): View | null {
   // component markup: the effect of the trigger's own component
@@ -1670,7 +1892,7 @@ function replaceStage() {
     return; // GPU still unavailable; try again on the next resume
   }
   try {
-    old.renderer.dispose();
+    old.dispose();
   } catch {
     // already gone
   }
@@ -1684,8 +1906,7 @@ function replaceStage() {
 function resume(e?: Event) {
   if (!stage) return;
   if (e) note(`${e.type} (${document.visibilityState})`);
-  const gl = stage.renderer.getContext();
-  if (stage.lost || gl.isContextLost()) replaceStage();
+  if (stage.contextLost()) replaceStage();
   // a frame callback requested while backgrounded that the browser dropped
   // leaves rafId set and the loop never restarting
   if (rafId && performance.now() - lastFrameAt > 500) {
@@ -1743,7 +1964,12 @@ export function mount(el: HTMLElement, spec: ViewSpec, { editor = false, root }:
     listen(true);
     watchdog = window.setInterval(checkLoop, 1000);
   }
-  const view = spec.type === "graph" ? new GraphView(el, spec.config) : new PointsView(el, spec.config, editor);
+  const view =
+    spec.type === "graph"
+      ? new GraphView(el, spec.config)
+      : spec.type === "map"
+        ? new MapView(el, spec.config)
+        : new PointsView(el, spec.config, editor);
   view.setRoot(root ?? el);
   views.set(el, view);
 }
@@ -1798,7 +2024,7 @@ export function debugState() {
     focused: document.hasFocus(),
     loop: rafId ? "running" : "idle",
     lastFrameMsAgo: Math.round(performance.now() - lastFrameAt),
-    context: !stage ? "none" : stage.lost || stage.renderer.getContext().isContextLost() ? "LOST" : "ok",
+    context: !stage ? "none" : stage.contextLost() ? "LOST" : "ok",
     sections: [...views.values()].map((v) => ({ visible: v.visible, running: v.running, ...v.stats() })),
     events: [...events],
   };

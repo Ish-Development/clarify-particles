@@ -13,7 +13,7 @@ Every setting can be part of a preset (`src/runtime/presets.json`, the recommend
 
 Unknown keys and invalid values print a `[particles]` console warning that names the element. Webflow's own `data-w-*` / `data-wf-*` attributes are ignored.
 
-The type comes from the preset (it carries its own). Without a preset, `data-particles-component="graph"` (or legacy `data-particles="graph"`) selects a **node graph**, and anything else gives **points** (a particle-field shape).
+The type comes from the preset (it carries its own). Without a preset, `data-particles-component="graph"` (or legacy `data-particles="graph"`) selects a **node graph**, `"map"` the **spatial map**, and anything else gives **points** (a particle-field shape).
 
 ## Shared (both types)
 
@@ -132,6 +132,31 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `pulses` / `pulseSpeed` / `pulseSize` / `pulseColor` | `0` / `180` / `3` / `#a4c9e9` | Data pulses traveling the lines to the hub |
 | `intro` | `0` | Seconds for nodes to fly in once 25% of the section is visible (`0` = off) |
 
+## Map (`data-preset="fjord"`)
+
+The "What Clarify does" spatial map (`map-scene.ts`), driven by tabs. Shared keys that apply: `mobileDpr` (default `2` here), `background`. Its pointer handling is its own (`interactive` is `false`).
+
+| Key | Default | Notes |
+|---|---|---|
+| `frameColor` / `gridOpacity` | `#3E4143` / `0.28` | The box frame and the three level grids (the frame edges at `0.3 + 2 × gridOpacity`) |
+| `wireColor` / `wireOpacity` | `#7B7E81` / `0.5` | The terrain wireframe at the floor |
+| `reliefPale` / `reliefDeep` / `reliefOpacity` | `#FFFFFF` / `#7B7E81` / `0.7` | Relief spikes, base color → tip color by brightness |
+| `reliefThreshold` | `0.11` | Cells darker than this (0..1 luminance) get no spike. The outlines were baked at 0.11 (`scripts/bake-map.mjs`) |
+| `coastColor` | `#D7D9DA` | The extracted coastline |
+| `formColor` / `formStrongColor` | `#3E4143` / `#7B7E81` | Hatching (and the coast cutout's edge); the refined regions' edges |
+| `accentColor` / `traceColor` | `#D7D9DA` / `#7B7E81` | Anomaly ring + signal specks; the dashed trace |
+| `labelColor` / `calloutColor` | `#D7D9DA` / `#D7D9DA` | In-scene text |
+| `fontSans` / `fontMono` | Geist / Geist Mono | CSS font families for the in-scene text (the site must load them; the map waits up to 2 s) |
+| `labels` | `The Operation, Extracted, Refined, The Signal` | Level names, bottom to top |
+| `extractStat` / `extractCaption` | `45M` / `Sensor signals / day` | Callout on the coastline |
+| `refineStat` / `refineCaption` | `162` / `Active sites monitored` | Callout on the ringed region |
+| `signalTitle` / `signalStat` / `signalCaption` | `The Signal` / `3` / `Actions this week` | The top-down block |
+| `smoothTime` | `0.6` | Camera flight smoothing (s) |
+| `zoom` | `1.09` | Camera distance multiplier (all steps); `fjord` uses `1.4` at ≤ 767 |
+| `fitAspect` | `1` | Panels narrower than this (width / height) move the camera back so the box fits across |
+| `drag` | `true` | Mouse drag orbits (desktop; touch never does) |
+| `autoplay` | `7` | Seconds per tab before the next opens (`0` = click only) |
+
 ## Element-level markers
 
 | Attribute | Effect |
@@ -139,5 +164,8 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `data-particles-component` | The component root: settings + scope for its excite buttons |
 | `data-particles-wrap` | Inside a component: where the script creates `div.u-particles-threejs` (defaults to the component) |
 | `data-how-component` / `data-how-wrap` | Same as `data-particles-component` / `data-particles-wrap`, under the names the hero uses (v1.5.1) |
+| `data-fjord-component` / `data-fjord-wrap` | The same again, under the names the spatial map section uses |
+| `data-fjord-tab="0\|1\|2"` | A tab driving its component's map (several elements may share an index). The active one gets `is-active` and `--tab-progress` (0 → 1, the autoplay timer); the component gets `data-fjord-active` and a `particles:step` event |
+| `data-fjord-panel="0\|1\|2"` | Optional: an element shown for that tab (gets `is-active` with it) |
 | `data-particles-excite` | Hovering or focusing it "excites" its component's effect (graph: lights up / breathes). In legacy markup: the nearest effect sharing a container. |
 | `data-particles-ignore` | Clicks on this element never trigger the click effect (links, buttons and form fields are already excluded) |

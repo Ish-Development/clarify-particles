@@ -8,11 +8,12 @@
 // The wrap is optional (defaults to the component itself). Settings may sit
 // on the component or the wrap; the wrap's win.
 //
-// data-how-component / data-how-wrap are the same thing under the names the
-// Webflow dev uses for the hero (v1.5.1).
+// data-how-component / data-how-wrap (the hero, v1.5.1) and
+// data-fjord-component / data-fjord-wrap (the spatial map) are the same
+// thing under the names the Webflow dev uses for those sections.
 
-export const COMPONENT = "[data-particles-component], [data-how-component]";
-export const WRAP = "[data-particles-wrap], [data-how-wrap]";
+export const COMPONENT = "[data-particles-component], [data-how-component], [data-fjord-component]";
+export const WRAP = "[data-particles-wrap], [data-how-wrap], [data-fjord-wrap]";
 export const HOST_CLASS = "u-particles-threejs";
 
 export interface Host {

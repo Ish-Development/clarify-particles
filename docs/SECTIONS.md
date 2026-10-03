@@ -2,16 +2,17 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-03, v1.5.1 released)
+## Status (2026-10-03, v1.6.0 released)
 
-- **Released to the devs:** v1.5.1 (2026-10-03): the component and wrap also work under the Webflow dev's names for the hero, `data-how-component` / `data-how-wrap` (from their Figma comment); the reference page's hero uses them. No look changes.
+- **Released to the devs:** v1.6.0 (2026-10-03): the "What Clarify does" spatial map (`fjord`), a plain Three.js port of the Spatial Data Map tool, with tabs + autoplay driving its camera (see its entry below). Hero and CTA unchanged.
+- **v1.5.1** (2026-10-03): the component and wrap also work under the Webflow dev's names for the hero, `data-how-component` / `data-how-wrap` (from their Figma comment); the reference page's hero uses them. No look changes.
 - **v1.5.0** (2026-10-03):
   - **Hero:** loops through four dotted shapes (sphere → meridians → spiral → burst, 6 s hold / 2 s morph, the CTA's timing); no entrance; turns toward the cursor; the two hero buttons light it up (mouse only); no tap/click reaction below desktop and no touch reaction at all; tablet (768–991) horizontal like desktop with fewer, smaller dots; phones: the shape fitted inside the band, full resolution. Canvas = `.u-particles-threejs` only (no `bleed`).
   - **CTA:** background grid (and its lights/hover trail) and the network's hover glow removed. Everything else unchanged.
   - **Engine (points), all off by default:** `sequence`/`holdTime`/`morphTime`/`stagger`/`holdShape`, `fit`/`fitPadding`, `parallax`, `gather`, `hoverGlow`, `touchSpin` for points, excite for points, shapes `meridians`/`spiral`/`burst`; `ClarifyParticles.set(el, patch)`.
   - **Repo:** the playground, `sections.html` and the tune page were deleted; the reference page is the only page.
 - **Reference page:** GitHub Pages and Vercel (https://clarify-particles.vercel.app).
-- **Tell the devs:** bump the pinned version to `@1.5.1`. Hero section: `data-how-component data-how-wrap data-preset="hero"` (the `data-particles-*` pair still works too). From 1.5.0, if not done yet: hero: add `data-particles-excite` to "Book a demo" and "Talk to an engineer" (in the hero), and update the hero's `.u-particles-threejs` CSS: tablet (≤ 991) keeps the desktop layout with `width: 70.3%` and the content at `max-width: calc(50% - 24px)`; the stacked 50svh band now starts at ≤ 767 (was ≤ 991). CTA: no markup or CSS changes.
+- **Tell the devs:** bump the pinned version to `@1.6.0`. New section "What Clarify does": `data-fjord-component data-preset="fjord"` on the section, `data-fjord-wrap` on the map panel (`.u-particles-threejs` there: `position: absolute; inset: 0`), `data-fjord-tab="0|1|2"` on the three desktop items and the three mobile tabs; style `is-active` and the timer line from `--tab-progress`; keep the data credit line (full spec on its reference tab). From 1.5.1: hero section: `data-how-component data-how-wrap data-preset="hero"` (the `data-particles-*` pair still works too). From 1.5.0, if not done yet: hero: add `data-particles-excite` to "Book a demo" and "Talk to an engineer" (in the hero), and update the hero's `.u-particles-threejs` CSS: tablet (≤ 991) keeps the desktop layout with `width: 70.3%` and the content at `max-width: calc(50% - 24px)`; the stacked 50svh band now starts at ≤ 767 (was ≤ 991). CTA: no markup or CSS changes.
 - **Next:** the user's call.
 
 Workflow for a new section:
@@ -121,3 +122,21 @@ Workflow for a new section:
   - **Core sphere** (2026-10-01): the hub as a small dotted sphere at the network's center, lines radiating from it (`cta-core`). Rejected by the user ("bad idea"); the engine option was removed.
   - **Shapes:** torus, helix, galaxy, globe, knot, atom, icosa and wave in the CTA. The flat ones turn edge-on; the others read as "not the constellation style".
   - **Fit:** fully inside the canvas. The client preferred big and bleeding.
+
+## What Clarify does: "How Clarify helps you earn more, and cut cost" (the spatial map)
+
+- **Figma:** desktop `13311:5140` (1512 wide: the three tab items 458 px on the left, the map panel 894 × 552 on the right), mobile `13645:31185` (393 wide: the map in a 361 px square, Own / Refine / Deliver under it, then the active item's text). Figma's map is a still exported from the Spatial Data Map tool.
+- **Source:** the Clarify Spatial Data Map repo (`../Clarify - Spatial Data Map`, React + React Three Fiber + drei + d3-contour). Its terrain was already baked (no live API); it still downloaded 5 MB of heightmap + satellite and derived the shapes in the browser on every load. Ported to plain Three.js (2026-10-03, "this needs to be three.js and not react"):
+  - `scripts/bake-map.mjs` (`npm run bake:map`) runs the tool's derivation once and writes `src/runtime/map-data.ts` (~27 kB gzipped): floor heights, relief cells, coastline + region outlines, signal specks, hatch offsets.
+  - `src/runtime/map-scene.ts` rebuilds the scene: gridded box, wireframe terrain, relief spikes, hatched coastline/regions, anomaly ring, specks, dashed trace, level labels, callouts and the top-down signal block (canvas-texture text in Geist / Geist Mono instead of troika). It and the data are a lazy chunk (`map-scene.js`, ~37 kB gz) that only pages with a map download.
+  - `src/runtime/tabs.ts` (in the loader) runs the tabs.
+- **Markup (the Webflow dev's names, from their Figma comment):** the section is `data-fjord-component data-preset="fjord"` (observer), the map panel is `data-fjord-wrap` (target). Tabs are `data-fjord-tab="0|1|2"`: the three desktop items and the three mobile tabs; several elements may share an index. The script toggles `is-active` and sets `--tab-progress` on the active tab; no Webflow Tabs component.
+- **Decisions (2026-10-03):**
+  - **Tabs fly the camera** to the tool's three views: the whole stack, the middle layers, top-down on the signal. Clicking the active tab flies back to its view (after a drag).
+  - **Autoplay + click:** "the user can tab but also wait": 7 s per tab, the active tab's line fills as the timer; a click jumps there and the timer restarts. The timer waits while the mouse is over the map (exploring). Reduced motion: no autoplay, the camera jumps.
+  - **Drag to orbit, desktop mouse only** (the user disliked swipe reactions on the hero); touch does nothing on the map, swipes scroll.
+  - **Look = Figma's still, not the tool's saved dark template:** that still was exported brighter than the template, so the values were matched by measuring brightness at 2×: `reliefPale` white, `reliefOpacity` 0.7, `gridOpacity` 0.28, a separate bright `coastColor`; threshold 0.11 (the tool's dark template; its deployed client page uses 0.16, fewer spikes). Tone mapping ACES Filmic, as React Three Fiber's default the tool rendered with.
+  - **Size:** `zoom` 1.09 matches Figma's desktop box; phones (≤ 767) `zoom` 1.4 to match Figma's mobile frame. Narrow panels back off so the box fits across (`fitAspect`); the close-up keeps a desktop panel's width of view so its side labels stay in; top-down backs off until the whole signal square fits.
+  - **Tablet (768–991):** no design, so the mobile layout with a 16:10 map.
+  - **Credit line:** the map is built from CC BY 4.0 data (AWS Terrain Tiles, Sentinel-2 cloudless by EOX), so a small credit sits under the panel. Moved out of the map because it covered the bars in the close-up on phones.
+  - **Rendering:** the map draws with its own antialiased renderer (a second GL context, only on pages with a map) and only redraws while something moves (≈3 s after a tab change, then idle).

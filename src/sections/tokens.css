@@ -9,6 +9,7 @@
   --text-text-primary: #f8fbfd;
   --text-text-secondary: #b7bec5;
   --text-text-accent: #cdd2d8;
+  --text-text-tertiary: #575b5f;
   --neutrals-bone-100: #f4f7fa;
   --slate-100: #191f24;
   --slate-200: #273037;
@@ -31,6 +32,7 @@
   --headings-size-h1: 56px;
   --headings-size-h2: 44px;
   --body-size-text-medium: 18px;
+  --body-size-text-main: 16px;
   --eyebrow-size-eyebrow-large: 14px;
   --buttons-size-button-large: 16px;
   --buttons-size-button-small: 14px;
@@ -43,7 +45,9 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-8: 64px;
+  --space-9: 80px;
   --section-space-m: 80px;
+  --section-space-l: 120px;
   --section-space-xxl: 240px;
   --grid-margin: 80px;
   --grid-gutter: 24px;
@@ -61,11 +65,14 @@
     --headings-size-h1: 34px;
     --headings-size-h2: 28px;
     --body-size-text-medium: 16px;
+    --body-size-text-main: 14px;
     --buttons-size-button-large: 14px;
     --buttons-size-button-small: 12px;
     --space-5: 20px;
     --space-6: 24px;
     --section-space-m: 56px;
+    --section-space-l: 80px;
+    --space-9: 60px;
     /* only used by mobile layouts so far (desktop values not in use) */
     --section-space-s: 32px;
     --space-7: 36px;

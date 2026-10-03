@@ -69,4 +69,32 @@ export const SECTIONS = [
       "<b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.",
     ],
   },
+  {
+    id: "fjord",
+    label: "What Clarify does",
+    template: "src/sections/fjord.html",
+    title: "What Clarify does: “How Clarify helps you earn more, and cut cost”",
+    figma: [
+      ["Desktop", "13311-5140"],
+      ["Mobile", "13645-31185"],
+    ],
+    attributes: [
+      ["The section (the observer)", ["data-fjord-component", 'data-preset="fjord"']],
+      ["The map panel (the target: the map is drawn here)", ["data-fjord-wrap"]],
+      ["Each tab: the three desktop items and the three mobile tabs (<b>Own</b>, <b>Refine</b>, <b>Deliver</b>)", ['data-fjord-tab="0"', 'data-fjord-tab="1"', 'data-fjord-tab="2"']],
+    ],
+    requirements: [
+      "<b>The tabs are run by the script:</b> it adds <code>is-active</code> to the active tab (style that combo class in Webflow) and sets <code>--tab-progress</code> (0 → 1) on it for the timer line. No Webflow Tabs component or interactions needed.",
+      "<b>Desktop:</b> the three items on the left (458 px), the map panel on the right (552 px tall). The timer line is the active item's right edge, filling top to bottom.",
+      "<b>Tablet and mobile</b> (991 px and below): stacked. The map panel on top (16:10 on tablet, square on mobile), the Own / Refine / Deliver row under it, then only the active item's text. The timer line runs under the active tab.",
+      "<b>Credit line:</b> the map is built from open satellite and elevation data (CC BY 4.0), so the small credit inside the map panel has to stay.",
+    ],
+    behaviour: [
+      "Three camera views, one per tab: the whole stack, the middle layers, then top-down on the signal. The camera flies between them.",
+      "<b>Autoplay:</b> each tab stays 7 s, then the next one opens. A click jumps to that tab and the timer restarts from there; clicking the active tab flies the camera back to its view.",
+      "<b>Drag</b> (desktop mouse): rotates the map. The timer waits while the mouse is over the map.",
+      "<b>Touch:</b> no reaction on the map; swipes scroll the page. The tabs work as normal.",
+      "<b>Reduced motion:</b> no autoplay, and the camera jumps instead of flying.",
+    ],
+  },
 ];

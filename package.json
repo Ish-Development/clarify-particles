@@ -1,17 +1,20 @@
 {
   "name": "clarify-particles",
   "private": true,
-  "version": "1.5.1",
+  "version": "1.6.0",
   "type": "module",
   "scripts": {
     "build:runtime": "tsc -b && vite build --config vite.runtime.config.ts && node scripts/build-demo.mjs",
-    "preview:runtime": "vite preview --config vite.runtime.config.ts --open /demo.html"
+    "preview:runtime": "vite preview --config vite.runtime.config.ts --open /demo.html",
+    "bake:map": "node scripts/bake-map.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",
+    "d3-contour": "^4.0.2",
+    "pngjs": "^7.0.0",
     "typescript": "^5.5.4",
     "vite": "^5.4.2"
   }
