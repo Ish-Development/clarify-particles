@@ -28,7 +28,7 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
 ## Runtime flow
 
 1. **Loader** (`index.ts`):
-   - An IntersectionObserver with a `50%` rootMargin watches every `[data-particles-component]`, plus any legacy `[data-particles]` element.
+   - An IntersectionObserver with a `50%` rootMargin watches every `[data-particles-component]` (or `[data-how-component]`, the hero's name for it), plus any legacy `[data-particles]` element.
    - The first time one approaches the viewport, it waits for `pageReady` (`window.load` + `requestIdleCallback`, 300 ms cap).
    - Then `import("./engine.js")` fetches the engine once, and the loader creates the host div and calls `mount(host, parseSpec([component, wrap]), { root: component })`.
 2. **Engine** (`engine.ts`):

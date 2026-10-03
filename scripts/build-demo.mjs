@@ -56,7 +56,7 @@ function cssSnippet(cls) {
 // script creates, and any excite triggers
 function markupSnippet(template) {
   const html = template.replace(/<!--[\s\S]*?-->/g, "");
-  const comp = html.match(/<([a-z][a-z0-9]*)(\s[^>]*?\sdata-particles-component[\s>=][^>]*)>/i);
+  const comp = html.match(/<([a-z][a-z0-9]*)(\s[^>]*?\sdata-(?:particles|how)-component[\s>=][^>]*)>/i);
   const tag = comp[1];
   const open = `<${tag}${comp[2]}>`.replace(/\s+/g, " ");
   const excites = [...html.matchAll(/<([a-z][a-z0-9]*)\s[^>]*data-particles-excite[^>]*>([^<]*)<\/\1>/gi)].map((m) =>
@@ -95,7 +95,7 @@ const bpGroups = BREAKPOINTS.map(
 // guide and on the Setup tab, so each handover is complete on its own
 const SCRIPT_TAG = `<script type="module" src="${SCRIPT_URL}"></script>`;
 const LIBS_JS = `window.loadParticles = () => {
-  if (!document.querySelector("[data-particles-component], [data-particles]")) return Promise.resolve();
+  if (!document.querySelector("[data-particles-component], [data-how-component], [data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
     import("${SCRIPT_URL}")
   );
@@ -113,8 +113,8 @@ const scriptSteps = () => `
 
 const panels = SECTIONS.map((s) => {
   const html = read(s.template);
-  const comp = html.replace(/<!--[\s\S]*?-->/g, "").match(/<[a-z][^>]*\sdata-particles-component[\s>=][^>]*>/i);
-  if (!comp) throw new Error(`${s.template}: no data-particles-component element`);
+  const comp = html.replace(/<!--[\s\S]*?-->/g, "").match(/<[a-z][^>]*\sdata-(?:particles|how)-component[\s>=][^>]*>/i);
+  if (!comp) throw new Error(`${s.template}: no data-particles-component (or data-how-component) element`);
   const cls = comp[0].match(/class="([^"\s]+)/)[1];
   const preset = comp[0].match(/data-preset="([^"]+)"/)[1];
   const figma = s.figma.map(([label, node]) => `<a href="${FIGMA}${node}" target="_blank" rel="noopener">Figma: ${label}</a>`).join("");
@@ -178,6 +178,7 @@ const setup = `
     )}
     ${list([
       "<code>data-preset</code> goes on the component (or the wrap, which wins). The look lives in the preset, so no design settings go into Webflow.",
+      "The hero uses <code>data-how-component</code> and <code>data-how-wrap</code>: same thing, other names. Either pair works on any section.",
       "<code>data-particles-excite</code> on a button inside a component lights up <b>that</b> component's effect when hovered or focused.",
       "If the div ends up with no size, the console warns you.",
     ])}
@@ -332,7 +333,7 @@ ${setup}
     // ?<section>=<preset>: preview another preset in that section
     for (const p of panels) {
       const variant = params.get(p.dataset.panel);
-      const component = p.querySelector("[data-particles-component]");
+      const component = p.querySelector("[data-particles-component], [data-how-component]");
       if (variant && component) component.setAttribute("data-preset", variant);
     }
     const only = params.get("only");

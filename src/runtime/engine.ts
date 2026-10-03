@@ -1607,7 +1607,7 @@ function onMouseDown(e: MouseEvent) {
 const EXCITE = "[data-particles-excite]";
 const exciteOf = (t: EventTarget | null) => (t instanceof Element ? t.closest(EXCITE) : null);
 
-const COMPONENT = "[data-particles-component]";
+const COMPONENT = "[data-particles-component], [data-how-component]";
 
 function viewFor(trigger: Element): View | null {
   // component markup: the effect of the trigger's own component

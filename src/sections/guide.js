@@ -14,7 +14,7 @@ export const SECTIONS = [
       ["Mobile", "13651-45904"],
     ],
     attributes: [
-      ["The hero section", ["data-particles-component", 'data-preset="hero"', "data-particles-wrap"]],
+      ["The hero section", ["data-how-component", 'data-preset="hero"', "data-how-wrap"]],
       ["The <b>“Book a demo”</b> and <b>“Talk to an engineer”</b> buttons", ["data-particles-excite"]],
     ],
     requirements: [

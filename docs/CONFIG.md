@@ -138,5 +138,6 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 |---|---|
 | `data-particles-component` | The component root: settings + scope for its excite buttons |
 | `data-particles-wrap` | Inside a component: where the script creates `div.u-particles-threejs` (defaults to the component) |
+| `data-how-component` / `data-how-wrap` | Same as `data-particles-component` / `data-particles-wrap`, under the names the hero uses (v1.5.1) |
 | `data-particles-excite` | Hovering or focusing it "excites" its component's effect (graph: lights up / breathes). In legacy markup: the nearest effect sharing a container. |
 | `data-particles-ignore` | Clicks on this element never trigger the click effect (links, buttons and form fields are already excluded) |

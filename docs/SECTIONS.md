@@ -2,15 +2,16 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-03, v1.5.0 released)
+## Status (2026-10-03, v1.5.1 released)
 
-- **Released to the devs:** v1.5.0 (2026-10-03).
+- **Released to the devs:** v1.5.1 (2026-10-03): the component and wrap also work under the Webflow dev's names for the hero, `data-how-component` / `data-how-wrap` (from their Figma comment); the reference page's hero uses them. No look changes.
+- **v1.5.0** (2026-10-03):
   - **Hero:** loops through four dotted shapes (sphere → meridians → spiral → burst, 6 s hold / 2 s morph, the CTA's timing); no entrance; turns toward the cursor; the two hero buttons light it up (mouse only); no tap/click reaction below desktop and no touch reaction at all; tablet (768–991) horizontal like desktop with fewer, smaller dots; phones: the shape fitted inside the band, full resolution. Canvas = `.u-particles-threejs` only (no `bleed`).
   - **CTA:** background grid (and its lights/hover trail) and the network's hover glow removed. Everything else unchanged.
   - **Engine (points), all off by default:** `sequence`/`holdTime`/`morphTime`/`stagger`/`holdShape`, `fit`/`fitPadding`, `parallax`, `gather`, `hoverGlow`, `touchSpin` for points, excite for points, shapes `meridians`/`spiral`/`burst`; `ClarifyParticles.set(el, patch)`.
   - **Repo:** the playground, `sections.html` and the tune page were deleted; the reference page is the only page.
 - **Reference page:** GitHub Pages and Vercel (https://clarify-particles.vercel.app).
-- **Tell the devs:** bump the pinned version to `@1.5.0`. Hero: add `data-particles-excite` to "Book a demo" and "Talk to an engineer" (in the hero), and update the hero's `.u-particles-threejs` CSS: tablet (≤ 991) keeps the desktop layout with `width: 70.3%` and the content at `max-width: calc(50% - 24px)`; the stacked 50svh band now starts at ≤ 767 (was ≤ 991). CTA: no markup or CSS changes.
+- **Tell the devs:** bump the pinned version to `@1.5.1`. Hero section: `data-how-component data-how-wrap data-preset="hero"` (the `data-particles-*` pair still works too). From 1.5.0, if not done yet: hero: add `data-particles-excite` to "Book a demo" and "Talk to an engineer" (in the hero), and update the hero's `.u-particles-threejs` CSS: tablet (≤ 991) keeps the desktop layout with `width: 70.3%` and the content at `max-width: calc(50% - 24px)`; the stacked 50svh band now starts at ≤ 767 (was ≤ 991). CTA: no markup or CSS changes.
 - **Next:** the user's call.
 
 Workflow for a new section:
@@ -25,7 +26,7 @@ Workflow for a new section:
 ## Hero: "Learn from the past and predict the future"
 
 - **Figma:** desktop `12735:86263` (1512 × 982), mobile `13651:45904` (393 × 852). The artwork is three dotted spheres masked by a circle (`12916:71353`): outer radius 404 px centered at (1274, 546) on desktop, 220 px at (204, 295) on mobile.
-- **Markup:** the section is `data-particles-component data-particles-wrap data-preset="hero"`. The navbar sits on top of it in Figma but isn't part of the effect.
+- **Markup:** the section is `data-how-component data-how-wrap data-preset="hero"` (v1.5.1: the Webflow dev's names for the hero, same as `data-particles-component` / `data-particles-wrap`). The navbar sits on top of it in Figma but isn't part of the effect.
 - **Effect area:** the points `sphere` is drawn at the center of its div with radius `0.38 × min(w, h)`, so on desktop `.u-particles-threejs` is a `1063px` square centered on the spheres at (84.26%, 545px). The section clips it.
 - **Tablet (768–991 px, 2026-10-03, "same layout principles as the CTA"):** horizontal like desktop: the effect div keeps desktop's proportions (`width: 70.3%` of the hero, same center), so the spheres scale with the screen and stay clear of the text, which takes the left half (`max-width: calc(50% - 24px)`). Replaces the 2026-10-01 stacked tablet.
 - **Mobile (≤ 767 px):** stacked, per the mobile band rule: a full-width band, `50svh` tall, the animation centered in it and cropped. The band starts under the navbar (`--navbar-h` 63 px), and the hero's `padding-top: calc(var(--navbar-h) + 50svh + var(--space-7, 36px))` reserves it. The spheres are fitted to the band instead of the screen width (2026-10-03, after the user spotted a hard cut at the band's edges) (now ≤ 767 `scale: 1.47` + `fit`, see Interactions below; first try was scale 1.3 / 1.47 per width, which still reached under the navbar on some phones). Measured clear of the text at 767/600/479/430/393/375/320 (17–40 px). Was `scale: 1.48, scaleByWidth: true` from 991 down, which overflowed the band and was cut flat at its top and bottom.

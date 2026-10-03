@@ -334,7 +334,7 @@ html.only::-webkit-scrollbar { display: none; }
      the Webflow implementation guide. In Webflow, only the data-* attributes,
      the .u-particles-threejs styles and the script tag matter. -->
 <header class="ref-bar">
-  <div class="ref-bar__brand">Clarify particles<span>v1.5.0</span></div>
+  <div class="ref-bar__brand">Clarify particles<span>v1.5.1</span></div>
   <nav class="ref-tabs"><a class="ref-tab" href="#hero" data-tab="hero">Hero</a><a class="ref-tab" href="#cta" data-tab="cta">CTA</a><a class="ref-tab ref-tab--end" href="#setup" data-tab="setup">Setup</a></nav>
 </header>
 <div class="ref-toolbar" id="ref-toolbar" hidden>
@@ -369,7 +369,7 @@ html.only::-webkit-scrollbar { display: none; }
   <!-- the section is the particles component (scope + preset) and its wrap:
        the script creates div.u-particles-threejs inside it, which the CSS
        places around the spheres' center (Webflow styles that class) -->
-  <section class="hero" data-particles-component data-particles-wrap data-preset="hero">
+  <section class="hero" data-how-component data-how-wrap data-preset="hero">
     <div class="hero__content">
       <div class="hero__intro">
         <div class="eyebrow">
@@ -410,17 +410,17 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.5.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.5.1</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
-  if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
+  if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
-        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The hero section</td><td><code>data-particles-component</code><br><code>data-preset=&quot;hero&quot;</code><br><code>data-particles-wrap</code></td></tr><tr><td>The <b>“Book a demo”</b> and <b>“Talk to an engineer”</b> buttons</td><td><code>data-particles-excite</code></td></tr></tbody></table>
+        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The hero section</td><td><code>data-how-component</code><br><code>data-preset=&quot;hero&quot;</code><br><code>data-how-wrap</code></td></tr><tr><td>The <b>“Book a demo”</b> and <b>“Talk to an engineer”</b> buttons</td><td><code>data-particles-excite</code></td></tr></tbody></table>
         <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
         <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
         <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>.hero .u-particles-threejs {
@@ -447,7 +447,7 @@ html.only::-webkit-scrollbar { display: none; }
   }
 }</code></pre></div>
         <h3><span>4</span>Resulting markup</h3>
-        <div class="ref-code"><div class="ref-code__bar"><span>HTML</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;section class=&quot;hero&quot; data-particles-component data-particles-wrap data-preset=&quot;hero&quot;&gt;
+        <div class="ref-code"><div class="ref-code__bar"><span>HTML</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;section class=&quot;hero&quot; data-how-component data-how-wrap data-preset=&quot;hero&quot;&gt;
   <span class="dim">&lt;div class=&quot;u-particles-threejs&quot;&gt;   ← created by the script</span>
     <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;</span>
   <span class="dim">&lt;/div&gt;</span>
@@ -506,13 +506,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.5.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.5.1</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
-  if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
+  if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -560,18 +560,18 @@ html.only::-webkit-scrollbar { display: none; }
   <div class="ref-guide ref-guide--setup">
     <header class="ref-guide__head">
       <h2>Setup</h2>
-      <div class="ref-meta"><span class="ref-pill">v1.5.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
+      <div class="ref-meta"><span class="ref-pill">v1.5.1</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
     </header>
     <h3><span>1</span>Add the script, once, site-wide</h3>
     
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.5.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.5.1</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
-  if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
+  if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.1/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
     <h3><span>2</span>Mark up each section</h3>
@@ -580,7 +580,7 @@ html.only::-webkit-scrollbar { display: none; }
   [data-particles-wrap]      <span class="dim">where the effect goes (optional: defaults to the component)</span>
     div.u-particles-threejs  <span class="dim">CREATED BY THE SCRIPT: style this class in Webflow</span>
       &lt;canvas&gt;               <span class="dim">created by the script, 100% × 100% of that div</span></code></pre></div>
-    <ul><li><code>data-preset</code> goes on the component (or the wrap, which wins). The look lives in the preset, so no design settings go into Webflow.</li><li><code>data-particles-excite</code> on a button inside a component lights up <b>that</b> component's effect when hovered or focused.</li><li>If the div ends up with no size, the console warns you.</li></ul>
+    <ul><li><code>data-preset</code> goes on the component (or the wrap, which wins). The look lives in the preset, so no design settings go into Webflow.</li><li>The hero uses <code>data-how-component</code> and <code>data-how-wrap</code>: same thing, other names. Either pair works on any section.</li><li><code>data-particles-excite</code> on a button inside a component lights up <b>that</b> component's effect when hovered or focused.</li><li>If the div ends up with no size, the console warns you.</li></ul>
     <h3>Site-wide typography</h3>
     <p>From the design: headings balance their lines and paragraphs avoid one-word last lines. Add once (site CSS or Head custom code):</p>
     <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>h1, h2, h3, h4, h5, h6 { text-wrap: balance; }
@@ -608,7 +608,7 @@ el.addEventListener(&quot;particles:ready&quot;, () =&gt; { /* … */ });</code>
     // ?<section>=<preset>: preview another preset in that section
     for (const p of panels) {
       const variant = params.get(p.dataset.panel);
-      const component = p.querySelector("[data-particles-component]");
+      const component = p.querySelector("[data-particles-component], [data-how-component]");
       if (variant && component) component.setAttribute("data-preset", variant);
     }
     const only = params.get("only");

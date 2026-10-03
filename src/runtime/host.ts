@@ -7,9 +7,12 @@
 //
 // The wrap is optional (defaults to the component itself). Settings may sit
 // on the component or the wrap; the wrap's win.
+//
+// data-how-component / data-how-wrap are the same thing under the names the
+// Webflow dev uses for the hero (v1.5.1).
 
-export const COMPONENT = "[data-particles-component]";
-export const WRAP = "[data-particles-wrap]";
+export const COMPONENT = "[data-particles-component], [data-how-component]";
+export const WRAP = "[data-particles-wrap], [data-how-wrap]";
 export const HOST_CLASS = "u-particles-threejs";
 
 export interface Host {

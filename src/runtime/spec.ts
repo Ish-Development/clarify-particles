@@ -14,6 +14,8 @@ const RESERVED = new Set([
   "config",
   "particlesComponent",
   "particlesWrap",
+  "howComponent",
+  "howWrap",
   "particlesHost",
   "particlesExcite",
   "particlesIgnore",
@@ -52,7 +54,7 @@ export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
     warn(el, `no data-preset — showing the default look. Available presets: ${Object.keys(PRESETS).join(", ")}`);
   }
 
-  const typeAttr = ds.particles || ds.particlesComponent;
+  const typeAttr = ds.particles || ds.particlesComponent || ds.howComponent;
   const type = typeAttr === "graph" || (!typeAttr && preset?.type === "graph") ? "graph" : "points";
   const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : pointsDefaults) };
 
