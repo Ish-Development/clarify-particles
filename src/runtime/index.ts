@@ -134,12 +134,23 @@ function refresh(el?: HTMLElement) {
   }
 }
 
+// Change a running effect's settings live, without a remount (the ones the
+// simulation reads every frame: motion, hover, holdShape…). Used by the
+// reference page's shape tabs.
+function set(el: HTMLElement, patch: Record<string, unknown>) {
+  const key = keyOf(el);
+  const host = tracked.get(key);
+  const view = engine?.getView(host ? host.el : key);
+  if (view) Object.assign(view.cfg, patch);
+  return !!view;
+}
+
 // Snapshot of the engine's live state (null until the engine has loaded).
 function debug() {
   return { timeline, tracked: tracked.size, engine: engine?.debugState() ?? "not loaded" };
 }
 
-const api = { init, destroy, refresh, debug };
+const api = { init, destroy, refresh, set, debug };
 declare global {
   interface Window {
     ClarifyParticles: typeof api;

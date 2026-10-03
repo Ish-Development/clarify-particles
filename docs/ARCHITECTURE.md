@@ -3,7 +3,7 @@
 ## Pieces
 
 ```
-src/core/          simulation, no rendering: shared by runtime and playground
+src/core/          simulation, no rendering
   config.ts          points config + defaults + SHAPE_NAMES
   shapes.ts          points shape functions (index -> position per frame)
   particles.ts       ParticleSystem (typed arrays, springs, non-resetting resize)
@@ -17,12 +17,10 @@ src/runtime/       what ships to Webflow
   host.ts            component markup: creates div.u-particles-threejs in the wrap
   spec.ts            attribute/preset/JSON parsing + validation
   defaults.ts        runtime defaults (points/graph + RuntimeOptions)
-  presets.json       named section looks (written by the playground)
+  presets.json       named section looks (edited by hand, reviewed on the reference page)
   presets.ts         typed access to presets.json
   engine.ts          ENGINE chunk (lazy, ~147 kB gz): Three.js renderer, views, loop
-src/playground/    design tool (DialKit panels) rendering through the real engine
-src/sections/      Figma section markup + tokens (playground frames, sections.html, demo.html)
-sections.html      preview of built sections with the production runtime (+ ?debug)
+src/sections/      section markup + tokens + guide text (feeds demo.html)
 scripts/build-demo.mjs  composes dist-runtime/demo.html from src/sections
 dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engine.js, demo.html)
 ```
@@ -71,7 +69,7 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
 
 - **Shipping format:**
   - The site gets presets, not attributes. Looks live in `presets.json`, and Webflow only references `data-preset`, so re-styling never touches Webflow.
-  - The playground renders through the production engine, so what you tune is what ships. It saves presets through a dev-server endpoint (`POST /__presets`, see `vite.config.ts`).
+  - The reference page runs the production build, so what you review is what ships. (The playground, sections preview and tune page were deleted on 2026-10-03; they're in git history.)
 - **Three.js:** chosen by the client/dev. It's bundled and tree-shaken into `engine.js` rather than loaded from a separate CDN script. Current Three.js has no UMD build (since r160), so the dev's `libs.script()` pattern can't load it anyway.
 - **Loading:** the engine loads after `window.load` + idle (the dev's request), and fades in on its first frame (0.8 s).
 - **Hosting:** jsDelivr from the **public** repo `Ish-Development/clarify-particles`, pinned tags. `dist-runtime/` is committed so a tag is directly servable.
@@ -88,7 +86,4 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
 - **Back-face culling:** the vertex shader flips y, which reverses triangle winding. Line quads need `DoubleSide`.
 - **`sortObjects`:** Three's transparent sorting computes bounding spheres from our 2-component positions and logs NaN, so `renderer.sortObjects = false`. Draw order is explicit.
 - **Loader size:** anything the loader imports from `core/graph.ts` drags the layout builders into the eager chunk. Keep config and defaults in `graphConfig.ts`.
-- **Dev server vs your browser:**
-  - Editing `vite.config.ts` restarts Vite and hot-reloads open tabs, even background ones. That can leave a page with two module copies and a broken loop.
-  - **Review on the stable preview** (`npm run build && npx vite preview --port 4791`), not the dev server.
-- **Presets file and HMR:** `presets.json` is excluded from HMR (`handleHotUpdate`), so saving a preset doesn't reload the playground.
+- **Review on a built preview, not a dev server:** a hot-reloading dev server can leave a page with two module copies and a broken loop. The reference page is always a build (`npm run build:runtime`, then `vite preview` on 4792).

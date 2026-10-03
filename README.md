@@ -1,11 +1,11 @@
 # Clarify particles
 
-Interactive particle and network backgrounds for the Clarify Webflow site: a production script for the site, and a playground for designing each section's look.
+Interactive particle and network backgrounds for the Clarify Webflow site: a production script for the site, and a reference page (one tab per section) for designing, reviewing and handing off each section's look.
 
 **Webflow devs:** start with [runtime/README.md](runtime/README.md). You need one script tag, and two attributes per section.
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js"></script>
 ```
 
 | Doc | For |
@@ -20,9 +20,9 @@ Interactive particle and network backgrounds for the Clarify Webflow site: a pro
 
 ```bash
 npm install
-npm run dev             # playground: design looks, save section presets
-npm run build:runtime   # production files -> dist-runtime/
+npm run build:runtime   # production files + reference page -> dist-runtime/
+npx vite preview --config vite.runtime.config.ts --port 4792   # localhost:4792/demo.html
 ```
 
-- **Stack:** Vite + TypeScript, Three.js (bundled into the lazily loaded engine) and DialKit (playground panels).
-- **Structure:** `src/core` is the simulation, `src/runtime` is what ships, `src/playground` is the design tool, and `src/sections` holds the Figma section markup.
+- **Stack:** Vite + TypeScript, Three.js (bundled into the lazily loaded engine).
+- **Structure:** `src/core` is the simulation, `src/runtime` is what ships, `src/sections` holds the Figma section markup, and `scripts/build-demo.mjs` builds the reference page.

@@ -10,10 +10,10 @@ Interactive particle/network backgrounds for Webflow sections. You don't need a 
 **Site settings → Custom code → Footer code:**
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js"></script>
 ```
 
-Always pin the version (`@1.4.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
+Always pin the version (`@1.5.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
 
 ### Or through the site's `window.libs` loader
 
@@ -22,7 +22,7 @@ Always pin the version (`@1.4.0`), never `@latest` or a branch. Pinned URLs neve
 window.loadParticles = () => {
   if (!document.querySelector("[data-particles-component], [data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
-    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js")
+    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js")
   );
 };
 ```
@@ -66,7 +66,7 @@ Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requ
 
 | Section | Preset | Component | Tab |
 |---|---|---|---|
-| Hero ("Learn from the past and predict the future") | `hero` | the hero section | [#hero](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#hero) |
+| Hero ("Learn from the past and predict the future") | `hero` | the hero section; its "Book a demo" and "Talk to an engineer" buttons get `data-particles-excite` | [#hero](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#hero) |
 | CTA ("See how Clarify solves yours") | `cta` | the card; the "Get started" button gets `data-particles-excite` | [#cta](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#cta) |
 
 ## Built in
@@ -86,6 +86,7 @@ Everything mounts automatically. You only need these for content added later, or
 ClarifyParticles.init(container?)   // mount new components (after CMS load / page transition)
 ClarifyParticles.destroy(element?)  // tear down one component (pass it or anything inside it), or all
 ClarifyParticles.refresh(element?)  // re-read attributes after changing them
+ClarifyParticles.set(element, { holdShape: "spiral" })  // change live settings without a remount
 ClarifyParticles.debug()            // live state: load timeline, loop, WebGL context, sections, recent events
 ```
 

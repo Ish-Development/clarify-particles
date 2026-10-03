@@ -851,6 +851,18 @@ class PointsView extends View {
   private readonly pos: Float32Array;
   private readonly posAttr: BufferAttribute;
   private readonly colorAttr: BufferAttribute;
+  // hoverGlow: per-dot light (eased), and the size/alpha actually drawn
+  private readonly glow: Float32Array;
+  private readonly sizeAttr: BufferAttribute;
+  private readonly alphaAttr: BufferAttribute;
+  private glowing = false;
+  private ptr: { x: number; y: number } | null = null;
+  // excite (a data-particles-excite button hovered): every dot lights up,
+  // eased on and off, as the graph's steady excite
+  private excite = 0;
+  private exciteTarget = 0;
+  // the last frame drew excite light, so one more pass clears it
+  private excited = false;
 
   // cfg is used BY REFERENCE: the simulation reads it every frame, so the
   // playground's live edits (chaos, ease, rotation, hover…) apply instantly.
@@ -869,8 +881,11 @@ class PointsView extends View {
     this.posAttr = new BufferAttribute(this.pos, 2).setUsage(DynamicDrawUsage);
     this.colorAttr = new BufferAttribute(new Float32Array(n * 3), 3);
     this.geometry.setAttribute("position", this.posAttr);
-    this.geometry.setAttribute("aSize", new BufferAttribute(sys.size, 1));
-    this.geometry.setAttribute("aAlpha", new BufferAttribute(sys.opacity, 1));
+    this.glow = new Float32Array(n);
+    this.sizeAttr = new BufferAttribute(sys.size.slice(), 1).setUsage(DynamicDrawUsage);
+    this.alphaAttr = new BufferAttribute(sys.opacity.slice(), 1).setUsage(DynamicDrawUsage);
+    this.geometry.setAttribute("aSize", this.sizeAttr);
+    this.geometry.setAttribute("aAlpha", this.alphaAttr);
     this.geometry.setAttribute("aColor", this.colorAttr);
     this.writeColors();
 
@@ -882,8 +897,75 @@ class PointsView extends View {
     this.start();
   }
 
+  onSectionPointer(p: { x: number; y: number } | null) {
+    this.system.setSectionPointer(p);
+  }
+  stats() {
+    return this.system.debug();
+  }
+  // touch "drag to spin", as the graph (no light-up on a hold: points have
+  // no excite)
+  readonly canSpin = true;
+  grab(on: boolean) {
+    this.system.grab(on);
+    wake();
+  }
+  spinBy(dx: number, dy: number, dt: number) {
+    // a drag across the whole zone turns it half way round
+    const k = Math.PI / Math.max(240, this.w);
+    this.system.spinBy(dx * k, -dy * k, dt);
+  }
+
+  onPointer(p: { x: number; y: number } | null) {
+    this.ptr = p;
+  }
+  onExcite(on: boolean) {
+    this.exciteTarget = on ? 1 : 0;
+    wake();
+  }
+
   step(dt: number) {
     this.system.update(dt, this.w, this.h);
+    this.updateGlow(dt);
+  }
+
+  // hoverGlow, as the graph does it: smoothstep within 1.3 x hoverRadius,
+  // eased in and out; a lit dot gets brighter and up to 60% bigger. Excite
+  // adds the graph's steady light-up to every dot (+0.35 opacity).
+  private updateGlow(dt: number) {
+    const cfg = this.cfg as PointsSpec["config"];
+    const s = this.system;
+    const hg = cfg.hoverGlow;
+    const p = hg > 0 ? this.ptr : null;
+    this.excite += (this.exciteTarget - this.excite) * (1 - Math.exp(-dt * 5));
+    if (this.excite < 0.002 && this.exciteTarget === 0) this.excite = 0;
+    const ex = this.excite;
+    if (!p && !this.glowing && ex === 0 && !this.excited) return;
+    this.excited = ex > 0;
+    const ease = 1 - Math.exp(-dt * 6);
+    const r = cfg.hoverRadius * 1.3;
+    const size = this.sizeAttr.array as Float32Array;
+    const alpha = this.alphaAttr.array as Float32Array;
+    let any = false;
+    for (let i = 0; i < s.count; i++) {
+      let target = 0;
+      if (p) {
+        const dx = s.baseX[i] + s.offX[i] - p.x;
+        const dy = s.baseY[i] + s.offY[i] - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < r * r) {
+          const f = 1 - Math.sqrt(d2) / r;
+          target = f * f * (3 - 2 * f) * hg;
+        }
+      }
+      const g = (this.glow[i] += (target - this.glow[i]) * ease);
+      if (g > 0.002) any = true;
+      size[i] = s.size[i] * (1 + 0.6 * g);
+      alpha[i] = Math.min(1, s.opacity[i] + 0.6 * g + 0.35 * ex);
+    }
+    this.glowing = any;
+    this.sizeAttr.needsUpdate = true;
+    this.alphaAttr.needsUpdate = true;
   }
 
   protected sync() {

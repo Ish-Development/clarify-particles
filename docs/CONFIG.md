@@ -6,10 +6,10 @@ Every setting can be part of a preset (`src/runtime/presets.json`, the recommend
 
 1. **Defaults:** below.
 2. **`data-preset="name"`:** a named look from `presets.json`.
-3. **`data-config='{"key": value, ...}'`:** JSON. The playground's "Copy Webflow attributes" produces this for unsaved looks.
+3. **`data-config='{"key": value, ...}'`:** JSON.
 4. **Individual attributes:** each key in kebab-case, e.g. `sizeMin` → `data-size-min`.
 
-**Breakpoints:** a preset can carry `"breakpoints": [{ "maxWidth": 991, "config": { … } }, { "maxWidth": 430, "config": { … } }]` next to its `"config"`. Like CSS max-width media queries, every tier the screen is at or under applies on top of `config`, widest first, so narrower tiers win (and all before `data-config` and individual attributes). Use them when a smaller screen needs a different composition (e.g. `cta`: stacked band from 991 down, its phone look from 430 down). Crossing any tier's width (resize, rotation) re-mounts every effect so the right set applies. The playground edits `config` only and keeps a preset's `breakpoints` when saving; edit them in `presets.json`.
+**Breakpoints:** a preset can carry `"breakpoints": [{ "maxWidth": 991, "config": { … } }, { "maxWidth": 430, "config": { … } }]` next to its `"config"`. Like CSS max-width media queries, every tier the screen is at or under applies on top of `config`, widest first, so narrower tiers win (and all before `data-config` and individual attributes). Use them when a smaller screen needs a different composition (e.g. `cta`: stacked band from 991 down, its phone look from 430 down). Crossing any tier's width (resize, rotation) re-mounts every effect so the right set applies.
 
 Unknown keys and invalid values print a `[particles]` console warning that names the element. Webflow's own `data-w-*` / `data-wf-*` attributes are ignored.
 
@@ -23,7 +23,7 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `blend` | `additive` (points) / `normal` (graph) | Use `normal` for dark particles on light backgrounds |
 | `interactive` | `true` | Hover and click reactions |
 | `touchHover` | `true` | A finger drives the hover reactions (glow, push, parallax, the excite button). `false`: touch only taps (and spins, with `touchSpin`), since phones have no hover |
-| `touchSpin` | `false` | Touch "drag to spin" (graph only): a sideways drag on the effect's zone turns it, and it coasts on after release (the tilt from any up/down part eases back). Sets `touch-action: pan-y pinch-zoom` on the zone, so up/down swipes still scroll the page and pinch-zoom still works |
+| `touchSpin` | `false` | Touch "drag to spin" (graph and points): a sideways drag on the effect's zone turns it, and it coasts on after release (the tilt from any up/down part eases back). Sets `touch-action: pan-y pinch-zoom` on the zone, so up/down swipes still scroll the page and pinch-zoom still works |
 | `touchHold` | `0` | With `touchSpin`: a finger held still this long (ms) grabs the effect outright (it lights up), and then up/down drags turn it too instead of scrolling. Also turns off the iOS callout/selection on the zone. `0` = off |
 | `softness` | `1` | Dot edge: `1` soft glow, `0` crisp disc |
 | `solid` | `false` | Opaque dots: brightness from dimming the color, so lines behind don't show through |
@@ -39,7 +39,12 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 
 | Key | Default | Notes |
 |---|---|---|
-| `shape` | `concentricRings` | `chaosField` `noiseLines` `straightLines` `terrain` `waterfall` `nebula` `veins` `concentricRings` `square` `triangle` `sphere` `cube` `torus` `torusKnot` `hexCone` `octahedron` `icosahedron` `dodecahedron` `stellated` `gem` `cubesIntersect` `crossCubes` `interlock` `sacredGeometry` |
+| `shape` | `concentricRings` | `chaosField` `noiseLines` `straightLines` `terrain` `waterfall` `nebula` `veins` `concentricRings` `square` `triangle` `sphere` `cube` `torus` `torusKnot` `hexCone` `octahedron` `icosahedron` `dodecahedron` `stellated` `gem` `cubesIntersect` `crossCubes` `interlock` `sacredGeometry` `meridians` `spiral` `burst` (hero shape study, round) |
+| `parallax` | `0` | The shape turns toward the pointer over the whole section (radians, as the graph's) |
+| `gather` | `true` | On load the dots fly in from a scatter; `false` = they start formed |
+| `sequence` / `holdTime` | `""` / `6` | Shapes looped in order, e.g. `sphere,meridians,spiral,burst` (`""` = just `shape`): each held `holdTime` s, then a `morphTime` morph to the next |
+| `holdShape` | `""` | Morph to this shape and stay (overrides the sequence; `""` = off). Can be set live with `ClarifyParticles.set()` |
+| `morphTime` / `stagger` | `2` / `0.4` | That morph: seconds, and how spread out the dots' start times are (0..0.9) |
 | `count` | `6000` | |
 | `sizeMin` / `sizeMax` | `1` / `2.5` | |
 | `opacityMin` / `opacityMax` | `0.15` / `1` | |
@@ -54,6 +59,8 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `innerCopies` | `1` | Nested copies of 3D shapes |
 | `scale` | `1` | Size multiplier around the canvas center; above 1 the shape bleeds off the canvas |
 | `scaleByWidth` | `false` | Size from the canvas width instead of its shorter side, so a shape fills a wide band (mobile) |
+| `hoverGlow` | `0` | Dots near the pointer light up (brighter, up to 60% bigger) within 1.3 × `hoverRadius`, the graph's hover glow; `0` = off |
+| `fit` / `fitPadding` | `false` / `8` | Keep the shape inside its zone: shrink it (never grow) so the outer radius stops `fitPadding` px inside every edge |
 
 ## Graph (`data-particles="graph"`)
 

@@ -24,7 +24,7 @@
       "rotZ": 9,
       "idleRotationSpeed": 0.05,
       "idleTiltAmount": 0.2,
-      "hoverGlow": 0.8,
+      "hoverGlow": 0,
       "solid": true,
       "opacityMin": 0.5,
       "opacityMax": 1,
@@ -56,30 +56,9 @@
       "touchHover": false,
       "touchSpin": true,
       "touchHold": 300,
-      "grid": 1,
-      "gridPitch": 6,
-      "gridDot": 2,
-      "gridHot": 0.38,
-      "gridHotColor": "#7b8a96",
-      "gridHotRadius": 240,
-      "gridHotFade": 1,
-      "gridAuto": "always",
-      "gridAutoCount": 4,
-      "gridAutoSize": 400,
-      "gridAutoSpeed": 0.115,
-      "gridAutoColor": "#3d4952",
-      "gridAutoStrength": 0.46,
-      "lineGap": 1.5,
-      "gridBase": 0.4,
-      "gridColor": "#273037"
+      "lineGap": 1.5
     },
     "breakpoints": [
-      {
-        "maxWidth": 991,
-        "config": {
-          "gridHot": 0
-        }
-      },
       {
         "maxWidth": 767,
         "config": {
@@ -91,12 +70,6 @@
           "anchorBottom": true,
           "rotZ": 0,
           "count": 200,
-          "grid": 0.75,
-          "gridPitch": 7,
-          "gridBase": 0.25,
-          "gridAutoCount": 2,
-          "gridAutoStrength": 0.35,
-          "gridAutoSpeed": 0.08,
           "lineWidth": 1,
           "lineGap": 1
         }
@@ -145,14 +118,42 @@
       "ease": 0.06,
       "hoverRadius": 100,
       "hoverStrength": 0.8,
-      "clickBehavior": "burst"
+      "clickBehavior": "burst",
+      "touchHover": false,
+      "parallax": 0.25,
+      "gather": false,
+      "mobileDpr": 3,
+      "sequence": "sphere,meridians,spiral,burst",
+      "holdTime": 6,
+      "morphTime": 2,
+      "stagger": 0.4
     },
     "breakpoints": [
       {
         "maxWidth": 991,
         "config": {
-          "scale": 1.48,
-          "scaleByWidth": true
+          "clickBehavior": "none",
+          "count": 4500,
+          "sizeMin": 0.34,
+          "sizeMax": 0.638
+        }
+      },
+      {
+        "maxWidth": 879,
+        "config": {
+          "count": 3300,
+          "sizeMin": 0.312,
+          "sizeMax": 0.585
+        }
+      },
+      {
+        "maxWidth": 767,
+        "config": {
+          "scale": 1.47,
+          "fit": true,
+          "fitPadding": 8,
+          "sizeMin": 0.4,
+          "sizeMax": 0.75
         }
       }
     ]

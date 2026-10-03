@@ -18,6 +18,9 @@ export interface Shape3D {
   cosZ: number;
   sinZ: number;
   copies: number;
+  // the user's extra turn around the vertical axis (touch spin + parallax,
+  // radians), for shapes that keep their own upright view
+  yaw: number;
 }
 
 export function makeShape3D(
@@ -26,9 +29,12 @@ export function makeShape3D(
   rotZDeg: number,
   autoT: number,
   copies: number,
+  // extra turn/tilt from the user (touch spin, parallax), radians
+  yaw = 0,
+  tilt = 0,
 ): Shape3D {
-  const rx = (rotXDeg * Math.PI) / 180 + autoT * 0.18;
-  const ry = (rotYDeg * Math.PI) / 180 + autoT * 0.3;
+  const rx = (rotXDeg * Math.PI) / 180 + autoT * 0.18 + tilt;
+  const ry = (rotYDeg * Math.PI) / 180 + autoT * 0.3 + yaw;
   const rz = (rotZDeg * Math.PI) / 180;
   return {
     cosX: Math.cos(rx),
@@ -38,6 +44,7 @@ export function makeShape3D(
     cosZ: Math.cos(rz),
     sinZ: Math.sin(rz),
     copies: Math.max(1, Math.round(copies)),
+    yaw,
   };
 }
 
@@ -737,6 +744,95 @@ function sacredGeometryPoint(i: number, n: number, w: number, h: number, t: numb
   out.y = centerY + Math.sin(angle) * (circleR + jitter);
 }
 
+// deterministic 0..1 hash of an index (jitter without per-frame rng)
+function hash01(i: number) {
+  const x = Math.sin(i * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// --- Hero shape study (2026-10-03): round shapes in the sphere's style,
+// tabbed on the reference page next to the approved sphere. Same outer
+// radius as the sphere. The upright ones (meridians, spiral)
+// don't tumble: a fixed tilt toward the viewer, and their layers turn around
+// the vertical axis in alternating directions (plus the user's sideways turn:
+// touch spin, parallax).
+
+// a fixed view tilted toward the viewer by `deg` (no tumble)
+function uprightView(deg: number): Shape3D {
+  const a = (deg * Math.PI) / 180;
+  return { cosX: Math.cos(a), sinX: Math.sin(a), cosY: 1, sinY: 0, cosZ: 1, sinZ: 0, copies: 1, yaw: 0 };
+}
+const VIEW_20 = uprightView(-20);
+
+// cumulative shares for splitting dots over parts with the given weights
+function cumulative(weights: number[]) {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let acc = 0;
+  return weights.map((w) => (acc += w / total));
+}
+// which part a 0..1 fraction falls in, and the position within it (0..1)
+const part = { idx: 0, f: 0 };
+function pickPart(cum: number[], f0: number) {
+  let k = 0;
+  while (k < cum.length - 1 && cum[k] <= f0) k++;
+  const lo = k ? cum[k - 1] : 0;
+  part.idx = k;
+  part.f = (f0 - lo) / (cum[k] - lo);
+}
+const turn = (t: number, k: number) => t * (0.35 + 0.15 * k) * (k % 2 ? -1 : 1);
+
+// Meridians: 12 vertical bands of dots from pole to pole (orange segments),
+// in 3 layers (radius 1, 3/4, 1/2), each a third of a segment off the next,
+// so the bands fill each other's gaps.
+const MERIDIANS = 12;
+const MERIDIANS_R = [1, 0.75, 0.5];
+const MERIDIANS_CUM = cumulative(MERIDIANS_R);
+function meridiansPoint(i: number, n: number, w: number, h: number, t: number, out: Point, three: Shape3D) {
+  pickPart(MERIDIANS_CUM, i / n);
+  const k = part.idx;
+  const m = Math.min(MERIDIANS - 1, Math.floor(part.f * MERIDIANS));
+  const gap = (Math.PI * 2) / MERIDIANS;
+  const lon = m * gap + (k * gap) / MERIDIANS_R.length + (hash01(i) - 0.5) * gap * 0.35 + turn(t, k) + three.yaw;
+  // even along the meridian, short of the poles
+  const lat = (part.f * MERIDIANS - m - 0.5) * Math.PI * 0.94;
+  const r = MERIDIANS_R[k];
+  const c = Math.cos(lat) * r;
+  project3D(c * Math.cos(lon), Math.sin(lat) * r, c * Math.sin(lon), VIEW_20, w / 2, h / 2, Math.min(w, h) * 0.38, out);
+}
+
+// Spiral: a band of dots winding 8 times from the top to the bottom of the
+// ball (equal-area steps, so it's evenly dense), in 3 layers (radius 1, 3/4,
+// 1/2), each spiralling the opposite way to the next.
+const SPIRAL_TURNS = 8;
+const SPIRAL_R = [1, 0.75, 0.5];
+const SPIRAL_CUM = cumulative(SPIRAL_R);
+function spiralPoint(i: number, n: number, w: number, h: number, t: number, out: Point, three: Shape3D) {
+  pickPart(SPIRAL_CUM, i / n);
+  const k = part.idx;
+  const y = (1 - 2 * part.f) * 0.97;
+  const lat = Math.asin(y);
+  const band = (hash01(i) - 0.5) * (Math.PI / SPIRAL_TURNS) * 0.45;
+  const lon = (k % 2 ? -1 : 1) * (lat / Math.PI + 0.5) * SPIRAL_TURNS * Math.PI * 2 + turn(t, k) + three.yaw;
+  const r = SPIRAL_R[k];
+  const c = Math.cos(lat + band) * r;
+  project3D(c * Math.cos(lon), Math.sin(lat + band) * r, c * Math.sin(lon), VIEW_20, w / 2, h / 2, Math.min(w, h) * 0.38, out);
+}
+
+// Burst: straight spokes from near the center out to the full radius, spread
+// evenly over every direction (Fibonacci), so the outline is a sphere; the
+// dots get denser toward the tips, so that outline reads. Tumbles like the
+// sphere.
+const BURST_SPOKES = 260;
+function burstPoint(i: number, n: number, w: number, h: number, out: Point, three: Shape3D) {
+  const s = i % BURST_SPOKES;
+  const along = Math.min(1, Math.floor(i / BURST_SPOKES) / Math.max(1, Math.floor(n / BURST_SPOKES)));
+  const y = 1 - (s / (BURST_SPOKES - 1)) * 2;
+  const ry = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = s * GOLDEN_ANGLE;
+  const r = 0.12 + 0.88 * Math.sqrt(along);
+  project3D(Math.cos(theta) * ry * r, y * r, Math.sin(theta) * ry * r, three, w / 2, h / 2, Math.min(w, h) * 0.38, out);
+}
+
 export function shapePoint(
   shape: ShapeName,
   i: number,
@@ -823,6 +919,15 @@ export function shapePoint(
       break;
     case "sacredGeometry":
       sacredGeometryPoint(i, n, w, h, t, noise, out);
+      break;
+    case "meridians":
+      meridiansPoint(i, n, w, h, tChaos, out, three);
+      break;
+    case "spiral":
+      spiralPoint(i, n, w, h, tChaos, out, three);
+      break;
+    case "burst":
+      burstPoint(i, n, w, h, out, three);
       break;
   }
 }

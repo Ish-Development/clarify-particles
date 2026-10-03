@@ -143,17 +143,24 @@ p { text-wrap: pretty; }
 .hero__body { margin: 0; width: 434px; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
 .hero__actions { display: flex; align-items: center; gap: var(--space-3); }
 
-/* Stacked up to 991px (tablet and mobile): the effect is a full-width band,
-   50% of the screen's height, right under the navbar; the hero's
-   padding-top reserves navbar + band + gap, the text follows */
+/* Hero tablet (768-991px), like the CTA: horizontal like desktop, the text
+   in the left half. The effect div keeps desktop's proportions (1063 of
+   1512 = 70.3% of the width, centered on the same spot), so the spheres
+   scale with the screen and stay clear of the text. */
 .hero-frame { --navbar-h: 71px; }
 @media (max-width: 991px) {
-  .hero { min-height: 0; padding: calc(var(--navbar-h) + 50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
-  .hero .u-particles-threejs { top: var(--navbar-h); left: 0; width: 100%; height: 50svh; aspect-ratio: auto; transform: none; }
+  .hero .u-particles-threejs { width: 70.3%; }
+  .hero__content { max-width: calc(50% - 24px); }
   .hero__title, .hero__body { width: 100%; }
 }
+/* Hero mobile (767px and below): stacked. The effect is a full-width band,
+   50% of the screen's height, right under the navbar; the hero's
+   padding-top reserves navbar + band + gap, the text follows */
 @media (max-width: 767px) {
   .hero-frame { --navbar-h: 63px; }
+  .hero { min-height: 0; padding: calc(var(--navbar-h) + 50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
+  .hero .u-particles-threejs { top: var(--navbar-h); left: 0; width: 100%; height: 50svh; aspect-ratio: auto; transform: none; }
+  .hero__content { max-width: none; }
   .navbar__logo img { width: auto; height: 20px; }
   .navbar__links, .navbar__actions .btn { display: none; }
 }

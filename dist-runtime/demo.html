@@ -230,17 +230,24 @@ p { text-wrap: pretty; }
 .hero__body { margin: 0; width: 434px; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
 .hero__actions { display: flex; align-items: center; gap: var(--space-3); }
 
-/* Stacked up to 991px (tablet and mobile): the effect is a full-width band,
-   50% of the screen's height, right under the navbar; the hero's
-   padding-top reserves navbar + band + gap, the text follows */
+/* Hero tablet (768-991px), like the CTA: horizontal like desktop, the text
+   in the left half. The effect div keeps desktop's proportions (1063 of
+   1512 = 70.3% of the width, centered on the same spot), so the spheres
+   scale with the screen and stay clear of the text. */
 .hero-frame { --navbar-h: 71px; }
 @media (max-width: 991px) {
-  .hero { min-height: 0; padding: calc(var(--navbar-h) + 50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
-  .hero .u-particles-threejs { top: var(--navbar-h); left: 0; width: 100%; height: 50svh; aspect-ratio: auto; transform: none; }
+  .hero .u-particles-threejs { width: 70.3%; }
+  .hero__content { max-width: calc(50% - 24px); }
   .hero__title, .hero__body { width: 100%; }
 }
+/* Hero mobile (767px and below): stacked. The effect is a full-width band,
+   50% of the screen's height, right under the navbar; the hero's
+   padding-top reserves navbar + band + gap, the text follows */
 @media (max-width: 767px) {
   .hero-frame { --navbar-h: 63px; }
+  .hero { min-height: 0; padding: calc(var(--navbar-h) + 50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
+  .hero .u-particles-threejs { top: var(--navbar-h); left: 0; width: 100%; height: 50svh; aspect-ratio: auto; transform: none; }
+  .hero__content { max-width: none; }
   .navbar__logo img { width: auto; height: 20px; }
   .navbar__links, .navbar__actions .btn { display: none; }
 }
@@ -327,7 +334,7 @@ html.only::-webkit-scrollbar { display: none; }
      the Webflow implementation guide. In Webflow, only the data-* attributes,
      the .u-particles-threejs styles and the script tag matter. -->
 <header class="ref-bar">
-  <div class="ref-bar__brand">Clarify particles<span>v1.4.0</span></div>
+  <div class="ref-bar__brand">Clarify particles<span>v1.5.0</span></div>
   <nav class="ref-tabs"><a class="ref-tab" href="#hero" data-tab="hero">Hero</a><a class="ref-tab" href="#cta" data-tab="cta">CTA</a><a class="ref-tab ref-tab--end" href="#setup" data-tab="setup">Setup</a></nav>
 </header>
 <div class="ref-toolbar" id="ref-toolbar" hidden>
@@ -380,8 +387,8 @@ html.only::-webkit-scrollbar { display: none; }
         </div>
       </div>
       <div class="hero__actions">
-        <a class="btn btn--primary" href="#">Book a demo</a>
-        <a class="btn btn--secondary" href="#">Talk to an engineer</a>
+        <a class="btn btn--primary" href="#" data-particles-excite>Book a demo</a>
+        <a class="btn btn--secondary" href="#" data-particles-excite>Talk to an engineer</a>
       </div>
     </div>
   </section>
@@ -403,17 +410,17 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.4.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.5.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
-        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The hero section</td><td><code>data-particles-component</code><br><code>data-preset=&quot;hero&quot;</code><br><code>data-particles-wrap</code></td></tr></tbody></table>
+        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The hero section</td><td><code>data-particles-component</code><br><code>data-preset=&quot;hero&quot;</code><br><code>data-particles-wrap</code></td></tr><tr><td>The <b>“Book a demo”</b> and <b>“Talk to an engineer”</b> buttons</td><td><code>data-particles-excite</code></td></tr></tbody></table>
         <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
         <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
         <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>.hero .u-particles-threejs {
@@ -425,6 +432,11 @@ html.only::-webkit-scrollbar { display: none; }
   transform: translate(-50%, -50%);
 }
 @media (max-width: 991px) {
+  .hero .u-particles-threejs {
+    width: 70.3%;
+  }
+}
+@media (max-width: 767px) {
   .hero .u-particles-threejs {
     top: var(--navbar-h);
     left: 0;
@@ -440,11 +452,13 @@ html.only::-webkit-scrollbar { display: none; }
     <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;</span>
   <span class="dim">&lt;/div&gt;</span>
   <span class="dim">… section content …</span>
+  &lt;a class=&quot;btn btn--primary&quot; href=&quot;#&quot; data-particles-excite&gt;Book a demo&lt;/a&gt;
+  &lt;a class=&quot;btn btn--secondary&quot; href=&quot;#&quot; data-particles-excite&gt;Talk to an engineer&lt;/a&gt;
 &lt;/section&gt;</code></pre></div>
         <h3>Requirements</h3>
-        <ul><li>The section needs <code>position: relative</code> and <code>overflow: clip</code> (or <code>hidden</code>). The outer sphere bleeds off the right edge on desktop, and the section crops it.</li><li><b>Desktop:</b> the spheres are drawn at the center of <code>.u-particles-threejs</code>, with the outer shell's radius at 38% of the div's side. To move or resize the spheres, move or resize the div.</li><li><b>Tablet and mobile</b> (991 px and below): the hero stacks. The div is a full-width band, 50% of the screen height (<code>50svh</code>), right under the navbar (<code>--navbar-h</code>: 71 px on tablet, 63 px on mobile; use your navbar's real height). The spheres are centered in it and sized from its width, so they fill it at every width and get cropped top and bottom. The hero's top padding reserves navbar + band + 36 px, and the text follows.</li><li>Keep the hero content above the effect: <code>position: relative; z-index: 1</code> on the content wrapper.</li><li>The navbar is not part of the effect, and needs no attributes.</li></ul>
+        <ul><li>The section needs <code>position: relative</code> and <code>overflow: clip</code> (or <code>hidden</code>). The outer sphere bleeds off the right edge on desktop, and the section crops it.</li><li><b>The canvas is exactly <code>.u-particles-threejs</code></b>: the spheres are drawn inside that div, with room around them, so they're never cut at its edges.</li><li><b>Desktop:</b> the spheres are drawn at the center of <code>.u-particles-threejs</code>, with the outer shell's radius at 38% of the div's side. To move or resize the spheres, move or resize the div.</li><li><b>Tablet</b> (768–991 px): same horizontal layout as desktop. The div keeps desktop's proportions (<code>width: 70.3%</code> of the hero, same center), so the spheres scale with the screen; the text stays in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below): the hero stacks. The div is a full-width band, 50% of the screen height (<code>50svh</code>), right under the navbar (<code>--navbar-h</code>: 63 px; use your navbar's real height). The spheres are centered in it and fitted inside it (the preset has settings per breakpoint): as big as the band allows, 8 px inside its edges, so they never reach under the navbar or into the text. The hero's top padding reserves navbar + band + 36 px, and the text follows.</li><li>Keep the hero content above the effect: <code>position: relative; z-index: 1</code> on the content wrapper.</li><li>The navbar is not part of the effect, and needs no attributes.</li></ul>
         <h3>Behaviour to expect</h3>
-        <ul><li>Three nested dotted spheres, slowly turning.</li><li>On load, the dots gather from a scatter into the spheres.</li><li><b>Hover:</b> dots near the cursor are pushed aside.</li><li><b>Click:</b> the dots burst outward, then reform.</li><li><b>991 px and below:</b> the spheres centered in the band, filling its width. Under 768 px: 4,500 dots at 60% size, instead of 7,000.</li><li><b>Resizing</b> across 992 px or 768 px swaps the layouts.</li></ul>
+        <ul><li>Four dotted shapes in a loop: three nested spheres → meridians → a spiral → a burst. Each holds for 6 s, then morphs into the next over 2 s (the CTA's timing). They're there from the first frame (no entrance), as the CTA.</li><li><b>Depth:</b> the spheres turn gently toward the cursor.</li><li><b>Hover:</b> dots near the cursor are pushed aside.</li><li><b>Buttons:</b> hovering “Book a demo” or “Talk to an engineer” lights all the dots up (mouse only), as “Get started” does on the CTA.</li><li><b>Click</b> (desktop): the dots burst outward, then reform. Not on tablet and mobile.</li><li><b>Touch</b> (phones, tablets): no reaction to a finger (no hover, no tap, no spin), so swipes always scroll the page.</li><li><b>Tablet</b> (768–991 px): the spheres are smaller, so they use fewer, smaller dots (4,500; 3,300 at 879 px and below) to keep desktop's look.</li><li><b>767 px and below:</b> the spheres centered in the band and fitted inside it, with 4,500 dots at 60% size instead of 7,000, rendered at the phone's full resolution.</li><li><b>Resizing</b> across 768 px swaps the layouts.</li></ul>
     </div>
   </div>
 </section>
@@ -492,13 +506,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.4.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.5.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -537,7 +551,7 @@ html.only::-webkit-scrollbar { display: none; }
         <h3>Requirements</h3>
         <ul><li>The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.</li><li><b>The canvas covers the whole card</b> (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above it.</li><li><b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.</li><li><b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.</li></ul>
         <h3>Behaviour to expect</h3>
-        <ul><li>Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.</li><li><b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.</li><li><b>Background:</b> a fine grid of small squares over the whole card, with soft lights drifting across it slowly. All drawn in WebGL with the network: nothing to build in Webflow, no CSS blur.</li><li><b>Hover:</b> the nodes nearest the cursor brighten and are pushed aside, and the grid squares under the cursor light up and fade out behind it (desktop only).</li><li><b>Click:</b> a slow ripple of light through the connections.</li><li><b>Button:</b> hovering “Get started” lights the whole network up (mouse only).</li><li><b>Touch</b> (phones, tablets): drag sideways on the network to spin it; hold a finger still for a moment to grab it, then it turns up and down too. A normal swipe still scrolls the page.</li><li><b>Mobile:</b> the same network as a dome filling the band's width, its bottom kept in the band, cropped at the top. The grid is calmer there.</li><li><b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.</li></ul>
+        <ul><li>Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.</li><li><b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.</li><li><b>Hover:</b> the nodes nearest the cursor are pushed aside.</li><li><b>Click:</b> a slow ripple of light through the connections.</li><li><b>Button:</b> hovering “Get started” lights the whole network up (mouse only).</li><li><b>Touch</b> (phones, tablets): drag sideways on the network to spin it; hold a finger still for a moment to grab it, then it turns up and down too. A normal swipe still scrolls the page.</li><li><b>Mobile:</b> the same network as a dome filling the band's width, its bottom kept in the band, cropped at the top.</li><li><b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.</li></ul>
     </div>
   </div>
 </section>
@@ -546,18 +560,18 @@ html.only::-webkit-scrollbar { display: none; }
   <div class="ref-guide ref-guide--setup">
     <header class="ref-guide__head">
       <h2>Setup</h2>
-      <div class="ref-meta"><span class="ref-pill">v1.4.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
+      <div class="ref-meta"><span class="ref-pill">v1.5.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
     </header>
     <h3><span>1</span>Add the script, once, site-wide</h3>
     
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.4.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.5.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.4.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.5.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
     <h3><span>2</span>Mark up each section</h3>
