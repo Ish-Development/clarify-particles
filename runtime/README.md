@@ -2,7 +2,7 @@
 
 Interactive particle/network backgrounds for Webflow sections. You don't need a build step or a framework: add one script to the site, then mark each section with two attributes. Each section's look lives in this repo as a named **preset**, so no design settings go into Webflow.
 
-- **Live reference:** [clarify-particles.vercel.app](https://clarify-particles.vercel.app) (also on [GitHub Pages](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html)) has one tab per finished section: the section running the production script at any screen width (1920 down to 320, or drag to resize), and its exact Webflow implementation (attributes, `.u-particles-threejs` CSS, requirements). A Setup tab repeats steps 1 and 2 below.
+- **Live reference:** [clarify-particles.vercel.app](https://clarify-particles.vercel.app) has one tab per finished section: the section running the production script at any screen width (1920 down to 320, or drag to resize), and its exact Webflow implementation (attributes, `.u-particles-threejs` CSS, requirements). A Setup tab repeats steps 1 and 2 below.
 - **All attributes:** [docs/CONFIG.md](../docs/CONFIG.md)
 
 ## 1. Add the script (once, site-wide)
@@ -65,13 +65,13 @@ What the script does to the created div: sets `isolation: isolate` (and `positio
 
 ### Per section
 
-Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requirements and behaviour are on its tab of the [live reference](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html).
+Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requirements and behaviour are on its tab of the [live reference](https://clarify-particles.vercel.app/).
 
 | Section | Preset | Component | Tab |
 |---|---|---|---|
-| Hero ("Learn from the past and predict the future") | `hero` | the hero section (`data-how-component` + `data-how-wrap`); its "Book a demo" and "Talk to an engineer" buttons get `data-particles-excite` | [#hero](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#hero) |
-| CTA ("See how Clarify solves yours") | `cta` | the card; the "Get started" button gets `data-particles-excite` | [#cta](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#cta) |
-| What Clarify does ("How Clarify helps you earn more, and cut cost") | `fjord` | the section (`data-fjord-component`); the map panel is `data-fjord-wrap`; the tabs get `data-fjord-tab` | [#fjord](https://ish-development.github.io/clarify-particles/dist-runtime/demo.html#fjord) |
+| Hero ("Learn from the past and predict the future") | `hero` | the hero section (`data-how-component` + `data-how-wrap`); its "Book a demo" and "Talk to an engineer" buttons get `data-particles-excite` | [#hero](https://clarify-particles.vercel.app/#hero) |
+| CTA ("See how Clarify solves yours") | `cta` | the card; the "Get started" button gets `data-particles-excite` | [#cta](https://clarify-particles.vercel.app/#cta) |
+| What Clarify does ("How Clarify helps you earn more, and cut cost") | `fjord` | the section (`data-fjord-component`); the map panel is `data-fjord-wrap`; the tabs get `data-fjord-tab` | [#fjord](https://clarify-particles.vercel.app/#fjord) |
 
 ## Built in
 
