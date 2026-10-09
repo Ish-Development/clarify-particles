@@ -6,3 +6,4 @@ dist
 .vercel
 .particles-debug.log
 .env*
+lab/state.json

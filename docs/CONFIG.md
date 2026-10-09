@@ -136,26 +136,63 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 
 The "What Clarify does" spatial map (`map-scene.ts`), driven by tabs. Shared keys that apply: `mobileDpr` (default `2` here), `background`. Its pointer handling is its own (`interactive` is `false`).
 
-| Key | Default | Notes |
-|---|---|---|
-| `frameColor` / `gridOpacity` | `#3E4143` / `0.28` | The box frame and the three level grids (the frame edges at `0.3 + 2 × gridOpacity`) |
-| `wireColor` / `wireOpacity` | `#7B7E81` / `0.5` | The terrain wireframe at the floor |
-| `reliefPale` / `reliefDeep` / `reliefOpacity` | `#FFFFFF` / `#7B7E81` / `0.7` | Relief spikes, base color → tip color by brightness |
-| `reliefThreshold` | `0.11` | Cells darker than this (0..1 luminance) get no spike. The outlines were baked at 0.11 (`scripts/bake-map.mjs`) |
-| `coastColor` | `#D7D9DA` | The extracted coastline |
-| `formColor` / `formStrongColor` | `#3E4143` / `#7B7E81` | Hatching (and the coast cutout's edge); the refined regions' edges |
-| `accentColor` / `traceColor` | `#D7D9DA` / `#7B7E81` | Anomaly ring + signal specks; the dashed trace |
-| `labelColor` / `calloutColor` | `#D7D9DA` / `#D7D9DA` | In-scene text |
-| `fontSans` / `fontMono` | Geist / Geist Mono | CSS font families for the in-scene text (the site must load them; the map waits up to 2 s) |
-| `labels` | `The Operation, Extracted, Refined, The Signal` | Level names, bottom to top |
-| `extractStat` / `extractCaption` | `45M` / `Sensor signals / day` | Callout on the coastline |
-| `refineStat` / `refineCaption` | `162` / `Active sites monitored` | Callout on the ringed region |
-| `signalTitle` / `signalStat` / `signalCaption` | `The Signal` / `3` / `Actions this week` | The top-down block |
-| `smoothTime` | `0.6` | Camera flight smoothing (s) |
-| `zoom` | `1.09` | Camera distance multiplier (all steps); `fjord` uses `1.4` at ≤ 767 |
-| `fitAspect` | `1` | Panels narrower than this (width / height) move the camera back so the box fits across |
-| `drag` | `true` | Mouse drag orbits (desktop; touch never does) |
-| `autoplay` | `7` | Seconds per tab before the next opens (`0` = click only) |
+The `fjord` preset is the **staged story** (`stagedLayers: true`, since v1.7.0); the defaults below are the original map (v1.6.0), which the other keys still describe. The preset's values are in `src/runtime/presets.json`.
+
+### The staged story
+
+Tab 1 (Own): the floor's needles churn, a line sweeps them into an even field, the camera pushes in and one needle rises as the anomaly, with its card. Tab 2 (Refine): dots lift onto Signals and gather into three clusters; the scan builds Reasoning and three tiles assemble from the clusters' dots, with their chips. Tab 3 (Deliver): straight down onto the stack; everything below the ring fades back (floor, Signals, the teal and white tiles); the pink tile's dots form a ring on Actions, routed to two actors whose switches flip on. Each tab plays its part the first time it shows; later visits, coming back down and reduced motion land on its end. A re-click on the open tab does nothing. The needles move all the time, so a staged map redraws every frame while it's on screen (it stops off screen and under reduced motion).
+
+| Key | Default | `fjord` | Notes |
+|---|---|---|---|
+| `stagedLayers` | `false` | `true` | The staged story (above) |
+| `mapForms` | `true` | `false` | The original map's forms: coastline, regions, anomaly ring, specks, dashed trace |
+| `tempo` | `1` | `1.3` | The story's speed: scales the tab timelines, the scan and the camera flights together (clamped to ≥ 0.05) |
+| `buildSpeed` | `2.2` | `8` | How fast the scan plane rises (world units/s; a level is 6) |
+| `sweepTime` / `reliefOrderHeight` | `0.9` / `0.9` | `1.1` / `0.9` | Tab 1: the sweep's length (s); the even height the needles settle to (world units). They stay settled on later visits |
+| `reliefSettleSwell` | `0` | `0.8` | How much the settled needles still breathe: a slow swell moving through them together (0 = still) |
+| `sweepColor` / `alertColor` | `#a2d0c1` / `#e0607e` | — | The sweep line; the alert colour (the anomaly, the pink cluster, tile and ring, the UI's accents) |
+| `storyLevels` | `, Signals, Reasoning, Actions` | — | Level labels (HTML, left of the stack), bottom to top; an empty entry is skipped. Hidden where they don't fit and on tab 3 |
+| `tileLabels` | `Asset health, Maintenance risk, Energy use` | — | The three Reasoning tiles' chips |
+| `alertTag` / `alertTitle` / `alertText` | `EVT-2291` / `Pump 14` / `Vibration above baseline` | — | The anomaly's card (tab 1) |
+| `routeTitle` / `routeText` | `Routed to` / `EVT-2291 · Pump 14 maintenance risk` | — | The routing card's header (tab 3) |
+| `actor1` / `actor1Text`, `actor2` / `actor2Text` | `Operations lead` / `Person`, `Maintenance planner` / `Work order drafted` | — | Its two rows, each with a switch |
+| `closingLabel` / `closingValue` | `Caught before failure` / `18 h` | — | Its closing row and bar |
+
+Any copy key can also be set per element as an attribute (e.g. `data-alert-title="Pump 7"`). The UI is HTML over the canvas (`map-overlay.ts`): `fj-` prefixed classes, injected CSS, scaled with the panel (down to 72% on phones), in the site's card and motion language; it assumes the site loads Geist and Geist Mono.
+
+### The floor
+
+| Key | Default | `fjord` | Notes |
+|---|---|---|---|
+| `reliefStyle` | `"columns"` | `"needles"` | `"columns"`: a box per bright cell; `"dots"`: a soft point cloud at the column tops; `"needles"`: a regular grid of hair-thin lines whose heights keep moving (a swell plus each needle's flicker) |
+| `reliefNeedleGrid` | `32` | `64` | Needles: how many per side. Motion: `reliefDriftSpeed` (speed), `reliefDriftScale` (swell size), `reliefTwinkle` (0 = only the swell, 1 = only each needle's flicker); colour `reliefPale` at the floor to `reliefDeep` at a tall tip |
+| `reliefDotSize` / `reliefDotRise` / `reliefDotsPerCell` | `0.35` / `1` / `2` | — | Dots: size (world units), height as a share of the column's, dots per cell (jittered) |
+| `reliefDriftSpeed` / `reliefDriftScale` | `1` / `0.22` | `0.95` / `0.29` | Dots: how fast each dot's life runs (1 ≈ 5–8 s), the currents' size (smaller = bigger, smoother). Needles: as above |
+| `reliefDrift` / `reliefTwinkle` | `0` / `0` | — / `0.5` | Dots: how far each sweeps along the current per life (world units) and twinkle (0..1); either keeps the map redrawing while on screen |
+| `reliefPale` / `reliefDeep` / `reliefOpacity` | `#FFFFFF` / `#7B7E81` / `0.7` | `#3a3d41` / `#b7bec5` / — | Relief colours, base → tip; opacity |
+| `reliefThreshold` | `0.11` | — | Cells darker than this (0..1 luminance) get no spike. The outlines were baked at 0.11 (`scripts/bake-map.mjs`) |
+| `wireColor` / `wireOpacity` | `#7B7E81` / `0.5` | — / `0` | The terrain wireframe at the floor |
+
+### Structure, the original forms, camera
+
+| Key | Default | `fjord` | Notes |
+|---|---|---|---|
+| `frameColor` / `gridOpacity` | `#3E4143` / `0.28` | `#575b5f` / — | The box frame and the three level grids (the frame edges at `0.3 + 2 × gridOpacity`) |
+| `walls` | `true` | `false` | The box frame's edges; `false` leaves the level grids floating |
+| `coastColor` | `#D7D9DA` | — | The extracted coastline |
+| `formColor` / `formStrongColor` | `#3E4143` / `#7B7E81` | — | Hatching (and the coast cutout's edge); the refined regions' edges |
+| `accentColor` / `traceColor` | `#D7D9DA` / `#7B7E81` | — | Anomaly ring + signal specks; the dashed trace |
+| `labelColor` / `calloutColor` | `#D7D9DA` / `#D7D9DA` | — | In-scene text |
+| `fontSans` / `fontMono` | Geist / Geist Mono | — | CSS font families for the in-scene text (the site must load them; the map waits up to 2 s) |
+| `labels` / `labelSize` | `The Operation, Extracted, Refined, The Signal` / `0.42` | `""` | In-scene level names, bottom to top; their size (world units) |
+| `extractStat` / `extractCaption` | `45M` / `Sensor signals / day` | `""` | Callout on the coastline (both empty: none) |
+| `refineStat` / `refineCaption` | `162` / `Active sites monitored` | `""` | Callout on the ringed region |
+| `signalTitle` / `signalStat` / `signalCaption` | `The Signal` / `3` / `Actions this week` | `""` | The top-down block |
+| `smoothTime` | `0.6` | — | Camera flight smoothing (s); staged flights take 2.5× this, at `tempo` |
+| `zoom` | `1.09` | — | Camera distance multiplier (all steps) |
+| `fitAspect` | `1` | — | Panels narrower than this (width / height) move the camera back so the box fits across |
+| `drag` | `true` | `false` | Mouse drag orbits (desktop; touch never does) |
+| `autoplay` | `7` | — | Seconds per tab before the next opens (`0` = click only) |
 
 ## Element-level markers
 

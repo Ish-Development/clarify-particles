@@ -43,6 +43,20 @@ export interface MapConfig {
   // the box frame, level grids and extract edge
   frameColor: string;
   gridOpacity: number;
+  // the box's edges (the "walls"); off leaves the level grids floating
+  walls: boolean;
+  // the first tab shows only the floor (raw data): everything above it
+  // fades out there and back in on the other tabs
+  stagedLayers: boolean;
+  // the original map's forms: coastline, regions, anomaly ring, specks,
+  // dashed trace (off for the staged video story)
+  mapForms: boolean;
+  // staged: how fast the scan plane rises when a tab builds its levels
+  // (world units/s; a level is 6)
+  buildSpeed: number;
+  // staged: the story's speed (1 = as designed); scales the tab timelines,
+  // the scan and the camera flights
+  tempo: number;
   // the terrain wireframe at the floor
   wireColor: string;
   wireOpacity: number;
@@ -52,6 +66,53 @@ export interface MapConfig {
   reliefDeep: string;
   reliefOpacity: number;
   reliefThreshold: number;
+  // "columns" (a box per cell) or "dots": a soft point cloud at the column
+  // tops, `reliefDotsPerCell` per cell, jittered; `reliefDotRise` 0..1 of
+  // the column height; `reliefDotSize` in world units
+  // "needles": a regular grid of hair-thin lines whose heights keep moving
+  // (reliefNeedleGrid per side; reliefDriftSpeed/Scale drive the swell,
+  // reliefTwinkle is the share of each needle's own flicker)
+  reliefStyle: "columns" | "dots" | "needles";
+  reliefNeedleGrid: number;
+  // staged needles: the even height they settle to when the floor orders
+  // (world units), and how long the sweep takes (s)
+  reliefOrderHeight: number;
+  // staged needles: how much the settled field still breathes (0 = still)
+  reliefSettleSwell: number;
+  sweepTime: number;
+  // staged: the sweep line's colour; the anomaly's (the alert) colour
+  sweepColor: string;
+  alertColor: string;
+  // staged: the story's UI copy (HTML over the map; empty hides a line).
+  // storyLevels: the level labels bottom to top, comma separated (empty
+  // entries are skipped); tileLabels: the three Reasoning tiles; the
+  // anomaly's card; the routing card (title, line, two actors with their
+  // detail, the closing row)
+  storyLevels: string;
+  tileLabels: string;
+  alertTag: string;
+  alertTitle: string;
+  alertText: string;
+  routeTitle: string;
+  routeText: string;
+  actor1: string;
+  actor1Text: string;
+  actor2: string;
+  actor2Text: string;
+  closingLabel: string;
+  closingValue: string;
+  reliefDotSize: number;
+  reliefDotRise: number;
+  reliefDotsPerCell: number;
+  // dots: how far each one sweeps along the current over its few-second
+  // life (world units; 0 = still) and twinkle (0..1); either on keeps the
+  // map redrawing every frame while it's on screen
+  reliefDrift: number;
+  reliefTwinkle: number;
+  // dots: how fast they live and sweep (1 = a life every ~5-8 s)
+  reliefDriftSpeed: number;
+  // dots: noise frequency of the currents (smaller = bigger, smoother patches)
+  reliefDriftScale: number;
   // the extracted coastline; hatching; region edges; anomaly ring + specks;
   // dashed trace
   coastColor: string;
@@ -64,8 +125,10 @@ export interface MapConfig {
   calloutColor: string;
   fontSans: string;
   fontMono: string;
-  // the four level names, bottom to top, comma separated
+  // the four level names, bottom to top, comma separated; their size
+  // (world units)
   labels: string;
+  labelSize: number;
   extractStat: string;
   extractCaption: string;
   refineStat: string;
@@ -112,12 +175,44 @@ export const mapDefaults: MapViewConfig = {
   background: "transparent",
   frameColor: "#3E4143",
   gridOpacity: 0.28,
+  walls: true,
+  stagedLayers: false,
+  mapForms: true,
+  buildSpeed: 2.2,
+  tempo: 1,
   wireColor: "#7B7E81",
   wireOpacity: 0.5,
   reliefPale: "#FFFFFF",
   reliefDeep: "#7B7E81",
   reliefOpacity: 0.7,
   reliefThreshold: 0.11,
+  reliefStyle: "columns",
+  reliefNeedleGrid: 32,
+  reliefOrderHeight: 0.9,
+  reliefSettleSwell: 0,
+  sweepTime: 0.9,
+  sweepColor: "#a2d0c1",
+  alertColor: "#e0607e",
+  storyLevels: ", Signals, Reasoning, Actions",
+  tileLabels: "Asset health, Maintenance risk, Energy use",
+  alertTag: "EVT-2291",
+  alertTitle: "Pump 14",
+  alertText: "Vibration above baseline",
+  routeTitle: "Routed to",
+  routeText: "EVT-2291 · Pump 14 maintenance risk",
+  actor1: "Operations lead",
+  actor1Text: "Person",
+  actor2: "Maintenance planner",
+  actor2Text: "Work order drafted",
+  closingLabel: "Caught before failure",
+  closingValue: "18 h",
+  reliefDotSize: 0.35,
+  reliefDotRise: 1,
+  reliefDotsPerCell: 2,
+  reliefDrift: 0,
+  reliefTwinkle: 0,
+  reliefDriftSpeed: 1,
+  reliefDriftScale: 0.22,
   coastColor: "#D7D9DA",
   formColor: "#3E4143",
   formStrongColor: "#7B7E81",
@@ -128,6 +223,7 @@ export const mapDefaults: MapViewConfig = {
   fontSans: '"Geist", system-ui, sans-serif',
   fontMono: '"Geist Mono", ui-monospace, monospace',
   labels: "The Operation, Extracted, Refined, The Signal",
+  labelSize: 0.42,
   extractStat: "45M",
   extractCaption: "Sensor signals / day",
   refineStat: "162",

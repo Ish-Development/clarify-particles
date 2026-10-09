@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fjord lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #060709; color: #8e949a; font: 12px "Geist Mono", ui-monospace, monospace; overflow: hidden; }
+      #stage { position: absolute; inset: 0 312px 0 292px; display: grid; place-items: center; }
+      #frame { position: relative; border: 1px solid #2f323680; border-radius: 8px; background: #080a0c; overflow: hidden; }
+      #frame.full { position: fixed; inset: 0; border: 0; border-radius: 0; width: 100vw !important; height: 100vh !important; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #hud { position: fixed; left: 20px; bottom: 12px; pointer-events: none; }
+      #col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+      #tabs { position: relative; z-index: 4; display: flex; gap: 4px; padding: 4px; background: #1b1b1d; border: 1px solid #ffffff12; border-radius: 12px; }
+      #frame.full + #tabs { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); }
+      #tabs button { padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: #8e8e93; font: 12px "Geist", system-ui, sans-serif; cursor: pointer; }
+      #tabs button b { font-weight: 500; margin-right: 4px; color: #b7bec5; }
+      #tabs button.on { background: #ffffff1f; color: #f8fbfd; }
+      #tabs button.on b { color: #f8fbfd; }
+      #swatches { position: fixed; z-index: 5; top: 16px; left: 16px; width: 260px; box-sizing: border-box; padding: 6px; background: #1b1b1d; border: 1px solid #ffffff12; border-radius: 16px; color: #e8e8ea; font: 12px "Geist", system-ui, sans-serif; }
+      #swatches h3 { display: flex; justify-content: space-between; margin: 0; padding: 8px 8px 4px; font: 10px "Geist Mono", ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #8e8e93; }
+      #swatches h3 em { font-style: normal; color: #e8e8ea; letter-spacing: 0; text-transform: none; }
+      #swatches .group + .group, #swatches .palette { margin-top: 2px; padding-top: 2px; border-top: 1px solid #ffffff0d; }
+      #swatches .slot { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; width: 100%; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: #c7c7cc; font: inherit; text-align: left; white-space: nowrap; cursor: pointer; }
+      #swatches .slot:hover { background: #ffffff0a; }
+      #swatches .slot.on { background: #ffffff1a; color: #fff; }
+      #swatches .slot i { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px #ffffff26; }
+      #swatches .slot em { font: 10px "Geist Mono", ui-monospace, monospace; font-style: normal; color: #6e6e73; }
+      #swatches .slot.on em { color: #aeaeb2; }
+      #swatches .palette { padding: 2px 8px 8px; }
+      #swatches .palette h3 { padding: 6px 0 6px; }
+      #swatches .row { display: grid; grid-template-columns: 40px repeat(11, 1fr); gap: 2px; align-items: center; margin-bottom: 2px; }
+      #swatches .row span { font: 9px "Geist Mono", ui-monospace, monospace; letter-spacing: 0.06em; text-transform: uppercase; color: #6e6e73; }
+      #swatches .sw { position: relative; aspect-ratio: 1; padding: 0; border: 0; border-radius: 3px; box-shadow: inset 0 0 0 1px #ffffff14; cursor: pointer; }
+      #swatches .sw.used::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; mix-blend-mode: difference; }
+      #swatches .sw.cur { outline: 2px solid #fff; outline-offset: 1px; z-index: 1; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <div id="col">
+        <div id="frame"></div>
+        <nav id="tabs">
+          <button data-step="0"><b>Own</b> Act faster on facts</button>
+          <button data-step="1"><b>Refine</b> Your data is your advantage</button>
+          <button data-step="2"><b>Deliver</b> Deliver events to the right actor</button>
+        </nav>
+      </div>
+    </div>
+    <div id="hud"></div>
+    <script type="module" src="./fjord.ts"></script>
+  </body>
+</html>

@@ -42,7 +42,7 @@ import { applyClick, applyHover, type InteractionConfig, type Steerable } from "
 import { hexToRgb01, particleColor } from "../core/color";
 import type { MapViewConfig, RuntimeOptions } from "./defaults";
 import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
-import type { MapScene } from "./map-scene";
+import type { MapOverlay, MapScene } from "./map-scene";
 
 // = MOBILE_QUERY in presets.ts (kept literal: the engine imports no loader code)
 const isMobile = () => matchMedia("(max-width: 767px)").matches;
@@ -1484,6 +1484,7 @@ class MapView extends View {
   readonly system = NO_SYSTEM;
   readonly is3d = true;
   private map: MapScene | null = null;
+  private overlay: MapOverlay | null = null;
   // something changed since the last draw: the map only redraws then
   private dirty = false;
   private disposed = false;
@@ -1501,13 +1502,19 @@ class MapView extends View {
       .then(([m]) => {
         if (this.disposed) return;
         const map = new m.MapScene(cfg);
+        map.setReducedMotion(reducedMotion.matches);
+        // staged: the story's UI, HTML over the canvas
+        if (cfg.stagedLayers) {
+          if (getComputedStyle(el).position === "static") el.style.position = "relative";
+          this.overlay = new m.MapOverlay(el, cfg);
+        }
         this.map = map;
         this.scene.add(map.root);
         this.camera = map.camera;
         this.onResize();
         map.setStep(this.activeStep(), true);
         this.dirty = true;
-        if (this.visible && !this.running) this.paint();
+        if (this.visible && !this.running) this.paintStill();
         wake();
       })
       .catch((err) => console.warn("[particles] map failed to load", err));
@@ -1540,9 +1547,17 @@ class MapView extends View {
     if (!this.map) return;
     this.map.setStep(step, reducedMotion.matches);
     this.dirty = true;
-    if (this.visible && !this.running) this.paint();
+    if (this.visible && !this.running) this.paintStill();
     wake();
   };
+
+  // no animation frames (reduced motion, paused): one update settles the
+  // step's state (a jump lands everything) before the still is drawn
+  private paintStill() {
+    this.map?.update(1 / 60);
+    this.dirty = true;
+    this.paint();
+  }
 
   // mouse drag orbits (desktop); fingers keep scrolling the page
   private readonly onDown = (e: PointerEvent) => {
@@ -1591,6 +1606,7 @@ class MapView extends View {
     if (!this.map || !this.dirty) return;
     this.dirty = false;
     super.paint();
+    this.overlay?.update(this.map, this.cw, this.ch, performance.now() / 1000);
   }
 
   protected sync() {}
@@ -1599,6 +1615,8 @@ class MapView extends View {
     if (!this.map) return;
     this.map.setAspect(this.cw / this.ch);
     this.map.setResolution(this.cw, this.ch);
+    // relief dots (reliefStyle "dots"): sized against the drawing buffer
+    this.map.setPointScale(this.ch * this.dpr);
     this.dirty = true;
   }
 
@@ -1614,6 +1632,7 @@ class MapView extends View {
     this.el.style.cursor = this.prevCursor;
     this.el.style.pointerEvents = this.prevPointerEvents;
     this.map?.dispose();
+    this.overlay?.dispose();
   }
 }
 

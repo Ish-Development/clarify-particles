@@ -9,12 +9,21 @@
 // specks on top, a dashed trace through them, and in-scene labels/callouts.
 // Three camera steps (one per tab) fly between the levels; a mouse drag
 // orbits within a step.
+//
+// stagedLayers turns it into the staged story (the `fjord` preset): the
+// floor's needles churn, a sweep orders them and an anomaly rises (tab 1);
+// signals cluster and tiles drop onto Reasoning (tab 2, map-signals.ts);
+// a ring forms on Actions and is routed to its actors (tab 3). Each tab
+// plays its part the first time it shows and lands on its end after. The
+// story's UI is HTML over the canvas (map-overlay.ts, re-exported here so it
+// rides in this chunk).
 import {
   BoxGeometry,
   CanvasTexture,
   Color,
   DoubleSide,
   EdgesGeometry,
+  Float32BufferAttribute,
   Group,
   InstancedMesh,
   LineBasicMaterial,
@@ -24,12 +33,14 @@ import {
   MeshBasicMaterial,
   PerspectiveCamera,
   PlaneGeometry,
+  Points,
+  ShaderMaterial,
   RepeatWrapping,
   Shape,
   ShapeGeometry,
   TorusGeometry,
   Vector3,
-  type BufferGeometry,
+  BufferGeometry,
   type Material,
   type Object3D,
   type Texture,
@@ -38,12 +49,13 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { MAP_DATA } from "./map-data";
+import { ANOMALY_XZ, LEVEL, LEVEL_H, LEVELS, REASONING_AT, WORLD } from "./map-consts";
+import { SignalsLayer, signalsDefaults } from "./map-signals";
+// the staged UI rides in this (lazy) chunk too
+export { MapOverlay } from "./map-overlay";
 import type { MapConfig } from "./defaults";
 
 // --- scene constants (the spatial map's generators.ts / camera-storyboard.ts) ---
-const WORLD = MAP_DATA.world; // 16
-const LEVEL_H = 6;
-const LEVEL = { floor: 0, extract: LEVEL_H, refine: LEVEL_H * 2, signal: LEVEL_H * 3 };
 const BOX_H = LEVEL.signal + 3;
 const FOV = 40;
 type V3 = [number, number, number];
@@ -53,6 +65,40 @@ const STEPS: { position: V3; target: V3 }[] = [
   // north-up top-down (a hair of +z keeps the up vector stable)
   { position: [0, LEVEL.signal + 18, 0.001], target: [0, LEVEL.signal, 0] },
 ];
+// stagedLayers: the first tab is a close-up of the floor alone; once the
+// floor has settled the camera moves in closer, onto the anomaly
+const FLOOR_STEP: { position: V3; target: V3 } = { position: [15, 8.5, 15], target: [0, 1.2, 0] };
+const FLOOR_CLOSE: { position: V3; target: V3 } = { position: [9.5, 6.5, 11], target: [-0.5, 2.2, 0.5] };
+// staged middle tab: the camera pulls back to take in floor to Reasoning,
+// the clusters and the tiles
+const REFINE_WIDE: { position: V3; target: V3 } = { position: [16, 19, 18], target: [0, 6.8, 0] };
+// staged top tab: straight down onto the stack, centred on the ring (its
+// spot on the levels), the tiles and clusters showing through below; a
+// bigger move for the last step. Near-square panels (phones) aim a little
+// lower so the ring sits in the top half, clear of the card below.
+const RING_AT_XZ = ANOMALY_XZ;
+// wide panels: closer, and the picture shifted left (a lens shift, so no
+// parallax: the ring stays over its tile) so the stack fills the left
+// two-thirds and the routing card gets the right third to itself
+const DELIVER_STEP: { position: V3; target: V3 } = {
+  position: [RING_AT_XZ[0], LEVEL_H * 3 + 17, RING_AT_XZ[1] + 0.001],
+  target: [RING_AT_XZ[0], LEVEL_H * 2, RING_AT_XZ[1]],
+};
+// the lens shift (camera.filmOffset, mm on a 35 mm gauge) on wide panels
+const DELIVER_LENS = 7;
+const DELIVER_SQUARE: { position: V3; target: V3 } = {
+  position: [RING_AT_XZ[0], LEVEL_H * 3 + 24, RING_AT_XZ[1] + 3.2],
+  target: [RING_AT_XZ[0], LEVEL_H * 2, RING_AT_XZ[1] + 3.2],
+};
+const REFINE_FLIGHT = REASONING_AT + 1.6;
+// the first tab's timeline (s): chaos, then the sweep orders the floor,
+// the camera moves in, and one needle rises as the anomaly
+const CHAOS_HOLD = 1.2;
+const ALERT_DELAY = 0.3; // after the floor has settled
+const ALERT_RISE = 0.7;
+// the anomaly: a needle near the middle (a cell of the 32 grid), how tall
+const ALERT_AT = ANOMALY_XZ;
+const ALERT_H = 4.5;
 const POLAR_MIN = 0.02;
 const POLAR_MAX = Math.PI / 2 + 0.15;
 // camera-controls' draggingSmoothTime: how fast a drag catches up
@@ -153,6 +199,161 @@ function makeLine(points: V3[], o: { color: string; width: number; opacity: numb
   return line;
 }
 
+// --- relief dots: soft round points moved by a slow noise field, so
+// neighbours drift together (currents) and brightness passes over in
+// patches (cloud shadows), instead of each dot jittering on its own ---
+// 3D simplex noise (Ashima Arts / Stefan Gustavson, MIT)
+const SIMPLEX = /* glsl */ `
+  vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+  vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+  vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+  float snoise(vec3 v) {
+    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+    vec3 i = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g.xyz, l.zxy);
+    vec3 i2 = max(g.xyz, l.zxy);
+    vec3 x1 = x0 - i1 + C.xxx;
+    vec3 x2 = x0 - i2 + C.yyy;
+    vec3 x3 = x0 - D.yyy;
+    i = mod289(i);
+    vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+    float n_ = 0.142857142857;
+    vec3 ns = n_ * D.wyz - D.xzx;
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+    vec4 s0 = floor(b0) * 2.0 + 1.0;
+    vec4 s1 = floor(b1) * 2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+    vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+    p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+  }
+`;
+const DOT_VERT = /* glsl */ `
+  attribute vec3 color;
+  attribute float seed;
+  uniform float uTime;
+  uniform float uSize;
+  uniform float uScale;
+  uniform float uOpacity;
+  uniform float uDrift;
+  uniform float uTwinkle;
+  uniform float uSpeed;
+  uniform float uField; // noise frequency: smaller = bigger, slower-looking currents
+  varying vec3 vColor;
+  varying float vAlpha;
+  ${SIMPLEX}
+  // the current at a point: a smooth, mostly sideways direction field
+  vec3 current(vec3 q, float t) {
+    return vec3(snoise(q + vec3(0.0, 0.0, t)), 0.25 * snoise(q + vec3(17.3, 4.1, t)), snoise(q + vec3(41.7, 9.2, t)));
+  }
+  void main() {
+    float t = uTime * uSpeed;
+    float s = seed * 6.2831;
+    // each dot lives a few seconds (staggered by seed): it fades in at its
+    // spot on the terrain, sweeps uDrift units along the current on a
+    // curved path, fades out, and starts again
+    float life = fract(t * (0.12 + 0.08 * seed) + seed);
+    float slow = t * 0.05;
+    vec3 a = current(position * uField, slow);
+    vec3 b = current((position + a * uDrift) * uField, slow);
+    vec3 p = position + uDrift * (life * a + 0.5 * life * life * (b - a));
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_Position = projectionMatrix * mv;
+    gl_PointSize = uSize * uScale / -mv.z;
+    vColor = color;
+    // fade in/out over the life; brightness patches drift over the field
+    float fade = sin(3.14159 * life);
+    float shade = 0.5 + 0.5 * snoise(position * uField * 0.7 + vec3(slow * 3.0, 0.0, -slow * 2.0));
+    vAlpha = uOpacity * mix(1.0, fade, step(0.001, uDrift)) * (1.0 - uTwinkle * shade);
+  }
+`;
+// --- relief needles: a regular grid of hair-thin lines whose heights keep
+// moving: a slow swell (noise over the field) plus each needle's own fast
+// flicker; base heights follow the terrain ---
+const NEEDLE_VERT = /* glsl */ `
+  attribute float top; // 0 at the floor, 1 at the tip
+  attribute float base; // the needle's terrain height
+  attribute float seed;
+  uniform float uTime;
+  uniform float uSpeed;
+  uniform float uField;
+  uniform float uFlicker; // 0: only the swell, 1: only each needle's flicker
+  uniform float uSweep; // staged: 0..1 the order sweep across the floor
+  uniform float uOrderH; // the even height the needles settle to
+  uniform float uSettleSwell; // how much the settled field still breathes
+  uniform float uWorld;
+  uniform float uMaxRise;
+  uniform vec3 uLow;
+  uniform vec3 uHigh;
+  uniform float uOpacity;
+  varying vec3 vColor;
+  varying float vAlpha;
+  ${SIMPLEX}
+  void main() {
+    float t = uTime * uSpeed;
+    float swell = 0.5 + 0.5 * snoise(vec3(position.xz * uField, t * 0.2));
+    float flick = 0.5 + 0.5 * snoise(vec3(seed * 91.7, t * 0.9, seed * 13.1));
+    float k = clamp(mix(swell, flick, uFlicker) * 1.25 - 0.1, 0.04, 1.2);
+    // order: behind the sweep (along x) the needles settle to one even,
+    // gently breathing height
+    // the sweep runs from the back (-z) to the front (+z)
+    float sz = position.z / uWorld + 0.5;
+    float o = clamp((uSweep * 1.25 - sz) / 0.25, 0.0, 1.0);
+    o = o * o * (3.0 - 2.0 * o);
+    // settled: an even field that keeps the terrain's soft shape, with one
+    // slow swell shared by neighbours (no per-needle wobble: that shimmers)
+    float settled = uOrderH * (0.3 + 0.7 * base / uMaxRise) * (1.0 - uSettleSwell + uSettleSwell * swell);
+    float h = mix(base * k, settled, o);
+    vec3 p = position;
+    p.y += top * h;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+    // dim at the floor, brighter toward a tall tip; even once ordered
+    vColor = mix(uLow, uHigh, top * mix(clamp(k, 0.0, 1.0), 0.6, o));
+    vAlpha = uOpacity * mix(0.25, 1.0, top);
+  }
+`;
+const NEEDLE_FRAG = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    gl_FragColor = vec4(vColor, vAlpha);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+const DOT_FRAG = /* glsl */ `
+  varying vec3 vColor;
+  varying float vAlpha;
+  void main() {
+    float d = length(gl_PointCoord - 0.5) * 2.0;
+    if (d > 1.0) discard;
+    gl_FragColor = vec4(vColor, vAlpha * smoothstep(1.0, 0.45, d));
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
 // --- Unity-style SmoothDamp (what camera-controls uses) ---
 type Damp = { v: number };
 // `eps`: an error this small (with the motion nearly stopped) lands on the
@@ -182,7 +383,43 @@ export class MapScene {
   // fade groups: side labels/callouts (gone top-down), the flat top block
   private readonly side: Object3D[] = [];
   private readonly top: Object3D[] = [];
+  // the levels above the floor (1 extract, 2 refine, 3 signal): their grid
+  // and content, and the side labels/callouts that belong to them. With
+  // stagedLayers the first tab shows none, the middle tab builds 1-2 and the
+  // top-down tab 3: a scan plane rises and each level fades in as it passes
+  private readonly levelObjs: Object3D[][] = [[], [], [], []];
+  private readonly levelSide: { obj: Object3D; level: number }[] = [];
+  private readonly levelReveal = [1, 1, 1, 1];
+  // linear progress behind levelReveal (which is that, eased out)
+  private readonly levelProg = [1, 1, 1, 1];
+  private scanY: number = LEVEL.signal;
+  private scanAlpha = 0;
+  // staged: the floor's chaos -> order sweep (0..1), and its line
+  private sweep = 0;
+  private sweepLine: Line2 | null = null;
+  // the first tab's timeline: time on this tab, moved in yet, the anomaly
+  private stageT = 0;
+  private closeUp = false;
+  // per tab: its animation has played once (later visits skip to its end)
+  private readonly played = [false, false, false];
+  private alertProg = 0;
+  private alert: Group | null = null;
+  private alertStem: Object3D | null = null;
+  private alertRing: Object3D | null = null;
+  // staged: tab flights run a fixed-length ease that ends exactly, instead
+  // of the damped approach's long sub-pixel tail (thin lines crawl and the
+  // HTML overlay steps a pixel at a time while it creeps)
+  private flight: { from: number[]; to: number[]; t: number; dur: number } | null = null;
+  // staged top tab: everything below the ring fades back (0..1)
+  private dim = 0;
+  // the lens shift, current and goal (flies with the camera)
+  private lens = 0;
+  private lensGoal = 0;
+  private scan: Mesh | null = null;
   private sideReveal = 1;
+  // relief dots (reliefStyle "dots"), animated while drift/twinkle are on
+  private reliefMat: ShaderMaterial | null = null;
+  private time = 0;
   private topReveal = 0;
 
   // camera: spherical around a target, current + goal, damped
@@ -198,9 +435,26 @@ export class MapScene {
   private dragging = false;
   // false until the first setStep: the first framing is placed, not flown
   private placed = false;
+  // reduced motion (setReducedMotion); a jump the next update settles in one go
+  private reduced = false;
+  private snap = false;
+  // staged: the Signals/Reasoning/Actions beats (map-signals.ts)
+  readonly signals: SignalsLayer | null = null;
+  private readonly cfg: MapConfig;
 
-  constructor(private readonly cfg: MapConfig) {
+  constructor(cfg: MapConfig) {
+    // a zero tempo or scan speed would never land
+    this.cfg = { ...cfg, tempo: Math.max(0.05, cfg.tempo), buildSpeed: Math.max(0.1, cfg.buildSpeed) };
     this.build();
+    if (this.cfg.stagedLayers) {
+      const c = this.cfg;
+      this.signals = new SignalsLayer({
+        ...signalsDefaults,
+        colors: [signalsDefaults.colors[0], c.alertColor, signalsDefaults.colors[2]],
+        tiles: c.tileLabels.split(",").map((t) => t.trim()) as [string, string, string],
+      });
+      this.root.add(this.signals.root);
+    }
   }
 
   get step() {
@@ -242,16 +496,49 @@ export class MapScene {
       this.track(new LineBasicMaterial({ color: c.frameColor, transparent: true, opacity: Math.min(1, 0.3 + c.gridOpacity * 2) })),
     );
     box.position.y = BOX_H / 2 - 0.5;
-    root.add(box);
+    if (c.walls) root.add(box);
     const gridGeo = this.track(new PlaneGeometry(WORLD, WORLD, 44, 44));
     const gridMat = this.track(
       new MeshBasicMaterial({ color: c.frameColor, wireframe: true, transparent: true, opacity: c.gridOpacity, depthWrite: false }),
     );
-    for (const y of [LEVEL.extract, LEVEL.refine, LEVEL.signal]) {
-      const g = new Mesh(gridGeo, gridMat);
+    [LEVEL.extract, LEVEL.refine, LEVEL.signal].forEach((y, i) => {
+      // a material per level, so each can fade on its own
+      const g = new Mesh(gridGeo, i ? this.track(gridMat.clone()) : gridMat);
       g.position.y = y;
       g.rotation.x = -Math.PI / 2;
       root.add(g);
+      this.levelObjs[i + 1].push(g);
+    });
+    // the scan plane (stagedLayers): a faint sheet with a bright edge
+    if (c.stagedLayers) {
+      const scan = new Mesh(
+        this.track(new PlaneGeometry(WORLD, WORLD)),
+        this.track(new MeshBasicMaterial({ color: c.labelColor, transparent: true, opacity: 0, depthWrite: false, side: DoubleSide })),
+      );
+      scan.rotation.x = -Math.PI / 2;
+      const edge = new LineSegments(
+        this.track(new EdgesGeometry(scan.geometry)),
+        this.track(new LineBasicMaterial({ color: c.labelColor, transparent: true, opacity: 0, depthWrite: false })),
+      );
+      scan.add(edge);
+      scan.visible = false;
+      root.add(scan);
+      this.scan = scan;
+      // the sweep: a bright line across the floor (along x), moving front-ward
+      this.sweepLine = this.line([[-WORLD / 2, 0.05, 0], [WORLD / 2, 0.05, 0]], { color: c.sweepColor, width: 2, opacity: 0 });
+      this.sweepLine.visible = false;
+      // the anomaly: a tall needle and a ring at its foot, in the alert colour
+      const a = new Group();
+      a.position.set(ALERT_AT[0], LEVEL.floor + 0.03, ALERT_AT[1]);
+      const stem = this.line([[0, 0, 0], [0, 1, 0]], { color: c.alertColor, width: 2.5, opacity: 1 }, a);
+      this.alertStem = stem;
+      const ring: V3[] = [];
+      for (let k = 0; k <= 48; k++) ring.push([Math.cos((k / 48) * Math.PI * 2) * 0.4, 0.01, Math.sin((k / 48) * Math.PI * 2) * 0.4]);
+      const r = this.line(ring, { color: c.alertColor, width: 1.2, opacity: 0.7 }, a);
+      this.alertRing = r;
+      a.visible = false;
+      root.add(a);
+      this.alert = a;
     }
 
     // --- floor: the real elevation as a wireframe (floor.tsx) ---
@@ -285,7 +572,70 @@ export class MapScene {
       const deep = new Color(c.reliefDeep);
       const mats: Matrix4[] = [];
       const cols: Color[] = [];
-      for (let gy = 0; gy < res; gy++) {
+      const dots = c.reliefStyle === "dots";
+      const needles = c.reliefStyle === "needles";
+      const dotPos: number[] = [];
+      const dotCol: number[] = [];
+      const dotSeed: number[] = [];
+      // seeded, so the cloud is the same on every load
+      let seed = 1;
+      const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+      if (needles) {
+        // a regular n x n grid over the floor, each needle's base height
+        // from the terrain cell under it (low ground gets short needles)
+        const n = Math.max(4, Math.round(c.reliefNeedleGrid));
+        const pos: number[] = [];
+        const top: number[] = [];
+        const base: number[] = [];
+        const sd: number[] = [];
+        for (let iy = 0; iy < n; iy++) {
+          for (let ix = 0; ix < n; ix++) {
+            const u = (ix + 0.5) / n;
+            const w = (iy + 0.5) / n;
+            const v = cells[Math.min(res - 1, Math.floor(w * res)) * res + Math.min(res - 1, Math.floor(u * res))] / 65535;
+            const intensity = Math.min(1, Math.max(0, (v - t * 0.5) / Math.max(1e-6, 0.5 - t * 0.5)));
+            const h = maxRise * (0.15 + 0.85 * intensity);
+            const x = (u - 0.5) * WORLD;
+            const z = (w - 0.5) * WORLD;
+            const r = rand();
+            pos.push(x, LEVEL.floor + 0.03, z, x, LEVEL.floor + 0.03, z);
+            top.push(0, 1);
+            base.push(h, h);
+            sd.push(r, r);
+          }
+        }
+        const geo = this.track(new BufferGeometry());
+        geo.setAttribute("position", new Float32BufferAttribute(pos, 3));
+        geo.setAttribute("top", new Float32BufferAttribute(top, 1));
+        geo.setAttribute("base", new Float32BufferAttribute(base, 1));
+        geo.setAttribute("seed", new Float32BufferAttribute(sd, 1));
+        this.reliefMat = this.track(
+          new ShaderMaterial({
+            vertexShader: NEEDLE_VERT,
+            fragmentShader: NEEDLE_FRAG,
+            uniforms: {
+              uTime: { value: 0 },
+              uSpeed: { value: c.reliefDriftSpeed },
+              uField: { value: c.reliefDriftScale },
+              uFlicker: { value: c.reliefTwinkle },
+              uSweep: { value: 0 },
+              uOrderH: { value: c.reliefOrderHeight },
+              uSettleSwell: { value: c.reliefSettleSwell },
+              uWorld: { value: WORLD },
+              uMaxRise: { value: maxRise },
+              uLow: { value: new Color(c.reliefPale) },
+              uHigh: { value: new Color(c.reliefDeep) },
+              uOpacity: { value: c.reliefOpacity },
+            },
+            transparent: true,
+            depthWrite: false,
+          }),
+        );
+        const lines = new LineSegments(geo, this.reliefMat);
+        lines.frustumCulled = false;
+        root.add(lines);
+      }
+      for (let gy = 0; gy < res && !needles; gy++) {
         for (let gx = 0; gx < res; gx++) {
           const v = cells[gy * res + gx] / 65535;
           if (v < t) continue;
@@ -293,11 +643,47 @@ export class MapScene {
           const h = maxRise * (0.12 + intensity * 0.88);
           const x = (gx / (res - 1) - 0.5) * WORLD;
           const z = (gy / (res - 1) - 0.5) * WORLD;
+          if (dots) {
+            const col = new Color().lerpColors(pale, deep, intensity ** 0.7);
+            for (let k = 0; k < Math.max(1, Math.round(c.reliefDotsPerCell)); k++) {
+              dotPos.push(x + (rand() - 0.5) * cell, LEVEL.floor + 0.03 + h * c.reliefDotRise * (0.85 + rand() * 0.3), z + (rand() - 0.5) * cell);
+              dotCol.push(col.r, col.g, col.b);
+              dotSeed.push(rand());
+            }
+            continue;
+          }
           const m = new Matrix4().makeTranslation(x, LEVEL.floor + h / 2 + 0.03, z);
           m.multiply(new Matrix4().makeScale(cell * 0.42, h, cell * 0.42));
           mats.push(m);
           cols.push(new Color().lerpColors(pale, deep, intensity ** 0.7));
         }
+      }
+      if (dotPos.length) {
+        const geo = this.track(new BufferGeometry());
+        geo.setAttribute("position", new Float32BufferAttribute(dotPos, 3));
+        geo.setAttribute("color", new Float32BufferAttribute(dotCol, 3));
+        geo.setAttribute("seed", new Float32BufferAttribute(dotSeed, 1));
+        this.reliefMat = this.track(
+          new ShaderMaterial({
+            vertexShader: DOT_VERT,
+            fragmentShader: DOT_FRAG,
+            uniforms: {
+              uTime: { value: 0 },
+              uSize: { value: c.reliefDotSize },
+              uScale: { value: 500 },
+              uOpacity: { value: c.reliefOpacity },
+              uDrift: { value: c.reliefDrift },
+              uTwinkle: { value: c.reliefTwinkle },
+              uSpeed: { value: c.reliefDriftSpeed },
+              uField: { value: c.reliefDriftScale },
+            },
+            transparent: true,
+            depthWrite: false,
+          }),
+        );
+        const pts = new Points(geo, this.reliefMat);
+        pts.frustumCulled = false;
+        root.add(pts);
       }
       if (mats.length) {
         const mesh = new InstancedMesh(
@@ -316,6 +702,11 @@ export class MapScene {
     }
 
     // --- extraction levels (extraction-levels.tsx) ---
+    let from = root.children.length;
+    const toLevel = (level: number) => {
+      this.levelObjs[level].push(...root.children.slice(from));
+      from = root.children.length;
+    };
     const coast = feature(MAP_DATA.coast);
     const regions = MAP_DATA.regions.map(feature);
     const hatch = this.hatchTexture();
@@ -333,41 +724,51 @@ export class MapScene {
       root.add(m);
       this.line(ring3(f.ring, y), { color: edge, width: 1.2, opacity: edgeOpacity });
     };
-    // extract: the coastline lifted off the map + its hatched landmass
-    this.line(ring3(coast.ring, LEVEL.extract), { color: c.coastColor, width: 1.4, opacity: 0.85 });
-    cutout(coast, LEVEL.extract - 0.02, c.frameColor, 0.4);
-    // refine: fewer, tighter shapes; the first is ringed as the anomaly
-    regions.forEach((r, i) => {
-      cutout(r, LEVEL.refine, c.formStrongColor, 0.9);
-      if (i) return;
-      const torus = new Mesh(
-        this.track(new TorusGeometry(Math.min(1.4, Math.sqrt(r.area) / 60 + 0.5), 0.025, 8, 64)),
-        this.track(new MeshBasicMaterial({ color: c.accentColor, transparent: true, opacity: 0.95 })),
-      );
-      torus.position.set(r.centroid[0], LEVEL.refine + 0.02, r.centroid[1]);
-      torus.rotation.x = -Math.PI / 2;
-      root.add(torus);
-    });
-    // signal: the distilled specks
-    const speckMat = this.track(new MeshBasicMaterial({ color: c.accentColor, side: DoubleSide }));
-    const speckBig = this.track(new PlaneGeometry(0.3, 0.3));
-    const speckSmall = this.track(new PlaneGeometry(0.14, 0.14));
-    MAP_DATA.specks.forEach(([x, z], i) => {
-      const m = new Mesh(i ? speckSmall : speckBig, speckMat);
-      m.position.set(x, LEVEL.signal, z);
-      m.rotation.x = -Math.PI / 2;
-      root.add(m);
-    });
-    // the trace: a spine up through the levels, then a branch to every speck
-    {
-      const [cx, cz] = coast.centroid;
-      const a = regions[0]?.centroid ?? coast.centroid;
-      const anchor: V3 = [a[0], LEVEL.refine, a[1]];
-      this.line([[cx, LEVEL.floor + 0.05, cz], [cx, LEVEL.extract, cz], anchor], { color: c.traceColor, width: 1.2, opacity: 0.6, dashed: true });
-      for (const [sx, sz] of MAP_DATA.specks) {
-        this.line([anchor, [sx, LEVEL.signal, sz]], { color: c.traceColor, width: 0.8, opacity: 0.4, dashed: true });
+    // the original map's forms (mapForms; off for the staged video story)
+    if (c.mapForms) {
+      // extract: the coastline lifted off the map + its hatched landmass
+      this.line(ring3(coast.ring, LEVEL.extract), { color: c.coastColor, width: 1.4, opacity: 0.85 });
+      cutout(coast, LEVEL.extract - 0.02, c.frameColor, 0.4);
+      toLevel(1);
+      // refine: fewer, tighter shapes; the first is ringed as the anomaly
+      regions.forEach((r, i) => {
+        cutout(r, LEVEL.refine, c.formStrongColor, 0.9);
+        if (i) return;
+        const torus = new Mesh(
+          this.track(new TorusGeometry(Math.min(1.4, Math.sqrt(r.area) / 60 + 0.5), 0.025, 8, 64)),
+          this.track(new MeshBasicMaterial({ color: c.accentColor, transparent: true, opacity: 0.95 })),
+        );
+        torus.position.set(r.centroid[0], LEVEL.refine + 0.02, r.centroid[1]);
+        torus.rotation.x = -Math.PI / 2;
+        root.add(torus);
+      });
+      toLevel(2);
+      // signal: the distilled specks
+      const speckMat = this.track(new MeshBasicMaterial({ color: c.accentColor, side: DoubleSide }));
+      const speckBig = this.track(new PlaneGeometry(0.3, 0.3));
+      const speckSmall = this.track(new PlaneGeometry(0.14, 0.14));
+      MAP_DATA.specks.forEach(([x, z], i) => {
+        const m = new Mesh(i ? speckSmall : speckBig, speckMat);
+        m.position.set(x, LEVEL.signal, z);
+        m.rotation.x = -Math.PI / 2;
+        root.add(m);
+      });
+      // the trace: a spine up through the levels, then a branch to every speck
+      {
+        const [cx, cz] = coast.centroid;
+        const a = regions[0]?.centroid ?? coast.centroid;
+        const anchor: V3 = [a[0], LEVEL.refine, a[1]];
+        this.line([[cx, LEVEL.floor + 0.05, cz], [cx, LEVEL.extract, cz], anchor], { color: c.traceColor, width: 1.2, opacity: 0.6, dashed: true });
+        for (const [sx, sz] of MAP_DATA.specks) {
+          this.line([anchor, [sx, LEVEL.signal, sz]], { color: c.traceColor, width: 0.8, opacity: 0.4, dashed: true });
+        }
       }
     }
+    if (!c.mapForms) {
+      toLevel(1);
+      toLevel(2);
+    }
+    toLevel(3);
 
     // --- level labels (SpatialDataMap.tsx LevelLabels): side view only ---
     const labels = c.labels.split(",").map((s) => s.trim());
@@ -375,11 +776,22 @@ export class MapScene {
       if (!labels[i]) return;
       const t = this.text(
         labels[i].toUpperCase(),
-        { family: c.fontSans, size: 0.42, spacing: 0.1, anchorX: "right", anchorY: "middle", color: c.labelColor, opacity: 0.8 },
+        { family: c.fontSans, size: c.labelSize, spacing: 0.1, anchorX: "right", anchorY: "middle", color: c.labelColor, opacity: 0.8 },
         root,
       );
       t.position.set(-WORLD / 2 - 1.2, y + 0.35, WORLD / 2);
-      this.side.push(t);
+      // above the floor: also fades with its level
+      if (i) this.levelSide.push({ obj: t, level: i });
+      else this.side.push(t);
+      // staged: the floor's label sits under the floor's near corner,
+      // turned to the close-up camera, so it stays in frame
+      if (!i && c.stagedLayers) {
+        t.geometry.computeBoundingBox();
+        const bb = t.geometry.boundingBox!;
+        t.geometry.translate(-(bb.min.x + bb.max.x) / 2, 0, 0);
+        t.position.set(WORLD / 2 - 1.5, -0.9, WORLD / 2 - 1.5);
+        t.rotation.y = Math.PI / 4;
+      }
     });
 
     // --- callouts (callouts.tsx): upright leaders + stats, side view ---
@@ -390,7 +802,9 @@ export class MapScene {
     if (regions[0]) {
       upright.push({ from: [regions[0].centroid[0], LEVEL.refine, regions[0].centroid[1]], stat: c.refineStat, caption: c.refineCaption, side: -1 });
     }
-    for (const u of upright) {
+    for (const [ui, u] of upright.entries()) {
+      // no stat and no caption: no callout
+      if (!u.stat.trim() && !u.caption.trim()) continue;
       const g = new Group();
       const tx = u.side * edge;
       const tz = u.from[2];
@@ -400,7 +814,7 @@ export class MapScene {
       this.text(u.stat, { family: c.fontMono, size: 0.52, spacing: 0.02, anchorX: ax, anchorY: "bottom", color: c.calloutColor }, g).position.set(tx, ty + 0.35, tz);
       this.text(u.caption.toUpperCase(), { family: c.fontSans, size: 0.24, spacing: 0.08, anchorX: ax, anchorY: "top", color: c.calloutColor }, g).position.set(tx, ty - 0.08, tz);
       root.add(g);
-      this.side.push(g);
+      this.levelSide.push({ obj: g, level: ui + 1 });
     }
 
     // --- the flat signal block, readable top-down (SignalFlatCallouts) ---
@@ -455,14 +869,14 @@ export class MapScene {
   // so its side labels stay in), and the top-down step backs off until the
   // whole signal square (with its text block) fits.
   private framing(i: number) {
-    const s = STEPS[i];
+    const s = !this.cfg.stagedLayers ? STEPS[i] : i === 0 ? (this.closeUp ? FLOOR_CLOSE : FLOOR_STEP) : i === 1 ? REFINE_WIDE : this.aspect < 1.25 ? DELIVER_SQUARE : DELIVER_STEP;
     const t = new Vector3(...s.target);
     const off = new Vector3(...s.position).sub(t);
     let radius = off.length();
     const phi = Math.acos(Math.min(1, Math.max(-1, off.y / radius)));
     const theta = Math.atan2(off.x, off.z);
     const tanHalf = Math.tan(((FOV / 2) * Math.PI) / 180);
-    if (i === 2) {
+    if (i === 2 && !this.cfg.stagedLayers) {
       // the 16-unit square plus a margin, in the narrower screen direction
       radius = Math.max(radius, (WORLD / 2 + 0.6) / (tanHalf * Math.min(1, this.aspect)));
     } else {
@@ -475,32 +889,130 @@ export class MapScene {
     this.aspect = aspect;
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
-    // re-frame (keeping any drag offset is not worth it on resize)
-    if (this.placed && !this.dragging) this.setStep(this.stepIndex, true);
+    // re-frame the camera only (keeping any drag offset is not worth it on
+    // resize); a flight in progress keeps going, to the new framing. The
+    // tab's timeline (sweep, anomaly, build) is left alone.
+    if (!this.placed || this.dragging) return;
+    if (this.flight) {
+      // retarget the flight and its goal together, so nothing drifts back
+      // to the old framing when it lands
+      const f = this.framing(this.stepIndex);
+      this.goalTarget.copy(f.target);
+      this.goal = { radius: f.radius, phi: f.phi, theta: this.flight.to[2] };
+      this.lensGoal = this.deliverLens();
+      this.flight.to = [f.radius, f.phi, this.flight.to[2], f.target.x, f.target.y, f.target.z, this.lensGoal];
+    } else this.aim(true);
+  }
+
+  // relief dot sizes: drawing-buffer pixels per world unit at distance 1
+  // (half the buffer height, as three's PointsMaterial)
+  setPointScale(bufferHeight: number) {
+    if (this.reliefMat?.uniforms.uScale) this.reliefMat.uniforms.uScale.value = bufferHeight / 2;
   }
 
   setResolution(w: number, h: number) {
     for (const m of this.lines) m.resolution.set(w, h);
+    this.signals?.setView(this.camera, h);
   }
 
   // Fly to a step (or jump: `instant`, reduced motion, the first framing).
   setStep(i: number, instant = false) {
-    this.stepIndex = Math.max(0, Math.min(2, i));
+    const next = Math.max(0, Math.min(2, i));
+    const prev = this.stepIndex;
+    const first = !this.placed;
+    // the tab already on show (a re-click): staged, nothing (its animation
+    // never restarts); otherwise fly back to its view after a drag
+    if (!first && next === prev) {
+      if (!this.cfg.stagedLayers) this.aim(instant);
+      return;
+    }
+    this.stepIndex = next;
+    if (!this.cfg.stagedLayers) {
+      this.aim(instant, undefined, instant);
+      return;
+    }
+    // Staged: a tab plays its part the first time it shows. Later visits,
+    // coming back down from a higher tab, a jump and reduced motion go
+    // straight to its end (the camera still flies, unless it's a jump).
+    // (the first placement is never flown; `instant` there only places it)
+    const jump = this.reduced || (instant && !first);
+    const skip = this.reduced || (instant && !first) || this.played[next] || (!first && next < prev);
+    this.stageT = skip ? this.stageEnd(next) : 0;
+    this.snap = jump;
+    if (next === 0 && !skip) {
+      // the intro: placed wide, then one continuous push-in, timed to land
+      // as the anomaly rises
+      this.closeUp = false;
+      this.aim(jump, undefined, jump);
+      this.closeUp = true;
+      this.aim(jump, CHAOS_HOLD + this.cfg.sweepTime + ALERT_DELAY + 0.6);
+      return;
+    }
+    this.closeUp = next === 0;
+    // jumping past a tab (Own -> Deliver): no scan through the levels in
+    // between; they fade straight in (already faded back), one thing at a
+    // time while the camera makes its big move
+    if (!first && next - prev > 1) this.scanY = LEVELS[this.targetLevel()];
+    // the middle tab's first play: one continuous pull-back, landing as the
+    // tiles drop in
+    this.aim(jump || first, next === 1 && !skip ? REFINE_FLIGHT : undefined, jump || first);
+  }
+
+  // the lens shift on the staged top tab (wide panels)
+  private deliverLens() {
+    return this.cfg.stagedLayers && this.stepIndex === 2 && this.aspect >= 1.25 ? DELIVER_LENS : 0;
+  }
+
+  // reduced motion: tabs jump to their end, nothing animates
+  setReducedMotion(on: boolean) {
+    this.reduced = on;
+  }
+
+  // point the camera at the current step's framing (fly, or jump)
+  // reset: also put the tab's timeline state in its landed place (a jump
+  // to a tab), not just the camera
+  private aim(instant = false, dur = this.cfg.smoothTime * 2.5, reset = false) {
     const f = this.framing(this.stepIndex);
     this.goalTarget.copy(f.target);
     // the shortest way round to the goal azimuth (after a drag)
     const turn = Math.PI * 2;
     const theta = f.theta + Math.round((this.theta - f.theta) / turn) * turn;
     this.goal = { radius: f.radius, phi: f.phi, theta: this.placed ? theta : f.theta };
+    this.lensGoal = this.deliverLens();
+    this.flight =
+      this.cfg.stagedLayers && this.placed && !instant && !this.dragging
+        ? {
+            from: [this.radius, this.phi, this.theta, this.target.x, this.target.y, this.target.z, this.lens],
+            to: [this.goal.radius, this.goal.phi, this.goal.theta, this.goalTarget.x, this.goalTarget.y, this.goalTarget.z, this.lensGoal],
+            t: 0,
+            dur,
+          }
+        : null;
     if (instant || !this.placed) {
       this.target.copy(this.goalTarget);
+      this.lens = this.lensGoal;
       this.radius = this.goal.radius;
       this.phi = this.goal.phi;
       this.theta = this.goal.theta;
       for (const v of Object.values(this.vel)) v.v = 0;
+    }
+    if (reset || !this.placed) {
       this.sideReveal = this.stepIndex === 2 ? 0 : 1;
       this.topReveal = this.stepIndex === 2 ? 1 : 0;
+      const to = this.targetLevel();
+      this.scanY = LEVELS[to];
+      // the first tab's floor and anomaly, as far as its timeline has got
+      const settled = to > 0 || this.stageT >= CHAOS_HOLD + this.cfg.sweepTime;
+      this.sweep = settled ? 1 : 0;
+      this.alertProg = to > 0 || this.stageT >= this.stageEnd(0) ? 1 : 0;
+      for (let l = 1; l <= 3; l++) this.levelReveal[l] = this.levelProg[l] = l <= to ? 1 : 0;
+      this.scanAlpha = 0;
       this.applyReveal();
+    }
+    if (!instant && this.placed) {
+      // building up: the scan rises from where it is (update); going
+      // down: it drops, and the levels above fade out
+      this.scanY = Math.min(this.scanY, LEVELS[this.targetLevel()]);
     }
     this.placed = true;
     this.applyCamera();
@@ -515,23 +1027,51 @@ export class MapScene {
   }
   setDragging(on: boolean) {
     this.dragging = on;
+    if (on && this.flight) {
+      // take over from the flight where it is
+      this.goal = { radius: this.radius, phi: this.phi, theta: this.theta };
+      this.goalTarget.copy(this.target);
+      this.flight = null;
+    }
   }
 
   // Advance the camera and fades. Returns true while anything moved (the
   // view only redraws then).
   update(dt: number) {
+    // staged: the story's clock runs at `tempo` (flights, timelines, scan)
+    const st = dt * (this.cfg.stagedLayers ? this.cfg.tempo : 1);
     if (dt <= 0) return false;
+    this.time += dt;
+    const alive =
+      !!this.reliefMat && !this.reduced && (this.cfg.reliefStyle === "needles" ? this.cfg.reliefDriftSpeed > 0 : this.cfg.reliefDrift > 0 || this.cfg.reliefTwinkle > 0);
+    if (alive) this.reliefMat!.uniforms.uTime.value = this.time;
     const smooth = this.dragging ? DRAG_SMOOTH : this.cfg.smoothTime;
     const before = this.radius + this.phi + this.theta + this.target.x + this.target.y + this.target.z;
     // world units; radians (5e-4 rad ≈ 0.02 units at these distances)
     const E = 0.02;
     const A = 5e-4;
-    this.radius = smoothDamp(this.radius, this.goal.radius, this.vel.radius, smooth, dt, E);
-    this.phi = smoothDamp(this.phi, this.goal.phi, this.vel.phi, smooth, dt, A);
-    this.theta = smoothDamp(this.theta, this.goal.theta, this.vel.theta, smooth, dt, A);
-    this.target.x = smoothDamp(this.target.x, this.goalTarget.x, this.vel.x, smooth, dt, E);
-    this.target.y = smoothDamp(this.target.y, this.goalTarget.y, this.vel.y, smooth, dt, E);
-    this.target.z = smoothDamp(this.target.z, this.goalTarget.z, this.vel.z, smooth, dt, E);
+    if (this.flight) {
+      // a gentle sine ease in-out, landing exactly
+      const fl = this.flight;
+      fl.t = Math.min(1, fl.t + st / Math.max(0.2, fl.dur));
+      const e = 0.5 - 0.5 * Math.cos(Math.PI * fl.t);
+      const v = fl.from.map((a, i) => a + (fl.to[i] - a) * e);
+      [this.radius, this.phi, this.theta] = v;
+      this.target.set(v[3], v[4], v[5]);
+      this.lens = v[6];
+      if (fl.t >= 1) {
+        this.flight = null;
+        for (const d of Object.values(this.vel)) d.v = 0;
+      }
+    } else {
+      this.radius = smoothDamp(this.radius, this.goal.radius, this.vel.radius, smooth, dt, E);
+      this.phi = smoothDamp(this.phi, this.goal.phi, this.vel.phi, smooth, dt, A);
+      this.theta = smoothDamp(this.theta, this.goal.theta, this.vel.theta, smooth, dt, A);
+      this.target.x = smoothDamp(this.target.x, this.goalTarget.x, this.vel.x, smooth, dt, E);
+      this.target.y = smoothDamp(this.target.y, this.goalTarget.y, this.vel.y, smooth, dt, E);
+      this.target.z = smoothDamp(this.target.z, this.goalTarget.z, this.vel.z, smooth, dt, E);
+      this.lens = this.lensGoal;
+    }
     const moved = Math.abs(this.radius + this.phi + this.theta + this.target.x + this.target.y + this.target.z - before) > 1e-6;
     // labels cross-fade with the step (use-reveal: 0.12 per 60 fps frame)
     const k = 1 - Math.pow(1 - 0.12, dt * 60);
@@ -548,9 +1088,87 @@ export class MapScene {
       if (Math.abs(topTo - this.topReveal) < 0.004) this.topReveal = topTo;
       faded = true;
     }
+    // the build: the scan rises to the tab's top level; each level fades in
+    // (~1 s) once the scan reaches it, and out when the tab doesn't show it
+    const to = this.targetLevel();
+    const top = LEVELS[to];
+    // staged: first the sweep orders the floor (going up from the first
+    // tab), then the scan rises; back on the first tab the floor unsettles
+    if (this.cfg.stagedLayers) {
+      this.stageT += st;
+      // the first tab: chaos for a moment, then the sweep; other tabs: settled
+      const first = this.stepIndex === 0;
+      const goal = !first || this.stageT >= CHAOS_HOLD ? 1 : 0;
+      if (this.sweep !== goal) {
+        this.sweep = goal > this.sweep ? Math.min(1, this.sweep + st / this.cfg.sweepTime) : Math.max(0, this.sweep - st / 0.4);
+        faded = true;
+      }
+      if (this.reliefMat?.uniforms.uSweep) this.reliefMat.uniforms.uSweep.value = this.sweep;
+      if (this.sweepLine) {
+        const on = goal === 1 && this.sweep > 0 && this.sweep < 1;
+        this.sweepLine.visible = on;
+        this.sweepLine.position.z = (this.sweep * 1.25 - 0.125 - 0.5) * WORLD;
+        this.sweepLine.material.opacity = on ? 0.95 : 0;
+      }
+      // settled (the camera is pushing in all along): the anomaly rises
+      const alertGoal = !first || this.stageT >= CHAOS_HOLD + this.cfg.sweepTime + ALERT_DELAY ? 1 : 0;
+      if (this.alertProg !== alertGoal) {
+        this.alertProg = alertGoal > this.alertProg ? Math.min(1, this.alertProg + st / ALERT_RISE) : Math.max(0, this.alertProg - st / 0.3);
+        faded = true;
+      }
+      if (this.stageT >= this.stageEnd(this.stepIndex)) this.played[this.stepIndex] = true;
+      if (this.alert) {
+        const e = 1 - (1 - this.alertProg) ** 3;
+        this.alert.visible = this.alertProg > 0;
+        this.alertStem!.scale.y = Math.max(0.001, ALERT_H * e);
+        this.alertRing!.scale.setScalar(Math.max(0.001, e));
+      }
+    }
+    // staged top tab: the layers below the ring fade back (they read as
+    // noise from straight above), and return on the other tabs
+    if (this.cfg.stagedLayers) {
+      const goal = this.stepIndex === 2 ? 1 : 0;
+      if (this.dim !== goal) {
+        this.dim = this.snap || this.reduced ? goal : goal > this.dim ? Math.min(1, this.dim + st / 0.4) : Math.max(0, this.dim - st / 0.6);
+        faded = true;
+      }
+      const d = 1 - 0.95 * this.dim;
+      if (this.reliefMat?.uniforms.uOpacity) this.reliefMat.uniforms.uOpacity.value = this.cfg.reliefOpacity * d;
+      if (this.alertStem) (this.alertStem as Line2).material.opacity = 1 - 0.75 * this.dim;
+      if (this.alertRing) (this.alertRing as Line2).material.opacity = 0.7 * (1 - 0.75 * this.dim);
+    }
+    const building = this.scanY < top && (!this.cfg.stagedLayers || this.sweep >= 1);
+    if (building) this.scanY = Math.min(top, this.scanY + this.cfg.buildSpeed * st);
+    const kb = 1 - Math.pow(1 - 0.08, dt * 60);
+    for (let l = 1; l <= 3; l++) {
+      const goal = l <= to && this.scanY >= LEVELS[l] - 1e-3 ? 1 : 0;
+      if (this.levelProg[l] === goal) continue;
+      // ~0.45 s, eased out (snappy start, soft landing)
+      const step = st / 0.45;
+      this.levelProg[l] = goal > this.levelProg[l] ? Math.min(1, this.levelProg[l] + step) : Math.max(0, this.levelProg[l] - step * 1.5);
+      this.levelReveal[l] = 1 - (1 - this.levelProg[l]) ** 3;
+      faded = true;
+    }
+    if (this.scan) {
+      const goal = building ? 1 : 0;
+      if (this.scanAlpha !== goal) {
+        this.scanAlpha += (goal - this.scanAlpha) * kb;
+        if (Math.abs(goal - this.scanAlpha) < 0.004) this.scanAlpha = goal;
+        faded = true;
+      }
+      this.scan.position.y = this.scanY;
+      this.scan.visible = this.scanAlpha > 0.004;
+      (this.scan.material as MeshBasicMaterial).opacity = 0.05 * this.scanAlpha;
+      ((this.scan.children[0] as LineSegments).material as LineBasicMaterial).opacity = 0.75 * this.scanAlpha;
+      if (building) faded = true;
+    }
     if (faded) this.applyReveal();
     if (moved) this.applyCamera();
-    return moved || faded;
+    // staged beats above the floor; a jump lands them in one update
+    const snap = this.snap;
+    this.snap = false;
+    if (this.signals) this.signals.update(st, this.stepIndex, this.stageT, snap || this.reduced, this.dim);
+    return moved || faded || alive || snap || !!(this.signals && !this.reduced);
   }
 
   private applyCamera() {
@@ -561,6 +1179,49 @@ export class MapScene {
       this.target.z + this.radius * sp * Math.cos(this.theta),
     );
     this.camera.lookAt(this.target);
+    if (this.camera.filmOffset !== this.lens) {
+      this.camera.filmOffset = this.lens;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  // the highest level this tab shows (stagedLayers: none / 1-2 / all)
+  private targetLevel() {
+    // staged: the middle tab builds Signals, then Reasoning once the
+    // clusters have formed (its tiles drop in then)
+    if (!this.cfg.stagedLayers) return 3;
+    return this.stepIndex === 1 ? (this.stageT >= REASONING_AT ? 2 : 1) : [0, 1, 3][this.stepIndex];
+  }
+
+  // when a tab's staged animation is over (s)
+  private stageEnd(step: number) {
+    return step === 0 ? CHAOS_HOLD + this.cfg.sweepTime + ALERT_DELAY + ALERT_RISE : step === 1 ? REFINE_FLIGHT + 0.6 : 3;
+  }
+
+  // the camera isn't flying between tabs (text waits for this)
+  get landed() {
+    return !this.flight;
+  }
+
+  // seconds since this tab was landed on (staged timelines)
+  get stageTime() {
+    return this.stageT;
+  }
+
+  // the anomaly's tip (world) and how far its card is in (0..1), for the
+  // HTML overlay; null when there is none
+  get alertTip(): { x: number; y: number; z: number; card: number } | null {
+    if (!this.alert || this.alertProg <= 0) return null;
+    const e = 1 - (1 - this.alertProg) ** 3;
+    // on the first tab, once the camera has (nearly) landed
+    const landing = !this.flight || this.flight.t > 0.75;
+    const card = this.stepIndex === 0 && landing ? Math.max(0, (this.alertProg - 0.7) / 0.3) : 0;
+    return { x: ALERT_AT[0], y: LEVEL.floor + ALERT_H * e, z: ALERT_AT[1], card };
+  }
+
+  // how built each level is (1 extract, 2 refine, 3 signal), 0..1
+  get levels(): [number, number, number] {
+    return [this.levelReveal[1], this.levelReveal[2], this.levelReveal[3]];
   }
 
   private applyReveal() {
@@ -576,10 +1237,26 @@ export class MapScene {
       }
     };
     set(this.side, this.sideReveal);
+    // the top tab's fade-back of the levels below the ring
+    const levelDim = [1, 1 - 0.9 * this.dim, 1 - 0.8 * this.dim, 1 - 0.5 * this.dim];
+    for (let l = 1; l <= 3; l++) {
+      set(this.levelObjs[l], this.levelReveal[l] * levelDim[l]);
+      // its lines (coastline, edges, trace) draw along their length
+      for (const o of this.levelObjs[l]) {
+        o.traverse((n) => {
+          if (!(n instanceof Line2)) return;
+          const g = n.geometry as LineGeometry;
+          const total = g.attributes.instanceStart?.count ?? 0;
+          g.instanceCount = this.levelReveal[l] >= 1 ? Infinity : Math.ceil(total * this.levelReveal[l]);
+        });
+      }
+    }
+    for (const { obj, level } of this.levelSide) set([obj], this.sideReveal * this.levelReveal[level]);
     set(this.top, this.topReveal);
   }
 
   dispose() {
     for (const d of this.disposables) d.dispose();
+    this.signals?.dispose();
   }
 }
