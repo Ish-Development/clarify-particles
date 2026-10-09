@@ -93,7 +93,10 @@ const DELIVER_SQUARE: { position: V3; target: V3 } = {
 const REFINE_FLIGHT = REASONING_AT + 1.6;
 // the first tab's timeline (s): chaos, then the sweep orders the floor,
 // the camera moves in, and one needle rises as the anomaly
-const CHAOS_HOLD = 1.2;
+// (the needles first grow out of the floor, a wave from the centre out,
+// over GROW s; the chaos then churns until CHAOS_HOLD)
+const GROW = 1.7;
+const CHAOS_HOLD = 2.5;
 const ALERT_DELAY = 0.3; // after the floor has settled
 const ALERT_RISE = 0.7;
 // the anomaly: a needle near the middle (a cell of the 32 grid), how tall
@@ -303,6 +306,7 @@ const NEEDLE_VERT = /* glsl */ `
   uniform float uSettleSwell; // how much the settled field still breathes
   uniform float uWorld;
   uniform float uMaxRise;
+  uniform float uGrow; // staged intro: 0..1, the needles growing out of the floor
   uniform vec3 uLow;
   uniform vec3 uHigh;
   uniform float uOpacity;
@@ -324,12 +328,17 @@ const NEEDLE_VERT = /* glsl */ `
     // slow swell shared by neighbours (no per-needle wobble: that shimmers)
     float settled = uOrderH * (0.3 + 0.7 * base / uMaxRise) * (1.0 - uSettleSwell + uSettleSwell * swell);
     float h = mix(base * k, settled, o);
+    // growing in: a wave from the centre out, each needle a little late
+    float r = length(position.xz) / (uWorld * 0.71);
+    float g = clamp((uGrow * 1.6 - r - seed * 0.3) / 0.3, 0.0, 1.0);
+    g = g * g * (3.0 - 2.0 * g);
+    h *= g;
     vec3 p = position;
     p.y += top * h;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
     // dim at the floor, brighter toward a tall tip; even once ordered
     vColor = mix(uLow, uHigh, top * mix(clamp(k, 0.0, 1.0), 0.6, o));
-    vAlpha = uOpacity * mix(0.25, 1.0, top);
+    vAlpha = uOpacity * mix(0.25, 1.0, top) * min(1.0, g * 2.0);
   }
 `;
 const NEEDLE_FRAG = /* glsl */ `
@@ -410,6 +419,8 @@ export class MapScene {
   // of the damped approach's long sub-pixel tail (thin lines crawl and the
   // HTML overlay steps a pixel at a time while it creeps)
   private flight: { from: number[]; to: number[]; t: number; dur: number } | null = null;
+  // staged intro: the needles growing out of the floor (0..1)
+  private grow = 1;
   // staged top tab: everything below the ring fades back (0..1)
   private dim = 0;
   // the lens shift, current and goal (flies with the camera)
@@ -623,6 +634,7 @@ export class MapScene {
               uSettleSwell: { value: c.reliefSettleSwell },
               uWorld: { value: WORLD },
               uMaxRise: { value: maxRise },
+              uGrow: { value: 1 },
               uLow: { value: new Color(c.reliefPale) },
               uHigh: { value: new Color(c.reliefDeep) },
               uOpacity: { value: c.reliefOpacity },
@@ -943,6 +955,7 @@ export class MapScene {
       // the intro: placed wide, then one continuous push-in, timed to land
       // as the anomaly rises
       this.closeUp = false;
+      this.grow = 0;
       this.aim(jump, undefined, jump);
       this.closeUp = true;
       this.aim(jump, CHAOS_HOLD + this.cfg.sweepTime + ALERT_DELAY + 0.6);
@@ -1104,6 +1117,11 @@ export class MapScene {
         faded = true;
       }
       if (this.reliefMat?.uniforms.uSweep) this.reliefMat.uniforms.uSweep.value = this.sweep;
+      if (this.grow < 1) {
+        this.grow = this.snap || this.reduced || !first ? 1 : Math.min(1, this.grow + st / GROW);
+        if (this.reliefMat?.uniforms.uGrow) this.reliefMat.uniforms.uGrow.value = this.grow;
+        faded = true;
+      }
       if (this.sweepLine) {
         const on = goal === 1 && this.sweep > 0 && this.sweep < 1;
         this.sweepLine.visible = on;

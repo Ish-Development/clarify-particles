@@ -2,10 +2,13 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-09, v1.7.0 released)
+## Status (2026-10-09, v1.7.1 released)
 
-- **Released to the devs:** v1.7.0 (2026-10-09): "What Clarify does" (`fjord`) is now the staged story (chaos → anomaly on Own, clusters → tiles on Refine, ring → routed on Deliver), with its UI cards drawn by the script; see its entry below. No markup changes; drag removed. Hero and CTA unchanged.
-- **Tell the devs (v1.7.0):** bump the pinned version to `@1.7.0`. Nothing to change in the markup (same `data-fjord-*`, `is-active`, `--tab-progress`). The map panel's size per breakpoint is theirs to set in Webflow; the map fits any box (framed for ~16:10 to square). The cards' text can be overridden with attributes (CONFIG.md, "The staged story").
+- **v1.7.1** (2026-10-09): "What Clarify does": the floor's needles grow in (a wave from the centre) before the chaos; the story and the tab timer wait until a quarter of the map is in view (they used to start at the section's first pixel / 100 px early); on Deliver everything below the ring (floor, Signals, side tiles, the pink tile, the level grids) fades back and the ring's pulses are slower; the Own floor keeps a soft swell under the card (`reliefSettleSwell` 0.8) with a denser grid (64 per side); the tile chips no longer flicker when going to Deliver; jumping Own → Deliver skips the middle build. CTA: background variant `cta-sparkle` (not the default). Reference page: sections stop at 1512 px (the site container, margins included). Engine: graph grid `gridGlows`, `gridGlowDrift`/`Speed`/`Merge`/`Warp`/`WarpScale`, `gridSparkle*` (all off by default). No markup changes.
+- **Tell the devs (v1.7.1):** bump to `@1.7.1`; nothing else changes.
+
+- **v1.7.0** (2026-10-09): "What Clarify does" (`fjord`) is now the staged story (chaos → anomaly on Own, clusters → tiles on Refine, ring → routed on Deliver), with its UI cards drawn by the script; see its entry below. No markup changes; drag removed. Hero and CTA unchanged.
+- **(v1.7.0 note to the devs):** bump the pinned version to `@1.7.0`. Nothing to change in the markup (same `data-fjord-*`, `is-active`, `--tab-progress`). The map panel's size per breakpoint is theirs to set in Webflow; the map fits any box (framed for ~16:10 to square). The cards' text can be overridden with attributes (CONFIG.md, "The staged story").
 - **v1.6.0** (2026-10-03): the "What Clarify does" spatial map (`fjord`), a plain Three.js port of the Spatial Data Map tool, with tabs + autoplay driving its camera (see its entry below). Hero and CTA unchanged.
 - **v1.5.1** (2026-10-03): the component and wrap also work under the Webflow dev's names for the hero, `data-how-component` / `data-how-wrap` (from their Figma comment); the reference page's hero uses them. No look changes.
 - **v1.5.0** (2026-10-03):
@@ -89,6 +92,8 @@ Workflow for a new section:
 | exciteRate | 0 | Button hover just lights up; the pulsing (even slow) was rejected |
 | pulses | 0 | Blue pulses on the lines rejected |
 | intro | 0 | Entrance animation rejected |
+
+- **Background variant `cta-sparkle` (2026-10-09, not the default yet; preview `demo.html?cta=cta-sparkle`):** the card background from Figma `13987:11485` (a fine grid of Slate/100 squares seen through blurred glows). Built as the graph grid with two new options: `gridGlows` (static soft round glows lighting the squares: two big circles, right behind the network and lower left behind the text) and grid pitch 2.5 / dot 1.5, `gridHot` 0 and `gridAuto` off (no hover, no drifting lights). Tried and dropped along the way, all still available as options (off in the preset): random sparkles (`gridSparkle`, "way more subtle", then removed), drifting/breathing glows (`gridGlowDrift`/`gridGlowSpeed`), liquid merging (`gridGlowMerge`) and a flow-field warp (`gridGlowWarp`, "too much like clouds"). The user settled on: still, bigger circles, "reveal the pattern, that's it". Next: decide whether it replaces `cta`.
 
 - **Background token:** `bg-secondary` changed in Figma to `#080a0c` (from `#0f1215`). It's reflected in `tokens.css`.
 - **Staging:** v1.2 component markup agreed with the dev: component = card, the script creates `.u-particles-threejs` (styled in Webflow), and the button is scoped by the component. Before that, staging used legacy markup (the dev's own `.u-particles-threejs` div with `data-particles`), which still works. The container caps the card at 1512 px.

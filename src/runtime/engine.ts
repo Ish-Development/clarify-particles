@@ -234,6 +234,7 @@ const FULL_QUAD = new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, -1, 0, 1, 
 // trail (uHeat: per square, peak and time lit).
 const GRID_AUTO = 4;
 const GRID_FRAG = /* glsl */ `
+uniform vec2 uRes;
 uniform vec2 uDev;
 uniform float uDpr;
 uniform float uPitch;
@@ -251,6 +252,24 @@ uniform vec3 uAutoColor;
 uniform float uAutoStrength;
 uniform vec3 uBaseColor;
 uniform float uBase;
+uniform vec4 uGlow[${GRID_AUTO}];
+uniform float uGlowCount;
+uniform float uGlowMerge;
+uniform float uWarp;
+uniform float uWarpScale;
+uniform float uWarpTime;
+uniform float uSpark;
+uniform vec3 uSparkColor;
+uniform float uSparkRate;
+uniform float uSparkSpeed;
+float gridHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+// smooth value noise (quintic, no creases), for the glows' flow field
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  return mix(mix(gridHash(i), gridHash(i + vec2(1.0, 0.0)), u.x), mix(gridHash(i + vec2(0.0, 1.0)), gridHash(i + vec2(1.0, 1.0)), u.x), u.y) * 2.0 - 1.0;
+}
 void main() {
   // device px, y down from the canvas' top-left
   vec2 dev = vec2(gl_FragCoord.x, uDev.y - gl_FragCoord.y);
@@ -261,8 +280,43 @@ void main() {
   vec2 c = (cell * uPitch + uDot * 0.5) / uDpr;
   // layers, bottom to top (premultiplied "over"): the squares' own color,
   // the drifting lights, the hover trail
-  vec3 col = uBaseColor * uBase;
-  float a = uBase;
+  // the squares' own color, lit evenly or through the static glows
+  float lit = 1.0;
+  if (uGlowCount > 0.0) {
+    lit = 0.0;
+    vec2 uv = c / uRes;
+    // warp: push the point through a slowly drifting, smooth flow field
+    // (one layer of large swirls, no fine detail: liquid, not cloud), so
+    // the glows bend and roll into each other
+    if (uWarp > 0.0) {
+      vec2 q = uv * vec2(uRes.x / uRes.y, 1.0) * uWarpScale;
+      float t = uWarpTime;
+      vec2 w = vec2(vnoise(q + vec2(0.0, t)), vnoise(q + vec2(5.2, 1.3 - 0.8 * t)));
+      uv += uWarp * w * vec2(uRes.y / uRes.x, 1.0);
+    }
+    for (int i = 0; i < ${GRID_AUTO}; i++) {
+      if (float(i) >= uGlowCount) break;
+      // radii in canvas heights, so a round glow stays round on any shape
+      vec2 d = (uv - uGlow[i].xy) * vec2(uRes.x / uRes.y, 1.0) / uGlow[i].zw;
+      lit += exp(-2.0 * dot(d, d));
+    }
+    // merge: a soft threshold on the summed field, so glows that meet
+    // join into one smooth shape (and part the same way)
+    lit = mix(clamp(lit, 0.0, 1.0), smoothstep(0.12, 0.95, lit), uGlowMerge);
+  }
+  vec3 col = uBaseColor * uBase * lit;
+  float a = uBase * lit;
+  // sparkle: each square flashes now and then on its own clock (a share
+  // uSparkRate of each cycle), a little more often where the glows are
+  if (uSpark > 0.0) {
+    float h = gridHash(cell);
+    float ph = fract(uTime * uSparkSpeed * (0.25 + 0.2 * gridHash(cell + 7.1)) + h);
+    float w = uSparkRate * (0.5 + lit);
+    float s = ph < w ? sin(3.14159 * ph / w) : 0.0;
+    float k = s * s * uSpark;
+    col = uSparkColor * k + col * (1.0 - k);
+    a = k + a * (1.0 - k);
+  }
   float drift = 0.0;
   for (int i = 0; i < ${GRID_AUTO}; i++) {
     vec2 d = (c - uAuto[i].xy) / uAutoSize;
@@ -299,6 +353,8 @@ class GridLayer {
   private time = 0;
   private last: { x: number; y: number } | null = null;
   private readonly autoSeeds: number[] = [];
+  private glowSpec: string | null = null;
+  private glows: number[][] = [];
 
   constructor(private readonly cfg: GraphSpec["config"]) {
     this.geometry.setAttribute("position", new BufferAttribute(FULL_QUAD, 3));
@@ -325,6 +381,16 @@ class GridLayer {
         uAutoStrength: { value: 0 },
         uBaseColor: { value: [0, 0, 0] },
         uBase: { value: 0 },
+        uGlow: { value: new Float32Array(GRID_AUTO * 4) },
+        uGlowCount: { value: 0 },
+        uGlowMerge: { value: 0 },
+        uWarp: { value: 0 },
+        uWarpScale: { value: 2.5 },
+        uWarpTime: { value: 0 },
+        uSpark: { value: 0 },
+        uSparkColor: { value: [0, 0, 0] },
+        uSparkRate: { value: 0 },
+        uSparkSpeed: { value: 1 },
       },
       "normal",
     );
@@ -377,6 +443,38 @@ class GridLayer {
     u.uAutoStrength.value = Math.min(1, Math.max(0, cfg.gridAutoStrength));
     u.uBaseColor.value = hexToRgb01(cfg.gridColor);
     u.uBase.value = Math.min(1, Math.max(0, cfg.gridBase));
+    u.uSpark.value = Math.min(1, Math.max(0, cfg.gridSparkle));
+    u.uGlowMerge.value = Math.min(1, Math.max(0, cfg.gridGlowMerge));
+    u.uWarp.value = Math.max(0, cfg.gridGlowWarp);
+    u.uWarpScale.value = Math.max(0.1, cfg.gridGlowWarpScale);
+    u.uWarpTime.value = this.time * 0.05 * Math.max(0, cfg.gridGlowSpeed);
+    u.uSparkColor.value = hexToRgb01(cfg.gridSparkleColor);
+    u.uSparkRate.value = Math.min(1, Math.max(0, cfg.gridSparkleRate));
+    u.uSparkSpeed.value = Math.max(0, cfg.gridSparkleSpeed);
+    if (cfg.gridGlows !== this.glowSpec) {
+      this.glowSpec = cfg.gridGlows;
+      const glows = cfg.gridGlows
+        .split(";")
+        .map((g) => g.trim().split(/\s+/).map(Number))
+        .filter((g) => g.length === 4 && g.every(Number.isFinite) && g[2] > 0 && g[3] > 0)
+        .slice(0, GRID_AUTO);
+      this.glows = glows;
+      u.uGlowCount.value = glows.length;
+    }
+    // each glow drifts like liquid around its spot: a slow wave plus a
+    // smaller, faster one (an organic path that never quite repeats), while
+    // it breathes and stretches (wider as it gets shorter, and back)
+    const G: Float32Array = u.uGlow.value;
+    const amp = Math.max(0, cfg.gridGlowDrift);
+    const gt = this.time * 0.1 * Math.max(0, cfg.gridGlowSpeed);
+    this.glows.forEach((g, i) => {
+      const s = i * 2.17;
+      const dx = amp * (0.7 * Math.sin(gt * 0.83 + s) + 0.3 * Math.sin(gt * 2.11 + s * 1.7));
+      const dy = amp * (0.7 * Math.sin(gt * 0.67 + s + 1.1) + 0.3 * Math.sin(gt * 1.73 + s * 2.3));
+      const breathe = amp > 0 ? 1 + 1.8 * amp * Math.sin(gt * 0.97 + s * 1.3) : 1;
+      const stretch = amp > 0 ? 1.6 * amp * Math.sin(gt * 1.31 + s * 0.7) : 0;
+      G.set([g[0] + dx, g[1] + dy, g[2] * breathe * (1 + stretch), g[3] * breathe * (1 - stretch)], i * 4);
+    });
     // drifting lights: slow Lissajous paths over the canvas, each fading in
     // and out on its own clock
     const auto = cfg.gridAuto === "always" || (cfg.gridAuto === "touch" && noHover.matches);
@@ -1598,7 +1696,19 @@ class MapView extends View {
     return { map: this.map ? "ready" : "loading", step: this.map?.step ?? null };
   }
 
+  // staged: the story waits until the map is in view (a quarter of it on
+  // screen), so its intro plays where it's seen
+  private entered = false;
+  protected onEnter() {
+    this.entered = true;
+    wake();
+  }
+  protected onSkipIntro() {
+    this.entered = true;
+  }
+
   step(dt: number) {
+    if (this.mapCfg.stagedLayers && !this.entered) return;
     if (this.map?.update(dt)) this.dirty = true;
   }
 

@@ -95,17 +95,22 @@ export function setupTabs(component: HTMLElement, opts: { autoplay: number; zone
     wake();
   };
   const onVisibility = () => wake();
-  const io = new IntersectionObserver(([entry]) => {
-    visible = entry.isIntersecting;
-    wake();
-  });
+  // the timer runs while the map is in view (a quarter of it on screen, as
+  // the map's own intro), or the section if there's no map panel yet
+  const io = new IntersectionObserver(
+    ([entry]) => {
+      visible = entry.isIntersecting && entry.intersectionRatio >= 0.25;
+      wake();
+    },
+    { threshold: [0, 0.25] },
+  );
 
   component.addEventListener("click", onClick);
   component.addEventListener("pointermove", onMove);
   component.addEventListener("pointerleave", onLeave);
   document.addEventListener("visibilitychange", onVisibility);
   reduced.addEventListener("change", paintProgress);
-  io.observe(component);
+  io.observe(component.querySelector("[data-fjord-wrap]") ?? component);
   activate(active);
 
   return () => {

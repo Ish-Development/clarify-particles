@@ -8,6 +8,11 @@
 
 /* --- shared components --- */
 
+/* the site container: everything contained stops at 1512px (its 80px side
+   margins included, so 1352px of content, as in Figma), centered on wider
+   screens. Each section caps itself (their backgrounds match the page). */
+.cta, .fjord, .hero { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
+
 /* typography rule: headings balance their lines, paragraphs avoid orphans */
 :is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
 p { text-wrap: pretty; }
@@ -39,8 +44,6 @@ p { text-wrap: pretty; }
 .cta { background: var(--background-bg-primary); padding: var(--section-space-m) var(--grid-margin); }
 .cta__card {
   position: relative;
-  /* the Webflow site container stops the card at 1512px */
-  max-width: 1512px; margin-inline: auto;
   overflow: clip;
   background: var(--background-bg-secondary);
   border: 1px solid var(--border-border-primary);

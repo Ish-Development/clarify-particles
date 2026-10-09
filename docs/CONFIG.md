@@ -128,6 +128,12 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `gridAuto` | `touch` | Soft lights drifting over the grid by themselves: `touch` (devices without hover), `always`, `off` |
 | `gridAutoColor` / `gridAutoStrength` | `#5f8db4` / `0.6` | The drifting lights' own color and peak opacity (separate from the hover's) |
 | `gridAutoCount` / `gridAutoSize` / `gridAutoSpeed` | `3` / `90` / `0.06` | How many drifting lights (max 4), their spread (px) and speed |
+| `gridGlows` | `""` | Static soft glows lighting the squares' own color (`gridColor` at `gridBase`), like blurred ellipses seen through the grid: `"x y rx ry"` per glow, the centre in 0..1 of the canvas and the radii in canvas heights (`rx = ry` stays round on any shape), `;` between, up to 4. Empty: the squares are lit evenly |
+| `gridGlowDrift` / `gridGlowSpeed` | `0` / `1` | The glows drift like liquid around their spots (a slow wave plus a faster one, breathing and stretching as they go): how far (0..1 of the canvas, also sets how much they morph) and how fast (1 ≈ a minute per drift); `0` = still |
+| `gridGlowMerge` | `0` | `0`: overlapping glows add up; `1`: they merge like liquid when they meet (a soft threshold on their sum, metaball style) |
+| `gridGlowWarp` / `gridGlowWarpScale` | `0` / `2.5` | The glows seen through a slowly drifting, smooth flow field (one layer of large swirls, so they bend and roll like liquid, not cloud): how far points are pushed (0..1 of the canvas; `0` = off) and how fine the swirls are (small = big lazy curls). Moves at `gridGlowSpeed` |
+| `gridSparkle` / `gridSparkleColor` | `0` / `#a4c9e9` | Random squares softly flash on their own clocks, no pointer involved: peak opacity (`0` = off) and color |
+| `gridSparkleRate` / `gridSparkleSpeed` | `0.003` / `1` | Share of the squares lit at any moment (a little more where the glows are), and how fast a flash runs |
 | `exciteRate` | `0.35` | Breaths/s while a `data-particles-excite` element is hovered; `0` = steady light-up |
 | `pulses` / `pulseSpeed` / `pulseSize` / `pulseColor` | `0` / `180` / `3` / `#a4c9e9` | Data pulses traveling the lines to the hub |
 | `intro` | `0` | Seconds for nodes to fly in once 25% of the section is visible (`0` = off) |
@@ -140,7 +146,7 @@ The `fjord` preset is the **staged story** (`stagedLayers: true`, since v1.7.0);
 
 ### The staged story
 
-Tab 1 (Own): the floor's needles churn, a line sweeps them into an even field, the camera pushes in and one needle rises as the anomaly, with its card. Tab 2 (Refine): dots lift onto Signals and gather into three clusters; the scan builds Reasoning and three tiles assemble from the clusters' dots, with their chips. Tab 3 (Deliver): straight down onto the stack; everything below the ring fades back (floor, Signals, the teal and white tiles); the pink tile's dots form a ring on Actions, routed to two actors whose switches flip on. Each tab plays its part the first time it shows; later visits, coming back down and reduced motion land on its end. A re-click on the open tab does nothing. The needles move all the time, so a staged map redraws every frame while it's on screen (it stops off screen and under reduced motion).
+The story (and the tab timer) start once a quarter of the map is in view. Tab 1 (Own): the floor's needles grow out of the floor (a wave from the centre out) and churn, a line sweeps them into an even field, the camera pushes in and one needle rises as the anomaly, with its card. Tab 2 (Refine): dots lift onto Signals and gather into three clusters; the scan builds Reasoning and three tiles assemble from the clusters' dots, with their chips. Tab 3 (Deliver): straight down onto the stack; everything below the ring fades back (floor, Signals, all three tiles, the level grids); the pink tile's dots form a ring on Actions, routed to two actors whose switches flip on. Each tab plays its part the first time it shows; later visits, coming back down and reduced motion land on its end. A re-click on the open tab does nothing. The needles move all the time, so a staged map redraws every frame while it's on screen (it stops off screen and under reduced motion).
 
 | Key | Default | `fjord` | Notes |
 |---|---|---|---|

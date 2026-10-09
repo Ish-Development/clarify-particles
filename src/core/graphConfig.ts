@@ -147,6 +147,32 @@ export interface GraphConfig {
   gridAutoCount: number;
   gridAutoSize: number;
   gridAutoSpeed: number;
+  // static soft glows that light the squares' own color (gridBase), as
+  // blurred ellipses seen through the grid: "x y rx ry" per glow, the
+  // centre in 0..1 of the canvas and the radii in canvas heights (rx = ry is
+  // round on any shape), ";" between, up to 4 ("" = the squares are lit
+  // evenly)
+  gridGlows: string;
+  // the glows wander slowly around their spots: how far (0..1 of the
+  // canvas) and how fast (1 = a loop in about a minute); 0 = still
+  gridGlowDrift: number;
+  gridGlowSpeed: number;
+  // 0: overlapping glows add up; 1: they merge like liquid (metaballs: a
+  // soft threshold on their sum, so two glows that meet pull into one shape)
+  gridGlowMerge: number;
+  // the glows seen through a slowly drifting, smooth flow field (domain
+  // warping): they bend and roll like liquid. How far points
+  // are pushed (0..1 of the canvas; 0 = off) and how fine the swirls are
+  // (small = big lazy curls, large = small eddies)
+  gridGlowWarp: number;
+  gridGlowWarpScale: number;
+  // random squares softly flash on their own clocks, no pointer involved:
+  // peak opacity (0 = off), color, share of squares lit at once, and how
+  // fast a flash runs (1 = about 1.5 s)
+  gridSparkle: number;
+  gridSparkleColor: string;
+  gridSparkleRate: number;
+  gridSparkleSpeed: number;
 }
 
 export const defaultGraphConfig: GraphConfig = {
@@ -228,4 +254,14 @@ export const defaultGraphConfig: GraphConfig = {
   gridAutoCount: 3,
   gridAutoSize: 90,
   gridAutoSpeed: 0.06,
+  gridGlows: "",
+  gridGlowDrift: 0,
+  gridGlowSpeed: 1,
+  gridGlowMerge: 0,
+  gridGlowWarp: 0,
+  gridGlowWarpScale: 2.5,
+  gridSparkle: 0,
+  gridSparkleColor: "#a4c9e9",
+  gridSparkleRate: 0.003,
+  gridSparkleSpeed: 1,
 };
