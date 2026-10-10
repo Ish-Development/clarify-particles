@@ -2,7 +2,10 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-10, v1.10.0 released)
+## Status (2026-10-10, v1.11.0 released)
+
+- **v1.11.0** (2026-10-10): the hero, reworked with the user (replaces the v1.4.0 look they had locked): 10,000 finer dots (sizes ×0.8; tablet 6,500 / 4,800, phones 6,500), turning at 0.55× (`rotateSpeed`), shapes hold 7 s and morph in 2.2 s with a burst and swirl mid-morph (`morphBurst` 0.45, `morphSwirl` 0.6, stagger 0.35, ease 0.1), a bigger hover hole (`hoverRadius` 220, strength 0.8 as before), and no click reaction. Engine: points `rotateSpeed`, `morphBurst`, `morphSwirl` (no-ops by default). CTA, "What Clarify does" and the globe unchanged.
+- **Tell the devs (v1.11.0):** bump to `@1.11.0`; no markup or CSS changes.
 
 - **v1.10.0** (2026-10-10): CTA background: a fine grid lit by two soft lights that glide between the two Figma circles on slightly random curved paths (see the CTA entry). Engine: graph `gridGlowGlide` / `gridGlowGlidePause` / `gridGlowGliders` (off by default). The `cta-sparkle` variant is removed (superseded). Hero, "What Clarify does" and the globe unchanged.
 - **Tell the devs (v1.10.0):** bump to `@1.10.0`; no markup or CSS changes (the grid is drawn by the script inside the CTA card).
@@ -40,6 +43,8 @@ Workflow for a new section:
 ---
 
 ## Hero: "Learn from the past and predict the future"
+
+- **v1.11.0 rework (2026-10-10):** the user asked for higher-res dots, slower movement and no click; then a faster, more dramatic morph (tried 1.6 s, settled on 2.2 s, with burst 0.45 + swirl 0.6) and a bigger hover hole (tried 150 → 300 px with a stronger push; settled on 220 px at the original strength 0.8). On phones the mid-morph burst fills the band briefly and is cropped at its edges (never under the navbar). The click burst is gone everywhere.
 
 - **Figma:** desktop `12735:86263` (1512 × 982), mobile `13651:45904` (393 × 852). The artwork is three dotted spheres masked by a circle (`12916:71353`): outer radius 404 px centered at (1274, 546) on desktop, 220 px at (204, 295) on mobile.
 - **Markup:** the section is `data-how-component data-how-wrap data-preset="hero"` (v1.5.1: the Webflow dev's names for the hero, same as `data-particles-component` / `data-particles-wrap`). The navbar sits on top of it in Figma but isn't part of the effect.

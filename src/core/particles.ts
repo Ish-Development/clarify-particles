@@ -109,8 +109,9 @@ export class ParticleSystem {
     // thus how cleanly tight shapes like the rings resolve) doesn't depend
     // on the actual frame rate.
     const easeFactor = 1 - Math.pow(1 - cfg.ease, dt * 60);
-    if (cfg.autoRotate) this.rotTime += dt;
-    if (cfg.idleMotion) this.idleTime += dt * 0.35;
+    const spin = Math.max(0, cfg.rotateSpeed);
+    if (cfg.autoRotate) this.rotTime += dt * spin;
+    if (cfg.idleMotion) this.idleTime += dt * 0.35 * spin;
     const tChaos = t + this.idleTime;
     // sequence: hold each shape for holdTime, then morph (morphTime) to the
     // next, in a loop; holdShape (set live) overrides it and stays put
@@ -192,6 +193,17 @@ export class ParticleSystem {
         ti = ti < 0.5 ? 4 * ti * ti * ti : 1 - Math.pow(-2 * ti + 2, 3) / 2;
         out.x += (outB.x - out.x) * ti;
         out.y += (outB.y - out.y) * ti;
+        // drama: mid-morph each dot is flung out from the center and
+        // swirled around it, peaking halfway through its own morph
+        if (cfg.morphBurst || cfg.morphSwirl) {
+          const bell = Math.sin(Math.PI * ti);
+          const a = cfg.morphSwirl * bell;
+          const f = 1 + cfg.morphBurst * bell * (0.6 + 0.8 * (this.scatterSeed[i] / 1000));
+          const dx = out.x - w / 2;
+          const dy = out.y - h / 2;
+          out.x = w / 2 + (dx * Math.cos(a) - dy * Math.sin(a)) * f;
+          out.y = h / 2 + (dx * Math.sin(a) + dy * Math.cos(a)) * f;
+        }
       }
       if (s !== 1) {
         out.x = w / 2 + (out.x - w / 2) * s;

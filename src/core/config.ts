@@ -56,10 +56,17 @@ export interface ParticleConfig {
   // that morph: seconds, and how spread out the dots' start times are (0..0.9)
   morphTime: number;
   stagger: number;
+  // morph drama: mid-morph the dots are flung out from the center by up to
+  // morphBurst (0.5 = half again as far) and swirled around it by up to
+  // morphSwirl radians; 0 = a plain glide
+  morphBurst: number;
+  morphSwirl: number;
   rotX: number;
   rotY: number;
   rotZ: number;
   autoRotate: boolean;
+  // how fast the shape turns and idles (1 = as designed, 0.5 = half speed)
+  rotateSpeed: number;
   // the shape turns toward the pointer over the whole section (radians, as
   // the graph's parallax); 0 = off
   parallax: number;
@@ -105,10 +112,13 @@ export const defaultConfig: ParticleConfig = {
   holdShape: "",
   morphTime: 2,
   stagger: 0.4,
+  morphBurst: 0,
+  morphSwirl: 0,
   rotX: 0,
   rotY: 0,
   rotZ: 0,
   autoRotate: true,
+  rotateSpeed: 1,
   parallax: 0,
   gather: true,
   innerCopies: 1,

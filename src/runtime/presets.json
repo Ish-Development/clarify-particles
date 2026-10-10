@@ -110,11 +110,11 @@
     "config": {
       "shape": "sphere",
       "innerCopies": 3,
-      "count": 7000,
-      "countMobile": 4500,
+      "count": 10000,
+      "countMobile": 6500,
       "sizeScaleMobile": 0.6,
-      "sizeMin": 0.4,
-      "sizeMax": 0.75,
+      "sizeMin": 0.32,
+      "sizeMax": 0.6,
       "opacityMin": 0.25,
       "opacityMax": 0.65,
       "colorMode": "single",
@@ -127,35 +127,38 @@
       "autoRotate": true,
       "idleMotion": true,
       "chaos": 0,
-      "ease": 0.06,
-      "hoverRadius": 100,
+      "ease": 0.1,
+      "hoverRadius": 220,
       "hoverStrength": 0.8,
-      "clickBehavior": "burst",
+      "clickBehavior": "none",
       "touchHover": false,
       "parallax": 0.25,
       "gather": false,
       "mobileDpr": 3,
       "sequence": "sphere,meridians,spiral,burst",
-      "holdTime": 6,
-      "morphTime": 2,
-      "stagger": 0.4
+      "holdTime": 7,
+      "morphTime": 2.2,
+      "stagger": 0.35,
+      "rotateSpeed": 0.55,
+      "morphBurst": 0.45,
+      "morphSwirl": 0.6
     },
     "breakpoints": [
       {
         "maxWidth": 991,
         "config": {
           "clickBehavior": "none",
-          "count": 4500,
-          "sizeMin": 0.34,
-          "sizeMax": 0.638
+          "count": 6500,
+          "sizeMin": 0.27,
+          "sizeMax": 0.51
         }
       },
       {
         "maxWidth": 879,
         "config": {
-          "count": 3300,
-          "sizeMin": 0.312,
-          "sizeMax": 0.585
+          "count": 4800,
+          "sizeMin": 0.25,
+          "sizeMax": 0.47
         }
       },
       {
@@ -164,8 +167,8 @@
           "scale": 1.47,
           "fit": true,
           "fitPadding": 8,
-          "sizeMin": 0.4,
-          "sizeMax": 0.75
+          "sizeMin": 0.32,
+          "sizeMax": 0.6
         }
       }
     ]

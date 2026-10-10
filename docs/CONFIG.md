@@ -46,6 +46,7 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `sequence` / `holdTime` | `""` / `6` | Shapes looped in order, e.g. `sphere,meridians,spiral,burst` (`""` = just `shape`): each held `holdTime` s, then a `morphTime` morph to the next |
 | `holdShape` | `""` | Morph to this shape and stay (overrides the sequence; `""` = off). Can be set live with `ClarifyParticles.set()` |
 | `morphTime` / `stagger` | `2` / `0.4` | That morph: seconds, and how spread out the dots' start times are (0..0.9) |
+| `morphBurst` / `morphSwirl` | `0` / `0` | Morph drama: halfway through its morph each dot is flung out from the center by up to `morphBurst` (0.5 = half again as far; a little more or less per dot) and swirled around it by up to `morphSwirl` radians, then pulled into the next shape |
 | `count` | `6000` | |
 | `sizeMin` / `sizeMax` | `1` / `2.5` | |
 | `opacityMin` / `opacityMax` | `0.15` / `1` | |
@@ -56,6 +57,7 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `ease` | `0.06` | Settle speed |
 | `speed` | `0` | Shape animation speed |
 | `idleMotion` / `autoRotate` | `true` / `true` | |
+| `rotateSpeed` | `1` | How fast the shape turns and idles (0.5 = half speed) |
 | `rotX` / `rotY` / `rotZ` | `0` | Degrees |
 | `innerCopies` | `1` | Nested copies of 3D shapes |
 | `scale` | `1` | Size multiplier around the canvas center; above 1 the shape bleeds off the canvas |
