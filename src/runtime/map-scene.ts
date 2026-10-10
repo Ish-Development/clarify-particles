@@ -50,7 +50,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { MAP_DATA } from "./map-data";
 import { ANOMALY_XZ, LEVEL, LEVEL_H, LEVELS, REASONING_AT, WORLD } from "./map-consts";
-import { SignalsLayer, signalsDefaults } from "./map-signals";
+import { GATHER_AT, SignalsLayer, signalsDefaults } from "./map-signals";
 // the staged UI rides in this (lazy) chunk too
 export { MapOverlay } from "./map-overlay";
 import type { MapConfig } from "./defaults";
@@ -69,9 +69,15 @@ const STEPS: { position: V3; target: V3 }[] = [
 // floor has settled the camera moves in closer, onto the anomaly
 const FLOOR_STEP: { position: V3; target: V3 } = { position: [15, 8.5, 15], target: [0, 1.2, 0] };
 const FLOOR_CLOSE: { position: V3; target: V3 } = { position: [9.5, 6.5, 11], target: [-0.5, 2.2, 0.5] };
+// without the anomaly (storyAnomaly off) there's nothing to aim at: the
+// camera looks down more steeply, so the floor fills the frame
+const FLOOR_FILL: { position: V3; target: V3 } = { position: [7, 9, 8.2], target: [0.8, 0, 0.8] };
 // staged middle tab: the camera pulls back to take in floor to Reasoning,
 // the clusters and the tiles
 const REFINE_WIDE: { position: V3; target: V3 } = { position: [16, 19, 18], target: [0, 6.8, 0] };
+// near-square panels (phones): flatter, so the levels spread apart and their
+// labels and the tile chips get air between them
+const REFINE_SQUARE: { position: V3; target: V3 } = { position: [17, 15, 19], target: [0, 6.2, 0] };
 // staged top tab: straight down onto the stack, centred on the ring (its
 // spot on the levels), the tiles and clusters showing through below; a
 // bigger move for the last step. Near-square panels (phones) aim a little
@@ -307,6 +313,8 @@ const NEEDLE_VERT = /* glsl */ `
   uniform float uWorld;
   uniform float uMaxRise;
   uniform float uGrow; // staged intro: 0..1, the needles growing out of the floor
+  uniform float uPulse; // a pulse rolling out through the settled field
+  uniform float uPulseEvery;
   uniform vec3 uLow;
   uniform vec3 uHigh;
   uniform float uOpacity;
@@ -327,6 +335,13 @@ const NEEDLE_VERT = /* glsl */ `
     // settled: an even field that keeps the terrain's soft shape, with one
     // slow swell shared by neighbours (no per-needle wobble: that shimmers)
     float settled = uOrderH * (0.3 + 0.7 * base / uMaxRise) * (1.0 - uSettleSwell + uSettleSwell * swell);
+    // the pulse: a soft ring rolling out from the centre, lifting the
+    // settled needles as it passes (wobbled by the swell so it isn't a circle)
+    float pr = length(position.xz) / (uWorld * 0.71) + (swell - 0.5) * 0.25;
+    float pf = (uPulseEvery > 0.0 ? fract(uTime / uPulseEvery) : 0.0) * 1.6 - 0.2;
+    float pd = (pr - pf) / 0.09;
+    float pw = exp(-pd * pd) * uPulse * o;
+    settled *= 1.0 + pw * 1.6;
     float h = mix(base * k, settled, o);
     // growing in: a wave from the centre out, each needle a little late
     float r = length(position.xz) / (uWorld * 0.71);
@@ -337,7 +352,7 @@ const NEEDLE_VERT = /* glsl */ `
     p.y += top * h;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
     // dim at the floor, brighter toward a tall tip; even once ordered
-    vColor = mix(uLow, uHigh, top * mix(clamp(k, 0.0, 1.0), 0.6, o));
+    vColor = mix(uLow, uHigh, top * min(1.0, mix(clamp(k, 0.0, 1.0), 0.6, o) + pw));
     vAlpha = uOpacity * mix(0.25, 1.0, top) * min(1.0, g * 2.0);
   }
 `;
@@ -635,6 +650,8 @@ export class MapScene {
               uWorld: { value: WORLD },
               uMaxRise: { value: maxRise },
               uGrow: { value: 1 },
+              uPulse: { value: c.reliefPulse },
+              uPulseEvery: { value: c.reliefPulseEvery },
               uLow: { value: new Color(c.reliefPale) },
               uHigh: { value: new Color(c.reliefDeep) },
               uOpacity: { value: c.reliefOpacity },
@@ -881,7 +898,7 @@ export class MapScene {
   // so its side labels stay in), and the top-down step backs off until the
   // whole signal square (with its text block) fits.
   private framing(i: number) {
-    const s = !this.cfg.stagedLayers ? STEPS[i] : i === 0 ? (this.closeUp ? FLOOR_CLOSE : FLOOR_STEP) : i === 1 ? REFINE_WIDE : this.aspect < 1.25 ? DELIVER_SQUARE : DELIVER_STEP;
+    const s = !this.cfg.stagedLayers ? STEPS[i] : i === 0 ? (this.closeUp ? (this.cfg.storyAnomaly ? FLOOR_CLOSE : FLOOR_FILL) : FLOOR_STEP) : i === 1 ? (this.aspect < 1.25 ? REFINE_SQUARE : REFINE_WIDE) : this.aspect < 1.25 ? DELIVER_SQUARE : DELIVER_STEP;
     const t = new Vector3(...s.target);
     const off = new Vector3(...s.position).sub(t);
     let radius = off.length();
@@ -1017,7 +1034,9 @@ export class MapScene {
       // the first tab's floor and anomaly, as far as its timeline has got
       const settled = to > 0 || this.stageT >= CHAOS_HOLD + this.cfg.sweepTime;
       this.sweep = settled ? 1 : 0;
-      this.alertProg = to > 0 || this.stageT >= this.stageEnd(0) ? 1 : 0;
+      this.alertProg = this.cfg.storyAnomaly
+        ? to > 0 || this.stageT >= this.stageEnd(0) ? 1 : 0
+        : this.stepIndex === 2 || (this.stepIndex === 1 && this.stageT >= GATHER_AT) ? 1 : 0;
       for (let l = 1; l <= 3; l++) this.levelReveal[l] = this.levelProg[l] = l <= to ? 1 : 0;
       this.scanAlpha = 0;
       this.applyReveal();
@@ -1128,8 +1147,12 @@ export class MapScene {
         this.sweepLine.position.z = (this.sweep * 1.25 - 0.125 - 0.5) * WORLD;
         this.sweepLine.material.opacity = on ? 0.95 : 0;
       }
-      // settled (the camera is pushing in all along): the anomaly rises
-      const alertGoal = !first || this.stageT >= CHAOS_HOLD + this.cfg.sweepTime + ALERT_DELAY ? 1 : 0;
+      // settled (the camera is pushing in all along): the anomaly rises;
+      // without the first tab's anomaly, it rises on the middle tab as the
+      // pink cluster gathers over it
+      const alertGoal = this.cfg.storyAnomaly
+        ? !first || this.stageT >= CHAOS_HOLD + this.cfg.sweepTime + ALERT_DELAY ? 1 : 0
+        : this.stepIndex === 2 || (this.stepIndex === 1 && this.stageT >= GATHER_AT) ? 1 : 0;
       if (this.alertProg !== alertGoal) {
         this.alertProg = alertGoal > this.alertProg ? Math.min(1, this.alertProg + st / ALERT_RISE) : Math.max(0, this.alertProg - st / 0.3);
         faded = true;

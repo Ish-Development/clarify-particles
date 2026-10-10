@@ -10,10 +10,10 @@ Interactive particle/network backgrounds for Webflow sections. You don't need a 
 **Site settings → Custom code → Footer code:**
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.7.1/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.8.0/dist-runtime/particles.js"></script>
 ```
 
-Always pin the version (`@1.7.1`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
+Always pin the version (`@1.8.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
 
 ### Or through the site's `window.libs` loader
 
@@ -22,7 +22,7 @@ Always pin the version (`@1.7.1`), never `@latest` or a branch. Pinned URLs neve
 window.loadParticles = () => {
   if (!document.querySelector("[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
-    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.7.1/dist-runtime/particles.js")
+    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.8.0/dist-runtime/particles.js")
   );
 };
 ```
@@ -54,7 +54,7 @@ Each effect is a **component**:
 - **Styling the div:** the script adds no positioning or size to that div, so **style `.u-particles-threejs` in Webflow**. The canvas always fills it at 100% × 100%. If the div ends up with no size, the console warns you.
 - **Section names:** the hero uses `data-how-component` / `data-how-wrap` and the spatial map `data-fjord-component` / `data-fjord-wrap`. They work exactly like `data-particles-component` / `data-particles-wrap` (any pair works on any section).
 - **The spatial map's panel size is yours:** set the `data-fjord-wrap` element's size per breakpoint in Webflow (height or aspect ratio). The map, camera and cards fit whatever box they get. It's framed for roughly 16:10 to square; avoid very wide, short strips. The reference page uses 552 px tall on desktop, 16:10 on tablet, square on phones.
-- **The spatial map's cards and labels** are drawn by the script (HTML over the map); nothing to build. Their text can be changed per section with attributes on the component, e.g. `data-alert-title="Pump 7"` (all keys: `docs/CONFIG.md`, "The staged story").
+- **The spatial map's cards and labels** are drawn by the script (HTML over the map); nothing to build. Their text can be changed per section with attributes on the component, e.g. `data-route-text="EVT-2291 · Pump 7 maintenance risk"` (all keys: `docs/CONFIG.md`, "The staged story").
 - **Tabs (the spatial map):** `data-fjord-tab="0|1|2"` on each tab. The script runs them: it adds `is-active` to the active tab (style that combo class), sets `--tab-progress` (0 → 1) on it for the timer line, moves on by itself every 7 s, and flies the map's camera. No Webflow Tabs component or interactions needed.
 - **Settings:** `data-preset` goes on the component (or the wrap, which wins if both have one).
 - **Buttons:** `data-particles-excite` elements inside a component light up **that component's** effect only, so several components on one page each react to their own button.

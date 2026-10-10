@@ -290,16 +290,21 @@
       "reliefDriftSpeed": 0.95,
       "reliefDriftScale": 0.29,
       "reliefTwinkle": 0.5,
-      "reliefOrderHeight": 0.9,
-      "reliefSettleSwell": 0.8,
+      "reliefOrderHeight": 1.8,
+      "reliefSettleSwell": 1,
+      "reliefPulse": 1,
+      "reliefPulseEvery": 3.5,
       "reliefPale": "#3a3d41",
-      "reliefDeep": "#b7bec5",
+      "reliefDeep": "#a4c9e9",
       "wireOpacity": 0,
       "frameColor": "#575b5f",
       "tempo": 1.3,
       "buildSpeed": 8,
       "smoothTime": 0.6,
-      "sweepTime": 1.1
+      "sweepTime": 1.1,
+      "sweepColor": "#5f8db4",
+      "storyAnomaly": false,
+      "storyLevels": "Raw data, Signals, Reasoning, Actions"
     }
   }
 }

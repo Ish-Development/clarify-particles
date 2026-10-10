@@ -79,6 +79,14 @@ export interface MapConfig {
   reliefOrderHeight: number;
   // staged needles: how much the settled field still breathes (0 = still)
   reliefSettleSwell: number;
+  // staged needles: a pulse rolling out from the floor's centre through the
+  // settled field (0 = none: its strength), and seconds between pulses
+  reliefPulse: number;
+  reliefPulseEvery: number;
+  // staged: the first tab ends on the anomaly needle and its card; off, the
+  // first tab stays grey (only the floor's pulse) and the anomaly needle
+  // rises on the middle tab, as the pink cluster gathers over it
+  storyAnomaly: boolean;
   sweepTime: number;
   // staged: the sweep line's colour; the anomaly's (the alert) colour
   sweepColor: string;
@@ -190,6 +198,9 @@ export const mapDefaults: MapViewConfig = {
   reliefNeedleGrid: 32,
   reliefOrderHeight: 0.9,
   reliefSettleSwell: 0,
+  reliefPulse: 0,
+  reliefPulseEvery: 3.5,
+  storyAnomaly: true,
   sweepTime: 0.9,
   sweepColor: "#a2d0c1",
   alertColor: "#e0607e",

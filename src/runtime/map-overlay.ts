@@ -22,7 +22,7 @@ const CSS = /* css */ `
 .fj-ov *{box-sizing:border-box}
 .fj-ov svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .fj-level,.fj-brackets,.fj-card-pos,.fj-chip,.fj-route{position:absolute;left:0;top:0;will-change:transform}
-.fj-level{font:10px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:#8e949a;white-space:nowrap;transform-origin:100% 50%;transition:opacity .3s}
+.fj-level{font:10px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:#8e949a;white-space:nowrap;text-shadow:0 0 6px #000,0 0 2px #000;transition:opacity .3s}
 .fj-bz{padding:4px;background:rgba(20,20,20,.5);border:1px solid var(--fj-line);border-radius:16px;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 .fj-in{display:block;background:rgba(20,20,20,.2);border:1px solid var(--fj-line);border-radius:12px}
 .fj-ic{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;border-radius:8px;background:rgba(249,250,252,.1);font:500 13px/14px "Geist",system-ui,sans-serif;color:var(--fj-text)}
@@ -136,7 +136,11 @@ export class MapOverlay {
   private routedOn = false;
   private readonly v = new Vector3();
 
+  // inside placement: the floor's label sits over its needles' tops
+  private readonly floorLift: number;
+
   constructor(host: HTMLElement, cfg: MapConfig) {
+    this.floorLift = cfg.reliefStyle === "needles" ? cfg.reliefOrderHeight : 0;
     injectCss();
     const r = this.root;
     r.className = "fj-ov";
@@ -201,16 +205,27 @@ export class MapOverlay {
     const step = map.step;
 
     // level labels: right-aligned against the planes' front-left corner;
-    // hidden where they don't fit, on the top tab, and from steeply above
+    // hidden where they don't fit, on the top tab, and from steeply above;
+    // the floor's from the middle tab (the first tab is the floor alone)
     map.camera.getWorldDirection(this.v);
     const steep = Math.min(1, Math.max(0, (0.88 - Math.abs(this.v.y)) / 0.18));
-    const show = [1, lv[0], lv[1], lv[2]];
+    const show = [step >= 1 ? 1 : 0, lv[0], lv[1], lv[2]];
     this.levels.forEach((el, i) => {
       const p = this.toScreen(map, -WORLD / 2, LEVELS[i], WORLD / 2, w, h);
-      const fits = p.x - 18 * k - this.sz(el).w * k >= M;
+      const lw = this.sz(el).w * k;
+      // beside the corner where there's room; otherwise (narrow panels, the
+      // planes reach the edges) just above it, on the plane's side
+      const out = p.x - 18 * k - lw >= M;
+      const q = i === 0 && !out ? this.toScreen(map, -WORLD / 2, this.floorLift, WORLD / 2, w, h) : p;
+      const lk = k * 0.85; // inside: a touch smaller
+      const x = Math.max(8, q.x - 6 * k);
+      const fits = out || x + lw * 0.85 <= w - M;
       const on = !p.behind && fits && landed && step !== 2 && el.textContent !== "";
       el.style.opacity = String(on ? show[i] * steep : 0);
-      el.style.transform = `translate(${p.x - 18 * k}px,${p.y}px) translate(-100%,-50%) scale(${k})`;
+      el.style.transformOrigin = out ? "100% 50%" : "0 100%";
+      el.style.transform = out
+        ? `translate(${p.x - 18 * k}px,${p.y}px) translate(-100%,-50%) scale(${k})`
+        : `translate(${x}px,${q.y - 18 * k}px) translate(0,-100%) scale(${lk})`;
     });
 
     // routed: the ring has formed and the camera has landed
@@ -224,18 +239,21 @@ export class MapOverlay {
     // tile chips: over their tiles once landed, on the middle tab only; kept
     // apart and inside the panel
     const tiles = map.signals?.tileLabels ?? [];
+    // phones: smaller, and lifted a little more off their tiles
+    const ck = small ? k * 0.8 : k;
+    const lift = small ? 26 * k : 0;
     const placed = this.chips.map((el, i) => {
       const t = tiles[i];
       const p = t ? this.toScreen(map, t.x, t.y, t.z, w, h) : { x: 0, y: 0, behind: true };
       // (not on the top tab: the routing card has the stage there)
       el.classList.toggle("is-in", !!t && t.show > 0.3 && !p.behind && landed && step === 1);
-      const cw = this.sz(el).w * k;
-      return { el, x: p.x - cw / 2, y: p.y, w: cw };
+      const cw = this.sz(el).w * ck;
+      return { el, x: p.x - cw / 2, y: p.y - lift, w: cw };
     });
     const order = [...placed].sort((a, b) => a.x - b.x);
     for (let pass = 0; pass < 4; pass++) {
       for (let i = 1; i < order.length; i++) {
-        const over = order[i - 1].x + order[i - 1].w + 8 * k - order[i].x;
+        const over = order[i - 1].x + order[i - 1].w + 8 * ck - order[i].x;
         if (over > 0) {
           order[i - 1].x -= over / 2;
           order[i].x += over / 2;
@@ -248,7 +266,7 @@ export class MapOverlay {
       const shift = left < M ? M - left : right > w - M ? w - M - right : 0;
       for (const c of order) c.x += shift;
     }
-    for (const c of placed) c.el.style.transform = `translate(${c.x}px,${c.y}px) translateY(-100%) scale(${k})`;
+    for (const c of placed) c.el.style.transform = `translate(${c.x}px,${c.y}px) translateY(-100%) scale(${ck})`;
 
     // the routing card: right of the ring (phones: below it), routes from
     // the ring to the actor rows, a dot travelling each

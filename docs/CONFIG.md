@@ -146,7 +146,7 @@ The `fjord` preset is the **staged story** (`stagedLayers: true`, since v1.7.0);
 
 ### The staged story
 
-The story (and the tab timer) start once a quarter of the map is in view. Tab 1 (Own): the floor's needles grow out of the floor (a wave from the centre out) and churn, a line sweeps them into an even field, the camera pushes in and one needle rises as the anomaly, with its card. Tab 2 (Refine): dots lift onto Signals and gather into three clusters; the scan builds Reasoning and three tiles assemble from the clusters' dots, with their chips. Tab 3 (Deliver): straight down onto the stack; everything below the ring fades back (floor, Signals, all three tiles, the level grids); the pink tile's dots form a ring on Actions, routed to two actors whose switches flip on. Each tab plays its part the first time it shows; later visits, coming back down and reduced motion land on its end. A re-click on the open tab does nothing. The needles move all the time, so a staged map redraws every frame while it's on screen (it stops off screen and under reduced motion).
+The story (and the tab timer) start once a quarter of the map is in view. Tab 1 (Own): the floor's needles grow out of the floor (a wave from the centre out) and churn, a line sweeps them into an even field that keeps swelling, with a pulse rolling out from the centre, while the camera pushes in (with `storyAnomaly` on, the old v1.7.1 ending: one needle rises as the anomaly, with its card). Tab 2 (Refine): dots lift onto Signals and gather into three clusters (with `storyAnomaly` off, the anomaly needle rises here, under the pink one); the scan builds Reasoning and three tiles assemble from the clusters' dots, with their chips. Tab 3 (Deliver): straight down onto the stack; everything below the ring fades back (floor, Signals, all three tiles, the level grids); the pink tile's dots form a ring on Actions, routed to two actors whose switches flip on. Each tab plays its part the first time it shows; later visits, coming back down and reduced motion land on its end. A re-click on the open tab does nothing. The needles move all the time, so a staged map redraws every frame while it's on screen (it stops off screen and under reduced motion).
 
 | Key | Default | `fjord` | Notes |
 |---|---|---|---|
@@ -154,12 +154,14 @@ The story (and the tab timer) start once a quarter of the map is in view. Tab 1 
 | `mapForms` | `true` | `false` | The original map's forms: coastline, regions, anomaly ring, specks, dashed trace |
 | `tempo` | `1` | `1.3` | The story's speed: scales the tab timelines, the scan and the camera flights together (clamped to ≥ 0.05) |
 | `buildSpeed` | `2.2` | `8` | How fast the scan plane rises (world units/s; a level is 6) |
-| `sweepTime` / `reliefOrderHeight` | `0.9` / `0.9` | `1.1` / `0.9` | Tab 1: the sweep's length (s); the even height the needles settle to (world units). They stay settled on later visits |
-| `reliefSettleSwell` | `0` | `0.8` | How much the settled needles still breathe: a slow swell moving through them together (0 = still) |
-| `sweepColor` / `alertColor` | `#a2d0c1` / `#e0607e` | — | The sweep line; the alert colour (the anomaly, the pink cluster, tile and ring, the UI's accents) |
-| `storyLevels` | `, Signals, Reasoning, Actions` | — | Level labels (HTML, left of the stack), bottom to top; an empty entry is skipped. Hidden where they don't fit and on tab 3 |
+| `sweepTime` / `reliefOrderHeight` | `0.9` / `0.9` | `1.1` / `1.8` | Tab 1: the sweep's length (s); the even height the needles settle to (world units). They stay settled on later visits |
+| `reliefSettleSwell` | `0` | `1` | How much the settled needles still breathe: a slow swell moving through them together (0 = still) |
+| `reliefPulse` / `reliefPulseEvery` | `0` / `3.5` | `1` / `3.5` | A pulse rolling out from the floor's centre through the settled needles, lifting and brightening them as it passes: its strength (0 = none) and seconds between pulses |
+| `storyAnomaly` | `true` | `false` | Tab 1 ends on the anomaly needle and its card. Off: tab 1 has no accent colour (only the floor's motion), the camera looks down onto the floor so it fills the panel, and the anomaly needle rises on tab 2 as the pink cluster gathers over it; the `alert*` copy is then unused |
+| `sweepColor` / `alertColor` | `#a2d0c1` / `#e0607e` | `#5f8db4` / — | The sweep line; the alert colour (the anomaly, the pink cluster, tile and ring, the UI's accents) |
+| `storyLevels` | `, Signals, Reasoning, Actions` | `Raw data, Signals, Reasoning, Actions` | Level labels (HTML), bottom to top; an empty entry is skipped. Left of the stack where there's room, otherwise (phones) just above each level's left corner, a little smaller. The floor's from tab 2; none on tab 3 |
 | `tileLabels` | `Asset health, Maintenance risk, Energy use` | — | The three Reasoning tiles' chips |
-| `alertTag` / `alertTitle` / `alertText` | `EVT-2291` / `Pump 14` / `Vibration above baseline` | — | The anomaly's card (tab 1) |
+| `alertTag` / `alertTitle` / `alertText` | `EVT-2291` / `Pump 14` / `Vibration above baseline` | — | The anomaly's card (tab 1, only with `storyAnomaly` on) |
 | `routeTitle` / `routeText` | `Routed to` / `EVT-2291 · Pump 14 maintenance risk` | — | The routing card's header (tab 3) |
 | `actor1` / `actor1Text`, `actor2` / `actor2Text` | `Operations lead` / `Person`, `Maintenance planner` / `Work order drafted` | — | Its two rows, each with a switch |
 | `closingLabel` / `closingValue` | `Caught before failure` / `18 h` | — | Its closing row and bar |
