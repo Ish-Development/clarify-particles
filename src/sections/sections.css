@@ -11,7 +11,7 @@
 /* the site container: everything contained stops at 1512px (its 80px side
    margins included, so 1352px of content, as in Figma), centered on wider
    screens. Each section caps itself (their backgrounds match the page). */
-.cta, .fjord, .hero { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
+.cta, .extend, .fjord, .hero { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
 
 /* typography rule: headings balance their lines, paragraphs avoid orphans */
 :is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
@@ -260,4 +260,49 @@ p { text-wrap: pretty; }
 }
 @media (max-width: 767px) {
   .fjord__map { aspect-ratio: 1; }
+}
+
+/* --- Built to extend: the globe (Figma 13311:5236, desktop 1512 wide; the
+   globe cell 13311:5245) --- */
+
+.extend, .extend * { box-sizing: border-box; } /* Webflow default */
+.extend {
+  background: var(--background-bg-primary);
+  padding: var(--section-space-m) var(--grid-margin);
+  font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased;
+}
+.extend__card { border: 1px solid var(--border-border-primary); border-radius: var(--radius-small); overflow: clip; }
+.extend__head {
+  display: flex; flex-direction: column; gap: var(--space-6);
+  padding: var(--space-6) var(--space-5);
+  background: var(--background-bg-secondary);
+  border-bottom: 1px solid var(--border-border-primary);
+}
+.extend__title {
+  margin: 0;
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+  color: var(--text-text-primary);
+}
+.extend__title span { color: var(--text-text-accent); }
+.extend__row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* the globe's cell: relative, so the effect's div can cover it */
+.extend__globe { position: relative; height: 507px; border-right: 1px solid var(--border-border-primary); }
+.extend__globe .u-particles-threejs { position: absolute; inset: 0; }
+.extend__copy { display: flex; align-items: center; justify-content: center; padding: var(--space-2) var(--space-5); background: var(--background-bg-secondary); }
+.extend__lede {
+  margin: 0; width: 451px; max-width: 100%;
+  font: 500 var(--headings-size-h3) / 1.2 var(--family-heading-primary);
+  letter-spacing: -0.5px;
+  color: var(--text-text-secondary);
+}
+@media (max-width: 991px) {
+  .extend__globe { height: auto; aspect-ratio: 1; }
+}
+/* mobile (Figma 13646:33349, 393 wide): stacked, the globe's cell 359 × 269
+   (kept at that ratio), the text under it */
+@media (max-width: 767px) {
+  .extend__row { grid-template-columns: minmax(0, 1fr); }
+  .extend__globe { aspect-ratio: 359 / 269; border-right: 0; border-bottom: 1px solid var(--border-border-primary); }
+  .extend__copy { justify-content: flex-start; padding: 36px var(--space-5); }
 }

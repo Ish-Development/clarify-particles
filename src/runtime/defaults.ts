@@ -32,6 +32,9 @@ export interface RuntimeOptions {
   // with touchSpin: a finger held still this long (ms) grabs the effect, so
   // up/down drags turn it too instead of scrolling (0 = off)
   touchHold: number;
+  // mouse "drag to spin" (desktop): pressing on the effect's zone and
+  // dragging turns it, and it coasts on after release (graph and points)
+  mouseSpin: boolean;
 }
 
 export type PointsConfig = ParticleConfig & RuntimeOptions;
@@ -157,7 +160,7 @@ export interface MapConfig {
 export type MapViewConfig = MapConfig &
   RuntimeOptions & { hoverRadius: number; hoverStrength: number; clickBehavior: "none"; background: string };
 
-const runtimeDefaults: RuntimeOptions = { countMobile: 0, sizeScaleMobile: 1, blend: "additive", interactive: true, softness: 1, solid: false, mobileDpr: 1.5, bleed: false, touchHover: true, touchSpin: false, touchHold: 0 };
+const runtimeDefaults: RuntimeOptions = { countMobile: 0, sizeScaleMobile: 1, blend: "additive", interactive: true, softness: 1, solid: false, mobileDpr: 1.5, bleed: false, touchHover: true, touchSpin: false, touchHold: 0, mouseSpin: false };
 
 // What an element gets with no attributes at all. Kept free of presets.json
 // so the playground can import it without hot-reloading on every preset save.

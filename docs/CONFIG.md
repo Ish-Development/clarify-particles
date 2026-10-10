@@ -24,6 +24,7 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `interactive` | `true` | Hover and click reactions |
 | `touchHover` | `true` | A finger drives the hover reactions (glow, push, parallax, the excite button). `false`: touch only taps (and spins, with `touchSpin`), since phones have no hover |
 | `touchSpin` | `false` | Touch "drag to spin" (graph and points): a sideways drag on the effect's zone turns it, and it coasts on after release (the tilt from any up/down part eases back). Sets `touch-action: pan-y pinch-zoom` on the zone, so up/down swipes still scroll the page and pinch-zoom still works |
+| `mouseSpin` | `false` | Mouse "drag to spin" (desktop, graph and points): press on the effect's zone and drag to turn it; it coasts on after release and the tilt eases back. The zone gets `cursor: grab` (`grabbing` while dragging). Off under reduced motion, like `touchSpin` |
 | `touchHold` | `0` | With `touchSpin`: a finger held still this long (ms) grabs the effect outright (it lights up), and then up/down drags turn it too instead of scrolling. Also turns off the iOS callout/selection on the zone. `0` = off |
 | `softness` | `1` | Dot edge: `1` soft glow, `0` crisp disc |
 | `solid` | `false` | Opaque dots: brightness from dimming the color, so lines behind don't show through |
@@ -136,6 +137,7 @@ The type comes from the preset (it carries its own). Without a preset, `data-par
 | `gridSparkleRate` / `gridSparkleSpeed` | `0.003` / `1` | Share of the squares lit at any moment (a little more where the glows are), and how fast a flash runs |
 | `exciteRate` | `0.35` | Breaths/s while a `data-particles-excite` element is hovered; `0` = steady light-up |
 | `pulses` / `pulseSpeed` / `pulseSize` / `pulseColor` | `0` / `180` / `3` / `#a4c9e9` | Data pulses traveling the lines to the hub |
+| `shine` / `shineEvery` / `shineTime` / `shineWidth` / `shineAngle` | `0` / `5` / `2.4` / `0.22` / `35` | A soft band of light crossing the shape every `shineEvery` s (back to back if `shineTime` is longer), taking `shineTime` s, at `shineAngle`° (before `rotZ`): the nodes it passes grow and brighten and their lines light up. `shine` = strength (0 = off); `shineWidth` = how soft the band is (the light falls to about a third that far from its middle), as a fraction of the radius |
 | `intro` | `0` | Seconds for nodes to fly in once 25% of the section is visible (`0` = off) |
 
 ## Map (`data-preset="fjord"`)

@@ -740,6 +740,8 @@ export class GraphSystem {
   light!: Float32Array;
   // depth dimming per node (1 = nearest)
   depthAlpha!: Float32Array;
+  // the shine band's light per node this frame (0..1, before `shine`)
+  private shineLit!: Float32Array;
   // per node: 0 = round sprite, 1 = square
   shape!: Float32Array;
   // multiplier on every line's opacity (entrance, excite)
@@ -883,6 +885,7 @@ export class GraphSystem {
     this.renderSize = new Float32Array(n);
     this.renderAlpha = new Float32Array(n);
     this.light = new Float32Array(n);
+    this.shineLit = new Float32Array(n);
     this.depthAlpha = new Float32Array(n).fill(1);
     // node sizes follow the first layout's weights for the whole loop
     this.shape = new Float32Array(n);
@@ -1078,6 +1081,16 @@ export class GraphSystem {
     const k = 60;
     const damp = 8;
     const introS = 0.5;
+    // shine: the band's place this frame, eased across (just past the edges,
+    // so it enters and leaves soft), then a rest until the next one
+    // (one every shineEvery s, or back to back when shineTime is longer)
+    const shineP = cfg.shine > 0 ? (this.time % Math.max(0.1, cfg.shineTime, cfg.shineEvery)) / Math.max(0.1, cfg.shineTime) : 2;
+    const shineOn = shineP < 1;
+    const shineW = Math.max(0.02, cfg.shineWidth);
+    const shineAt = (easeInOutCubic(Math.min(1, shineP)) * 2 - 1) * (1 + 2 * shineW);
+    const shineC = Math.cos(cfg.shineAngle * DEG);
+    const shineS = Math.sin(cfg.shineAngle * DEG);
+    if (!shineOn) this.shineLit.fill(0);
 
     for (let i = 0; i < n; i++) {
       let x = A.x[i];
@@ -1111,6 +1124,12 @@ export class GraphSystem {
       const ry = y * cosT - rz * sinT;
       // depth toward the viewer, -1 (far) .. 1 (near)
       const zn = (y * sinT + rz * cosT) / this.maxRadius;
+      // shine: distance from the band (in the view, before rotZ), which sweeps
+      // from one side of the shape to the other
+      if (shineOn) {
+        const d = (rx * shineC + ry * shineS) / this.maxRadius - shineAt;
+        this.shineLit[i] = Math.exp(-(d * d) / (shineW * shineW));
+      }
       const persp = depth ? 1 / (1 - 0.3 * depth * zn) : 1;
       let sx = cx + (rx * cosZ - ry * sinZ) * scale * persp;
       let sy = cy + (rx * sinZ + ry * cosZ) * scale * persp;
@@ -1233,7 +1252,7 @@ export class GraphSystem {
       }
       if (onPath[i]) target = Math.max(target, this.pathAlpha);
       this.glow[i] += (target - this.glow[i]) * glowEase;
-      let lit = this.glow[i];
+      let lit = Math.max(this.glow[i], this.shineLit[i] * cfg.shine);
       if (this.ripple && this.ripple.dist[i] >= 0) {
         const dd = this.ripple.dist[i] - rippleR;
         lit = Math.max(lit, Math.exp(-(dd * dd) / 0.8) * rippleFade);

@@ -98,6 +98,17 @@ export interface GraphConfig {
   pulseSpeed: number;
   pulseColor: string;
   pulseSize: number;
+  // shine: a soft band of light that crosses the shape every shineEvery s,
+  // taking shineTime s, at shineAngle degrees on screen; nodes it passes
+  // grow and brighten and their edges light up. shine = its strength
+  // (0 = off), shineWidth = the band's soft width (light falls to 1/e that
+  // far from its middle; a fraction of the radius). The angle is taken
+  // before rotZ
+  shine: number;
+  shineEvery: number;
+  shineTime: number;
+  shineWidth: number;
+  shineAngle: number;
   // 3D depth cues: far nodes smaller/dimmer + perspective (0..1)
   depth: number;
   // tilt toward the pointer over the section (radians at the edge)
@@ -227,6 +238,11 @@ export const defaultGraphConfig: GraphConfig = {
   pulseSpeed: 180,
   pulseColor: "#a4c9e9",
   pulseSize: 3,
+  shine: 0,
+  shineEvery: 5,
+  shineTime: 2.4,
+  shineWidth: 0.22,
+  shineAngle: 35,
   depth: 0,
   parallax: 0,
   hoverPath: false,

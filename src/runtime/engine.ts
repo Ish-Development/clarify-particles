@@ -902,6 +902,8 @@ abstract class View {
         this.setTouchStyle("touch-action", "pan-y pinch-zoom");
       }
     }
+    // (no grab cursor under reduced motion: dragging is off there)
+    if (this.canSpin && this.cfg.mouseSpin && !reducedMotion.matches) this.setTouchStyle("cursor", "grab");
     this.resize();
   }
 
@@ -1827,7 +1829,7 @@ function onPointerDown(e: PointerEvent) {
     const p = view.localPointer(e.clientX, e.clientY);
     if (p) view.click(p.x, p.y);
   }
-  if (e.pointerType === "touch" && e.isPrimary) startSpin(e);
+  if ((e.pointerType === "touch" || e.pointerType === "mouse") && e.isPrimary) startSpin(e);
 }
 
 // --- touch "drag to spin" (touchSpin) ---
@@ -1852,18 +1854,23 @@ let spin: {
   // grabbed by a hold: owns vertical moves too
   held: boolean;
   timer: number;
+  // a mouse drag (mouseSpin): no hold, no scroll to give way to
+  mouse: boolean;
 } | null = null;
 
 function startSpin(e: PointerEvent) {
+  // a mouse press doesn't take over a finger's spin (touchscreen laptops)
+  if (spin && !spin.mouse && e.pointerType === "mouse") return;
   endSpin();
   for (const view of views.values()) {
-    if (!view.canSpin || !view.cfg.touchSpin || !view.cfg.interactive || !view.running) continue;
+    const mouse = e.pointerType === "mouse";
+    if (!view.canSpin || !(mouse ? view.cfg.mouseSpin : view.cfg.touchSpin) || !view.cfg.interactive || !view.running) continue;
     if (!view.inZone(e.clientX, e.clientY)) {
-      if (view.cfg.touchHold > 0 && view.localPointer(e.clientX, e.clientY)) note("spin: down outside the zone");
+      if (!mouse && view.cfg.touchHold > 0 && view.localPointer(e.clientX, e.clientY)) note("spin: down outside the zone");
       continue;
     }
-    const s = { view, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: e.timeStamp, grabbed: false, held: false, timer: 0 };
-    if (view.cfg.touchHold > 0) {
+    const s = { view, id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, t: e.timeStamp, grabbed: false, held: false, timer: 0, mouse };
+    if (!mouse && view.cfg.touchHold > 0) {
       s.timer = window.setTimeout(() => {
         if (spin !== s || s.grabbed) return;
         s.grabbed = s.held = true;
@@ -1882,7 +1889,7 @@ function startSpin(e: PointerEvent) {
 function claimSpin(x: number, y: number) {
   const s = spin!;
   if (s.grabbed) return true;
-  if (s.view.cfg.touchHold > 0) {
+  if (!s.mouse && s.view.cfg.touchHold > 0) {
     // small jitter isn't a drag yet
     const dx = x - s.x0;
     const dy = y - s.y0;
@@ -1896,6 +1903,7 @@ function claimSpin(x: number, y: number) {
   clearTimeout(s.timer);
   s.grabbed = true;
   s.view.grab(true);
+  if (s.mouse) s.view.el.style.cursor = "grabbing";
   return true;
 }
 
@@ -1913,6 +1921,7 @@ function endSpin() {
   if (!spin) return;
   clearTimeout(spin.timer);
   if (spin.grabbed) spin.view.grab(false);
+  if (spin.mouse) spin.view.el.style.cursor = "grab";
   spin = null;
 }
 
@@ -1992,7 +2001,7 @@ function onPointerEnd(e: PointerEvent) {
   if (e.pointerType !== "mouse") pointer.active = false;
   pointer.down = false;
   if (spin && e.pointerId === spin.id) {
-    if (spin.view.cfg.touchHold > 0 && !spin.grabbed) note(e.type === "pointercancel" ? "spin: browser took it" : "spin: lifted before the hold");
+    if (!spin.mouse && spin.view.cfg.touchHold > 0 && !spin.grabbed) note(e.type === "pointercancel" ? "spin: browser took it" : "spin: lifted before the hold");
     endSpin();
   }
 }

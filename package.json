@@ -1,7 +1,7 @@
 {
   "name": "clarify-particles",
   "private": true,
-  "version": "1.8.0",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "build:runtime": "tsc -b && vite build --config vite.runtime.config.ts && node scripts/build-demo.mjs",

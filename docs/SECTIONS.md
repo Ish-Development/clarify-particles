@@ -2,7 +2,10 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-10, v1.8.0 released)
+## Status (2026-10-10, v1.9.0 released)
+
+- **v1.9.0** (2026-10-10): new section "Built to extend" with the network globe (preset `globe`, see its entry at the end): drag to spin on desktop and touch, a band of light crossing it every 4.5 s, the mobile layout from Figma `13646:33349`. Engine: graph `shine*` and runtime `mouseSpin` (both off by default). Hero, CTA and "What Clarify does" unchanged.
+- **Tell the devs (v1.9.0):** bump to `@1.9.0`. New section: on the globe's cell add `data-particles-component data-particles-wrap data-preset="globe"`, give the cell `position: relative` and `.u-particles-threejs` inside it `position: absolute; inset: 0` (the reference page's "Built to extend" tab has the markup, CSS and sizes per breakpoint).
 
 - **v1.8.0** (2026-10-10): "What Clarify does", from the client's feedback ("the first layer just pulses with a bit more movement in the data, without the red line; it fits better with the next two steps"): Own has no anomaly needle or card any more (`storyAnomaly` off); the settled needles are twice as tall (`reliefOrderHeight` 1.8), keep swelling (`reliefSettleSwell` 1) and a pulse rolls out from the centre every 3.5 s (`reliefPulse`); the camera looks down onto the floor so it fills the panel. The pink needle now rises on Refine as the pink cluster gathers over it, so pink first appears where Clarify finds the problem. The floor is labelled "Raw data" from Refine on. Phones: Refine is framed flatter (levels spread apart), the level labels sit just above each level's left corner (they used to be hidden: no room beside the stack), smaller, and the tile chips are smaller and higher. Colours from the lab: needle tips Mist `#a4c9e9`, sweep line `#5f8db4`. No markup changes.
 - **Tell the devs (v1.8.0):** bump to `@1.8.0`; nothing else changes.
@@ -157,3 +160,12 @@ Workflow for a new section:
   - **Tablet (768–991):** no design, so the mobile layout with a 16:10 map.
   - **Credit line:** the map is built from CC BY 4.0 data (AWS Terrain Tiles, Sentinel-2 cloudless by EOX), so a small credit sits under the panel. Moved out of the map because it covered the bars in the close-up on phones.
   - **Rendering:** the map draws with its own antialiased renderer (a second GL context, only on pages with a map) and only redraws while something moves (≈3 s after a tab change, then idle).
+
+## Built to extend (the globe)
+
+- **Figma:** desktop `13311:5236` (1512 wide; the globe cell `13311:5245`, 676 × 507, the globe ~360 px across), mobile `13646:33349` (393 wide; the globe cell 359 × 269, the globe ~193 px across, text padding 36 / 20).
+- **Markup:** the globe cell is `data-particles-component data-particles-wrap data-preset="globe"` (the CTA's naming; the Webflow dev hasn't named this one). `.extend__globe .u-particles-threejs` covers the cell (`position: absolute; inset: 0`).
+- **Preset `globe`** (graph, `geoSphere`): 150 dots on a Fibonacci sphere, each joined to its 3 nearest neighbours; round dots 5–6 px (3.5–4.5 on phones), all about one size (`depthSize` off, so far dots only dim: `depth` 0.4, `opacityMin` 0.7), lines `#cdd2d8` at 0.5; `scale` 1.14; turns slowly (`idleRotationSpeed` 0.12, `rotX` −15). Phones render at up to 3× (`mobileDpr` 3: at 2× it looked soft on a 3× screen; 150 dots are cheap). A band of light crosses it every 4.5 s (2.4 s across, diagonal; new graph option `shine`, off by default): the user wanted "some light go through in a nice motion". The engine's data pulses were tried first and were too small to read. No hover, click or parallax. Matched to the Figma art side by side at 1×, then brightened and scaled up a little at the user's request.
+- **Drag to spin on desktop and touch** (the user, 2026-10-10: "it should be draggable on mobile and desktop"): touch uses the existing `touchSpin` (sideways drag spins, up/down still scrolls); mouse uses the new engine option `mouseSpin` (off by default, so other presets don't change). Reduced motion: no idle turn, no spin.
+- **Layout:** desktop two columns (globe cell 507 px tall, the text cell beside it, H3 28 px); tablet (≤ 991) the cell square; mobile (≤ 767) stacked as the mobile Figma: the cell at 359 : 269, the globe `scale` 1.09 (~72% of the cell's height), 130 dots, the text under it. Its own Figma frame wins over the 50svh band rule here. The rest of the Figma section (the 10.000.000 figure, the four feature cells, the chip rows) is plain Webflow content and isn't on the reference page.
+

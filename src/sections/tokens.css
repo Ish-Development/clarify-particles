@@ -31,6 +31,7 @@
   --family-text-secondary: "Geist Mono", ui-monospace, monospace;
   --headings-size-h1: 56px;
   --headings-size-h2: 44px;
+  --headings-size-h3: 28px;
   --body-size-text-medium: 18px;
   --body-size-text-main: 16px;
   --eyebrow-size-eyebrow-large: 14px;
@@ -64,6 +65,7 @@
   :root {
     --headings-size-h1: 34px;
     --headings-size-h2: 28px;
+    --headings-size-h3: 22px;
     --body-size-text-medium: 16px;
     --body-size-text-main: 14px;
     --buttons-size-button-large: 14px;

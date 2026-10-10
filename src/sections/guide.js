@@ -99,4 +99,28 @@ export const SECTIONS = [
       "<b>Reduced motion:</b> no autoplay; each tab shows its finished frame, with no animation.",
     ],
   },
+  {
+    id: "extend",
+    label: "Built to extend",
+    template: "src/sections/extend.html",
+    title: "Built to extend: the globe",
+    figma: [
+      ["Desktop", "13311-5236"],
+      ["Mobile", "13646-33349"],
+    ],
+    attributes: [["The globe's cell (Figma <code>13311:5245</code>)", ["data-particles-component", 'data-preset="globe"', "data-particles-wrap"]]],
+    requirements: [
+      "The globe's cell needs <code>position: relative</code>. The script creates <code>.u-particles-threejs</code> inside it; give that div <code>position: absolute; inset: 0</code> so it covers the cell. The globe is drawn centered in it.",
+      "<b>Desktop:</b> the cell is half the row, 507 px tall, the globe about 360 px across.",
+      "<b>Tablet</b> (768–991 px): same two columns, the cell square.",
+      "<b>Mobile</b> (767 px and below): stacked, as Figma <code>13646:33349</code>. The cell is full width at 359 : 269 (<code>aspect-ratio: 359 / 269</code>), the globe about 72% of its height; the text under it.",
+    ],
+    behaviour: [
+      "A network globe: dots joined to their nearest neighbours, turning slowly. Far dots are dimmer.",
+      "<b>Light:</b> every 4.5 s a soft band of light crosses the globe diagonally; the dots it passes grow and brighten, and their lines light up.",
+      "<b>Drag to spin</b>, on desktop (mouse) and touch: it coasts on after release and the tilt eases back. On touch, a sideways drag spins it and an up/down swipe still scrolls the page.",
+      "No hover or click reactions.",
+      "<b>Reduced motion:</b> it stands still and doesn't spin.",
+    ],
+  },
 ];

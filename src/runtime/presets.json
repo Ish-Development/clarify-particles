@@ -306,5 +306,63 @@
       "storyAnomaly": false,
       "storyLevels": "Raw data, Signals, Reasoning, Actions"
     }
+  },
+  "globe": {
+    "type": "graph",
+    "config": {
+      "mode": "geoSphere",
+      "count": 150,
+      "seed": 7,
+      "sizeMin": 5,
+      "sizeMax": 6,
+      "tiers": 3,
+      "sizeCurve": 1,
+      "nodeShape": "round",
+      "snapSizes": true,
+      "color": "#f4f7fa",
+      "opacityMin": 0.7,
+      "opacityMax": 1,
+      "softness": 0,
+      "solid": true,
+      "lineColor": "#cdd2d8",
+      "lineOpacity": 0.5,
+      "lineWidth": 0.75,
+      "nodeGap": 0,
+      "gapColor": "#080a0c",
+      "depth": 0.4,
+      "depthSize": false,
+      "centerX": 0.5,
+      "centerY": 0.5,
+      "scale": 1.14,
+      "rotX": -15,
+      "rotZ": 0,
+      "idleRotationSpeed": 0.12,
+      "idleTiltAmount": 0.15,
+      "hoverGlow": 0,
+      "hoverStrength": 0,
+      "parallax": 0,
+      "clickBehavior": "none",
+      "pulses": 0,
+      "shine": 1,
+      "shineEvery": 4.5,
+      "shineTime": 2.4,
+      "shineWidth": 0.22,
+      "shineAngle": 35,
+      "mobileDpr": 3,
+      "touchHover": false,
+      "touchSpin": true,
+      "mouseSpin": true
+    },
+    "breakpoints": [
+      {
+        "maxWidth": 767,
+        "config": {
+          "count": 130,
+          "scale": 1.09,
+          "sizeMin": 3.5,
+          "sizeMax": 4.5
+        }
+      }
+    ]
   }
 }
