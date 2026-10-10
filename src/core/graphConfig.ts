@@ -177,6 +177,14 @@ export interface GraphConfig {
   // (small = big lazy curls, large = small eddies)
   gridGlowWarp: number;
   gridGlowWarpScale: number;
+  // glide: lights travel between the glows (their stops) on gently curved,
+  // slightly random paths, resting at each, instead of drifting in place.
+  // gridGlowGlide = seconds per trip (0 = off), gridGlowGlidePause =
+  // seconds resting at a stop (both vary a little every trip),
+  // gridGlowGliders = how many lights (1-4), each on its own trips
+  gridGlowGlide: number;
+  gridGlowGlidePause: number;
+  gridGlowGliders: number;
   // random squares softly flash on their own clocks, no pointer involved:
   // peak opacity (0 = off), color, share of squares lit at once, and how
   // fast a flash runs (1 = about 1.5 s)
@@ -276,6 +284,9 @@ export const defaultGraphConfig: GraphConfig = {
   gridGlowMerge: 0,
   gridGlowWarp: 0,
   gridGlowWarpScale: 2.5,
+  gridGlowGlide: 0,
+  gridGlowGlidePause: 1.5,
+  gridGlowGliders: 1,
   gridSparkle: 0,
   gridSparkleColor: "#a4c9e9",
   gridSparkleRate: 0.003,

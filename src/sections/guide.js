@@ -60,6 +60,7 @@ export const SECTIONS = [
     ],
     behaviour: [
       "Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.",
+      "<b>Background:</b> a fine grid of squares across the card, lit only by two soft lights that glide slowly between two places (upper right behind the network, lower left under the text) on slightly different paths each time. Drawn by the script; nothing to build.",
       "<b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.",
       "<b>Hover:</b> the nodes nearest the cursor are pushed aside.",
       "<b>Click:</b> a slow ripple of light through the connections.",

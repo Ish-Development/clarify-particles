@@ -355,6 +355,8 @@ class GridLayer {
   private readonly autoSeeds: number[] = [];
   private glowSpec: string | null = null;
   private glows: number[][] = [];
+  // the gliding lights: each one's trip (from/to stop, path bend, clock)
+  private glides: { from: number; to: number; fx: number; fy: number; tx: number; ty: number; bend: number; t: number; dur: number; rest: number }[] = [];
 
   constructor(private readonly cfg: GraphSpec["config"]) {
     this.geometry.setAttribute("position", new BufferAttribute(FULL_QUAD, 3));
@@ -459,15 +461,28 @@ class GridLayer {
         .filter((g) => g.length === 4 && g.every(Number.isFinite) && g[2] > 0 && g[3] > 0)
         .slice(0, GRID_AUTO);
       this.glows = glows;
+      // new stops (e.g. another breakpoint's): the lights start over
+      this.glides = [];
       u.uGlowCount.value = glows.length;
     }
     // each glow drifts like liquid around its spot: a slow wave plus a
     // smaller, faster one (an organic path that never quite repeats), while
     // it breathes and stretches (wider as it gets shorter, and back)
     const G: Float32Array = u.uGlow.value;
+    const gliding = cfg.gridGlowGlide > 0 && this.glows.length >= 2;
+    if (gliding) {
+      // lights glide from glow to glow (the glows are their stops)
+      const m = Math.min(GRID_AUTO, Math.max(1, Math.round(cfg.gridGlowGliders)));
+      if (this.glides.length !== m) this.glides = [];
+      for (let i = 0; i < m; i++) G.set(this.glideGlow(i, dt, cw / Math.max(1, ch)), i * 4);
+      u.uGlowCount.value = m;
+    } else {
+      u.uGlowCount.value = this.glows.length;
+    }
     const amp = Math.max(0, cfg.gridGlowDrift);
     const gt = this.time * 0.1 * Math.max(0, cfg.gridGlowSpeed);
     this.glows.forEach((g, i) => {
+      if (gliding) return;
       const s = i * 2.17;
       const dx = amp * (0.7 * Math.sin(gt * 0.83 + s) + 0.3 * Math.sin(gt * 2.11 + s * 1.7));
       const dy = amp * (0.7 * Math.sin(gt * 0.67 + s + 1.1) + 0.3 * Math.sin(gt * 1.73 + s * 2.3));
@@ -495,6 +510,64 @@ class GridLayer {
     if (p && cfg.grid > 0 && cfg.gridHot > 0) this.stampPath(p);
     this.last = p;
   }
+
+  // a gliding light: rests at a stop, then glides to another on a gently
+  // curved path (eased, a random bend each time, its timing and landing
+  // spot a little different every trip, a slight wobble on the way), with
+  // its size changing to the next stop's. Returns [x, y, rx, ry].
+  private glideGlow(i: number, dt: number, aspect: number): number[] {
+    const cfg = this.cfg;
+    const n = this.glows.length;
+    const jit = () => (Math.random() - 0.5) * 0.08;
+    const trip = (from: number, x: number, y: number) => {
+      let to = (from + 1) % n;
+      if (n > 2) while (to === from) to = Math.floor(Math.random() * n);
+      const base = Math.max(0.5, cfg.gridGlowGlide);
+      return {
+        from,
+        to,
+        fx: x,
+        fy: y,
+        tx: this.glows[to][0] + jit() / aspect,
+        ty: this.glows[to][1] + jit(),
+        // curve to one side or the other, by 15-35% of the distance
+        bend: (Math.random() < 0.5 ? -1 : 1) * (0.15 + Math.random() * 0.2),
+        t: 0,
+        dur: base * (0.75 + Math.random() * 0.5),
+        rest: Math.max(0, cfg.gridGlowGlidePause) * (0.6 + Math.random() * 0.8),
+      };
+    };
+    // each light starts at its own stop, a little out of step
+    if (!this.glides[i]) {
+      const s = i % n;
+      this.glides[i] = trip(s, this.glows[s][0], this.glows[s][1]);
+      this.glides[i].t = -i * 1.3;
+    }
+    const g = this.glides[i];
+    g.t += dt;
+    if (g.t >= g.dur + g.rest) {
+      this.glides[i] = trip(g.to, g.tx, g.ty);
+      return this.glideGlow(i, 0, aspect);
+    }
+    const k = Math.min(1, Math.max(0, g.t / g.dur));
+    const e = 0.5 - 0.5 * Math.cos(Math.PI * k);
+    // the path in canvas-height units (so the bend is round on any shape):
+    // a quadratic curve through a control point off to the side
+    const ax = g.fx * aspect;
+    const bx = g.tx * aspect;
+    const mx = (ax + bx) / 2 - (g.ty - g.fy) * g.bend;
+    const my = (g.fy + g.ty) / 2 + (bx - ax) * g.bend;
+    let x = (1 - e) * (1 - e) * ax + 2 * (1 - e) * e * mx + e * e * bx;
+    let y = (1 - e) * (1 - e) * g.fy + 2 * (1 - e) * e * my + e * e * g.ty;
+    // a slow wobble, so even the rests aren't quite still
+    const w = this.time * 0.35 + i * 2.1;
+    x += 0.015 * Math.sin(w * 1.3) + 0.01 * Math.sin(w * 2.9 + 1);
+    y += 0.015 * Math.sin(w * 1.1 + 2) + 0.01 * Math.sin(w * 2.3);
+    const A = this.glows[g.from];
+    const B = this.glows[g.to];
+    return [x / aspect, y, A[2] + (B[2] - A[2]) * e, A[3] + (B[3] - A[3]) * e];
+  }
+
 
   // light the squares around p, and along the way from the last position
   // so a fast move leaves a continuous trail
