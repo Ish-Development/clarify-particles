@@ -2,7 +2,10 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-11, v1.14.1 released)
+## Status (2026-10-11, v1.14.2 released)
+
+- **v1.14.2** (2026-10-11): Nikola asked: no more console warnings for `data-*` attributes the script doesn't know (the site's other scripts put their own on the same elements, e.g. `data-tab3-wrap`, `data-script-initialized`). They're ignored silently now; a misspelled setting is ignored silently too. Nothing else changes.
+- **Tell the devs (v1.14.2):** bump to `@1.14.2`; no markup changes.
 
 - **v1.14.1** (2026-10-11): Technical depth's rings card: the dots move independently (own pace, drifting), no longer mirrored clockwork. Nothing else changes.
 - **Tell the devs (v1.14.1):** bump to `@1.14.1`; no markup changes.

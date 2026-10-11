@@ -85,12 +85,10 @@ export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
 
   for (const [key, raw] of Object.entries(ds)) {
     if (RESERVED.has(key) || raw === undefined) continue;
-    if (!(key in cfg)) {
-      // Webflow stamps its own data-w-id / data-wf-* on elements
-      if (/^w[A-Zf]/.test(key)) continue;
-      warn(el, `unknown attribute data-${key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}`);
-      continue;
-    }
+    // anything else is left alone, silently: the site's other scripts and
+    // Webflow use their own data-* on the same elements (data-w-id,
+    // data-tab3-wrap, data-script-initialized…)
+    if (!(key in cfg)) continue;
     const v = coerce(raw, cfg[key]);
     if (v !== undefined) cfg[key] = v;
   }
