@@ -237,7 +237,7 @@ The three small drawings in the Technical depth section's cards (`glyph-scene.ts
 
 | Key | Default | Off | Meaning |
 |---|---|---|---|
-| `kind` | `spider` | — | The drawing: `spider` (API-first: walks round a grid of squares on eight legs, each step a burst of light), `pendulum` (Your data stays yours: spokes round a circle turning clockwise, a spark sweeping round every half turn), `rings` (Security posture: a chain of rings with clockwork dots, sparks where they meet, a lock pulse once a loop) |
+| `kind` | `spider` | — | The drawing: `spider` (API-first: walks round a grid of squares on eight legs, each step a burst of light), `pendulum` (Your data stays yours: spokes round a circle turning clockwise, a spark sweeping round every half turn), `rings` (Security posture: a chain of rings with a dot on each at its own drifting pace, sparks where they meet, a lock pulse once a loop) |
 | `color` | `#ffffff` | — | Dots and lines |
 | `lineOpacity` / `lineWidth` | `0.45` / `1.25` | — | Lines (width in CSS px) |
 | `nodeOpacity` | `0.95` | — | Dots |

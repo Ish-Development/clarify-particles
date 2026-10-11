@@ -477,11 +477,12 @@ class Pendulum implements Drawing {
  * RINGS (Security posture)
  *
  *   always   a 3 × 3 chain of rings, side by side ones crossing, a dot
- *            on each running round like clockwork: one turn every LOOP
- *            s, neighbours turning opposite ways, mirrored, so two dots
- *            always reach a crossing together; each meeting sparks a
- *            small ring of light that spreads and dies out (SPARK s).
- *            Each dot trails a short glow
+ *            on each running round, neighbours turning opposite ways,
+ *            each at its own pace that drifts faster and slower (about
+ *            a turn every LOOP s); where a dot passes a crossing as the
+ *            neighbour's dot is close by, they meet: a small ring of
+ *            light spreads and dies out (SPARK s). Each dot trails a
+ *            short glow
  *   once a loop (at LOCK s in)  light enters the top left ring and runs
  *            round it the way its dot turns, passing at a crossing into
  *            the next ring, snaking through all nine; when it has been
@@ -491,8 +492,10 @@ class Pendulum implements Drawing {
 const RINGS = {
   radius: 52,
   gap: 75, // between ring centres
-  loop: 8, // s a dot takes round its ring: the whole thing loops in this
-  start: 1.95, // rad: where the top left ring's dot sets off (off a crossing)
+  loop: 8, // s a dot takes round its ring, about; the lock pulse comes once in this
+  pace: 0.25, // how much the dots' paces differ (share of the average)
+  drift: 0.6, // how much a dot speeds up and slows down (share of its pace)
+  near: 0.55, // rad: how close the neighbour's dot must be for a meeting
   trail: 1.1, // rad of lit ring behind a dot
   spark: 0.7, // s a meeting's ring of light takes to spread and die out
   sparkSize: 18, // how far it spreads
@@ -514,9 +517,10 @@ class Rings implements Drawing {
   readonly maxLines: number;
   readonly maxDots: number;
   private t = 0;
-  // dir: -1 clockwise (on screen, y up), 1 the other way; flip/shift: its
-  // dot's angle is shift + flip * the top left one's
-  private readonly rings: { x: number; y: number; dir: number; flip: number; shift: number; cross: Cross[] }[] = [];
+  // dir: -1 clockwise (on screen, y up), 1 the other way; its dot: where
+  // it set off, its pace (rad per s) and its drift (amplitude rad, rate,
+  // phase)
+  private readonly rings: { x: number; y: number; dir: number; phase: number; w: number; amp: number; nu: number; psi: number; cross: Cross[] }[] = [];
   private readonly spots: { x: number; y: number; t: number }[] = []; // the crossings, s since a meeting sparked there
   // the lock pulse through each ring of the path: when it enters (s into
   // the pulse), where, and the way round
@@ -529,11 +533,22 @@ class Rings implements Drawing {
     const { radius, gap, segs, path, lap } = RINGS;
     for (let j = 0; j < 3; j++)
       for (let i = 0; i < 3; i++) {
-        // each step sideways mirrors the angle across the vertical (π − a),
-        // each step down across the horizontal (−a)
-        const flip = (i % 2 ? -1 : 1) * (j % 2 ? -1 : 1);
-        const shift = (i % 2 ? Math.PI : 0) * (j % 2 ? -1 : 1);
-        this.rings.push({ x: (i - 1) * gap, y: (1 - j) * gap, dir: -flip, flip, shift, cross: [] });
+        // neighbours turn opposite ways, like gears; each dot at its own
+        // pace, drifting faster and slower (never stopping or turning back)
+        const r = Math.random;
+        const w = (TAU / RINGS.loop) * (1 + RINGS.pace * (2 * r() - 1));
+        const nu = 0.5 + 0.9 * r();
+        this.rings.push({
+          x: (i - 1) * gap,
+          y: (1 - j) * gap,
+          dir: (i + j) % 2 ? 1 : -1,
+          phase: r() * TAU,
+          w,
+          amp: (RINGS.drift * w) / nu,
+          nu,
+          psi: r() * TAU,
+          cross: [],
+        });
       }
     // where side by side rings cross: two points each pair
     this.rings.forEach((a, ia) =>
@@ -586,22 +601,24 @@ class Rings implements Drawing {
 
   // ring r's dot, at time t
   private angle(r: number, t: number) {
-    const ring = this.rings[r];
-    return ring.shift + ring.flip * (RINGS.start - (TAU * t) / RINGS.loop);
+    const g = this.rings[r];
+    return g.phase + g.dir * (g.w * t + g.amp * Math.sin(g.nu * t + g.psi));
   }
 
   step(dt: number) {
     const before = this.t;
     this.t += dt;
     for (const s of this.spots) s.t += dt;
-    // meetings: a dot passing one of its ring's crossings (its neighbour's
-    // reaches it at the same moment)
+    // meetings: a dot passing one of its ring's crossings as the
+    // neighbour's dot is close to it
     this.rings.forEach((ring, r) => {
       const a0 = this.angle(r, before);
-      const moved = (TAU * dt) / RINGS.loop;
+      const moved = wrap((this.angle(r, this.t) - a0) * ring.dir);
       for (const c of ring.cross) {
         const ahead = wrap((c.at - a0) * ring.dir);
-        if (ahead > 0 && ahead <= moved) this.spots[c.spot].t = 0;
+        if (!(ahead > 0 && ahead <= moved)) continue;
+        const other = this.angle(c.ring, this.t);
+        if (Math.abs(Math.atan2(Math.sin(other - c.there), Math.cos(other - c.there))) < RINGS.near) this.spots[c.spot].t = 0;
       }
     });
   }
