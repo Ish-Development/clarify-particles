@@ -130,7 +130,8 @@ const panels = SECTIONS.map((s) => {
   const comp = html.replace(/<!--[\s\S]*?-->/g, "").match(/<[a-z][^>]*\sdata-(?:particles|how|fjord)-component[\s>=][^>]*>/i);
   if (!comp) throw new Error(`${s.template}: no data-particles-component (or data-how/fjord-component) element`);
   const cls = comp[0].match(/class="([^"\s]+)/)[1];
-  const preset = comp[0].match(/data-preset="([^"]+)"/)[1];
+  // every component's preset (a section may hold several, e.g. one per card)
+  const presets = [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/\sdata-(?:particles|how|fjord)-component[^>]*?\sdata-preset="([^"]+)"/gi)].map((m) => m[1]);
   const bg = bgElement(html);
   const figma = s.figma.map(([label, node]) => `<a href="${FIGMA}${node}" target="_blank" rel="noopener">Figma: ${label}</a>`).join("");
   const attrs = s.attributes
@@ -150,7 +151,7 @@ ${html}
   <div class="ref-guide">
     <header class="ref-guide__head">
       <h2>${s.title}</h2>
-      <div class="ref-meta"><span class="ref-pill">preset <code>${preset}</code></span>${figma}</div>
+      <div class="ref-meta">${presets.map((p) => `<span class="ref-pill">preset <code>${p}</code></span>`).join("")}${figma}</div>
     </header>
     <div class="ref-guide__main">
         <h3><span>1</span>Add the script</h3>

@@ -272,5 +272,17 @@
   "integrations": {
     "type": "blocks",
     "config": {}
+  },
+  "depth-api": {
+    "type": "glyph",
+    "config": { "kind": "spider" }
+  },
+  "depth-data": {
+    "type": "glyph",
+    "config": { "kind": "pendulum" }
+  },
+  "depth-security": {
+    "type": "glyph",
+    "config": { "kind": "rings" }
   }
 }

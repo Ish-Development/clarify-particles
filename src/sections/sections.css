@@ -11,7 +11,7 @@
 /* the site container: everything contained stops at 1512px (its 80px side
    margins included, so 1352px of content, as in Figma), centered on wider
    screens. Each section caps itself (their backgrounds match the page). */
-.cta, .extend, .fjord, .hero, .integrations { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
+.cta, .depth, .extend, .fjord, .hero, .integrations { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
 
 /* typography rule: headings balance their lines, paragraphs avoid orphans */
 :is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
@@ -345,4 +345,41 @@ p { text-wrap: pretty; }
   .integrations { display: block; min-height: 0; padding: calc(50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
   .integrations__art { position: absolute; top: 0; left: 0; right: 0; height: 50svh; }
   .integrations__art .u-particles-threejs { top: 0; left: 0; right: 0; height: 100%; }
+}
+
+/* --- Technical depth: three cards, each with a small drawing (Figma
+   13329:79745, desktop 1512 wide). The heading block centred, the cards
+   in three columns 24 px apart; each card's art a square on the secondary
+   background, its effect's div covering it. --- */
+
+.depth, .depth * { box-sizing: border-box; } /* Webflow default */
+.depth {
+  display: flex; flex-direction: column; gap: var(--space-9);
+  padding: var(--section-space-l) var(--grid-margin);
+  background: var(--background-bg-primary);
+  font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased;
+}
+.depth__head { display: flex; flex-direction: column; align-items: center; gap: var(--space-6, 32px); text-align: center; }
+.depth__copy { display: flex; flex-direction: column; gap: var(--space-5); max-width: 490px; }
+.depth__title {
+  margin: 0; color: var(--text-text-primary);
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+}
+.depth__body { margin: 0; color: var(--text-text-secondary); font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
+.depth__cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gutter); }
+.depth__card { display: flex; flex-direction: column; gap: var(--space-5); }
+.depth__art { position: relative; aspect-ratio: 1; border-radius: var(--radius-x-small); background: var(--background-bg-secondary); overflow: hidden; }
+.depth__art .u-particles-threejs { position: absolute; inset: 0; }
+.depth__text { display: flex; flex-direction: column; gap: var(--space-4); }
+.depth__name {
+  display: flex; align-items: center; gap: var(--space-2); margin: 0;
+  color: var(--text-text-primary);
+  font: 500 var(--headings-size-h4, 22px) / 1.25 var(--family-heading-primary);
+  letter-spacing: -0.25px;
+}
+.depth__desc { margin: 0; color: var(--text-text-secondary); font: 400 var(--body-size-text-main) / 1.4 var(--family-text-primary); }
+/* mobile (767px and below): the cards stacked, each art full width and square */
+@media (max-width: 767px) {
+  .depth__cards { grid-template-columns: minmax(0, 1fr); row-gap: 48px; }
 }

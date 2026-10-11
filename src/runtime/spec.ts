@@ -1,13 +1,14 @@
 import { defaultConfig, SHAPE_NAMES } from "../core/config";
 import { defaultGraphConfig, GRAPH_MODES } from "../core/graphConfig";
-import { blocksDefaults, graphDefaults, mapDefaults, pointsDefaults, type BlocksViewConfig, type GraphViewConfig, type MapViewConfig, type PointsConfig } from "./defaults";
+import { blocksDefaults, GLYPH_KINDS, glyphDefaults, graphDefaults, mapDefaults, pointsDefaults, type BlocksViewConfig, type GlyphViewConfig, type GraphViewConfig, type MapViewConfig, type PointsConfig } from "./defaults";
 import { maxWidthQuery, PRESETS } from "./presets";
 
 export type PointsSpec = { type: "points"; config: PointsConfig };
 export type GraphSpec = { type: "graph"; config: GraphViewConfig };
 export type MapSpec = { type: "map"; config: MapViewConfig };
 export type BlocksSpec = { type: "blocks"; config: BlocksViewConfig };
-export type ViewSpec = PointsSpec | GraphSpec | MapSpec | BlocksSpec;
+export type GlyphSpec = { type: "glyph"; config: GlyphViewConfig };
+export type ViewSpec = PointsSpec | GraphSpec | MapSpec | BlocksSpec | GlyphSpec;
 
 // Reserved dataset keys that aren't config fields.
 const RESERVED = new Set([
@@ -62,8 +63,8 @@ export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
   }
 
   const typeAttr = ds.particles || ds.particlesComponent || ds.howComponent || ds.fjordComponent;
-  const type = typeAttr === "graph" || typeAttr === "map" || typeAttr === "blocks" ? typeAttr : !typeAttr && preset ? preset.type : "points";
-  const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : type === "map" ? mapDefaults : type === "blocks" ? blocksDefaults : pointsDefaults) };
+  const type = typeAttr === "graph" || typeAttr === "map" || typeAttr === "blocks" || typeAttr === "glyph" ? typeAttr : !typeAttr && preset ? preset.type : "points";
+  const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : type === "map" ? mapDefaults : type === "blocks" ? blocksDefaults : type === "glyph" ? glyphDefaults : pointsDefaults) };
 
   if (preset) {
     if (preset.type !== type) warn(el, `preset "${ds.preset}" is a ${preset.type} preset`);
@@ -97,6 +98,10 @@ export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
   if (type === "points" && !(SHAPE_NAMES as readonly string[]).includes(cfg.shape as string)) {
     warn(el, `unknown shape "${cfg.shape}"`);
     cfg.shape = defaultConfig.shape;
+  }
+  if (type === "glyph" && !GLYPH_KINDS.includes(cfg.kind as string)) {
+    warn(el, `unknown kind "${cfg.kind}" (${GLYPH_KINDS.join(", ")})`);
+    cfg.kind = glyphDefaults.kind;
   }
   if (type === "graph" && !(GRAPH_MODES as readonly string[]).includes(cfg.mode as string)) {
     warn(el, `unknown mode "${cfg.mode}"`);

@@ -319,3 +319,38 @@ export const blocksDefaults: BlocksViewConfig = {
   streakGain: 0.45,
   zoom: 0.92,
 };
+
+// --- the Technical depth cards (type "glyph", glyph-scene.ts): small flat
+// drawings of nodes and lines, one per card: a spider walking over a grid
+// of dots, a ring of spokes swinging like a pendulum, a chain of rings with
+// nodes running round them.
+export const GLYPH_KINDS = ["spider", "pendulum", "rings"];
+export interface GlyphConfig {
+  kind: string; // one of GLYPH_KINDS
+  color: string;
+  lineOpacity: number;
+  lineWidth: number; // CSS px
+  nodeOpacity: number;
+  speed: number; // 1 = as designed
+  zoom: number; // 1 = the Figma card (435 px) fills the canvas' short side
+}
+export type GlyphViewConfig = GlyphConfig &
+  RuntimeOptions & { hoverRadius: number; hoverStrength: number; clickBehavior: "none"; background: string };
+
+export const glyphDefaults: GlyphViewConfig = {
+  ...runtimeDefaults,
+  interactive: false,
+  touchHover: false,
+  hoverRadius: 0,
+  hoverStrength: 0,
+  clickBehavior: "none",
+  mobileDpr: 2,
+  background: "transparent",
+  kind: "spider",
+  color: "#ffffff",
+  lineOpacity: 0.45,
+  lineWidth: 1.25,
+  nodeOpacity: 0.95,
+  speed: 1,
+  zoom: 1,
+};

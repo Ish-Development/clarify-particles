@@ -1,0 +1,43 @@
+<section class="depth">
+  <div class="depth__head">
+    <div class="eyebrow">
+      <span class="eyebrow__grid" aria-hidden="true"
+        ><i class="on"></i><i></i><i></i><i></i
+        ><i></i><i class="on"></i><i class="on"></i><i></i
+        ><i></i><i class="on"></i><i class="on"></i><i></i
+        ><i></i><i></i><i></i><i class="on"></i
+      ></span>
+      <span class="eyebrow__label">Technical depth</span>
+    </div>
+    <div class="depth__copy">
+      <h2 class="depth__title">Lets create a heading for this section right here</h2>
+      <p class="depth__body">Lorem ipsum dolor sit amet consectetur. In tortor quam amet risus proin tristique magna posuere viverra.</p>
+    </div>
+  </div>
+  <div class="depth__cards">
+    <!-- each card's art is its own particles component (scope + preset) and
+         wrap: the script creates div.u-particles-threejs inside it, which the
+         CSS stretches over the art -->
+    <div class="depth__card">
+      <div class="depth__art" data-particles-component data-particles-wrap data-preset="depth-api"></div>
+      <div class="depth__text">
+        <h3 class="depth__name"><img src="assets/flow-chart-line.svg" alt="" width="24" height="24" />API-first</h3>
+        <p class="depth__desc">The core data operations are API-first. If you can publish, query, or evaluate data in the interface, you can do it over the API.</p>
+      </div>
+    </div>
+    <div class="depth__card">
+      <div class="depth__art" data-particles-component data-particles-wrap data-preset="depth-data"></div>
+      <div class="depth__text">
+        <h3 class="depth__name"><img src="assets/flow-chart-line.svg" alt="" width="24" height="24" />Your data stays yours</h3>
+        <p class="depth__desc">Pull all of it out over the API into your own stack, Snowflake, Databricks, a warehouse, or flat files. Nothing is held in a proprietary format on the way out.</p>
+      </div>
+    </div>
+    <div class="depth__card">
+      <div class="depth__art" data-particles-component data-particles-wrap data-preset="depth-security"></div>
+      <div class="depth__text">
+        <h3 class="depth__name"><img src="assets/flow-chart-line.svg" alt="" width="24" height="24" />Security posture</h3>
+        <p class="depth__desc">Role-based access through groups and members, and an activity log of who did what. SSO and SAML, audit-log retention, data-residency options, and self-hosted or managed deployment.</p>
+      </div>
+    </div>
+  </div>
+</section>

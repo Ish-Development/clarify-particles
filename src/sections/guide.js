@@ -146,4 +146,27 @@ export const SECTIONS = [
       "No hover or drag: it plays by itself. <b>Reduced motion:</b> it shows the cube, still.",
     ],
   },
+  {
+    id: "depth",
+    label: "Technical depth",
+    template: "src/sections/depth.html",
+    title: "Technical depth: three small drawings",
+    figma: [["Desktop", "13329-79745"]],
+    attributes: [
+      ["The first card's art (API-first)", ["data-particles-component", 'data-preset="depth-api"', "data-particles-wrap"]],
+      ["The second card's art (Your data stays yours)", ["data-particles-component", 'data-preset="depth-data"', "data-particles-wrap"]],
+      ["The third card's art (Security posture)", ["data-particles-component", 'data-preset="depth-security"', "data-particles-wrap"]],
+    ],
+    requirements: [
+      "<b>Each card's art is its own component</b>, with its own preset. It needs <code>position: relative</code>; the script creates <code>.u-particles-threejs</code> inside it, and <code>position: absolute; inset: 0</code> makes it cover the art. The drawing is centred in it, sized to its shorter side.",
+      "<b>Desktop:</b> three columns as Figma, 24 px apart; each art square (<code>aspect-ratio: 1</code>) on the secondary background (<code>#080a0c</code>), 4 px corners.",
+      "<b>Mobile</b> (767 px and below): the cards stacked, each art full width and square.",
+    ],
+    behaviour: [
+      "<b>API-first:</b> a square node walks around a grid of square dots on eight legs, four a side, turning smoothly from one spot to the next. Each leg holds a dot; when it falls behind, the leg lets go and takes a long stride to a dot ahead, which flashes as it's caught.",
+      "<b>Your data stays yours:</b> 48 straight spokes from dots fixed round a circle to an empty circle in the middle. Their inner ends are laid out by a hidden square turning clockwise at an even pace, a quarter turn every 4.5 s, in a seamless loop: the ends slide round the circle, bunching at the square's four corners and spreading along its sides. Every half turn (9 s) a spark sweeps round clockwise from the top in about 1.4 s: on each spoke it reaches, a pulse of light runs out from the middle and the outer dot flashes as it arrives. Then it rests until the next half turn.",
+      "<b>Security posture:</b> a 3 × 3 chain of rings, a dot on each running round like clockwork (one turn every 8 s, neighbours turning opposite ways), timed so two dots always reach a crossing together; each meeting sparks a small ring of light. Once a loop, light enters the top left ring and snakes through all nine, passing from ring to ring at the crossings; when it has been round the last, the whole chain flashes (locked) and fades.",
+      "No hover or drag: they play by themselves. <b>Reduced motion:</b> each shows a still frame.",
+    ],
+  },
 ];

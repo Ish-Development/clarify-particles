@@ -40,9 +40,10 @@ import { ParticleSystem } from "../core/particles";
 import { GraphSystem } from "../core/graph";
 import { applyClick, applyHover, type InteractionConfig, type Steerable } from "../core/interaction";
 import { hexToRgb01, particleColor } from "../core/color";
-import type { BlocksViewConfig, MapViewConfig, RuntimeOptions } from "./defaults";
+import type { BlocksViewConfig, GlyphViewConfig, MapViewConfig, RuntimeOptions } from "./defaults";
 import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
 import type { BlocksScene } from "./blocks-scene";
+import type { GlyphScene } from "./glyph-scene";
 import type { MapOverlay, MapScene } from "./map-scene";
 
 // = MOBILE_QUERY in presets.ts (kept literal: the engine imports no loader code)
@@ -1817,6 +1818,58 @@ class BlocksView extends View {
   }
 }
 
+// The Technical depth cards (glyph-scene.ts, its own chunk): a small flat
+// drawing of nodes and lines per card, playing by itself.
+class GlyphView extends View {
+  readonly system = NO_SYSTEM;
+  readonly is3d = true;
+  private glyph: GlyphScene | null = null;
+  private disposed = false;
+
+  constructor(el: HTMLElement, cfg: GlyphViewConfig) {
+    super(el, cfg);
+    import("./glyph-scene")
+      .then((m) => {
+        if (this.disposed) return;
+        const glyph = new m.GlyphScene(cfg);
+        glyph.setReducedMotion(reducedMotion.matches);
+        this.glyph = glyph;
+        this.scene.add(glyph.root);
+        this.camera = glyph.camera;
+        this.onResize();
+        if (this.visible && !this.running) this.paint();
+        wake();
+      })
+      .catch((err) => console.warn("[particles] the drawing failed to load", err));
+    this.start();
+  }
+
+  stats() {
+    return { glyph: this.glyph ? "ready" : "loading" };
+  }
+
+  step(dt: number) {
+    this.glyph?.update(dt);
+  }
+
+  paint() {
+    if (this.glyph) super.paint();
+  }
+
+  protected sync() {}
+
+  protected onResize() {
+    this.glyph?.setSize(this.cw, this.ch, this.dpr);
+  }
+
+  protected onLook() {}
+
+  protected disposeGpu() {
+    this.disposed = true;
+    this.glyph?.dispose();
+  }
+}
+
 function fontsReady(cfg: MapViewConfig) {
   if (!document.fonts?.load) return Promise.resolve();
   const load = Promise.all([cfg.fontSans, cfg.fontMono].map((f) => document.fonts.load(`400 64px ${f}`).catch(() => [])));
@@ -2358,7 +2411,9 @@ export function mount(
         ? new MapView(el, spec.config)
         : spec.type === "blocks"
           ? new BlocksView(el, spec.config)
-          : new PointsView(el, spec.config, editor);
+          : spec.type === "glyph"
+            ? new GlyphView(el, spec.config)
+            : new PointsView(el, spec.config, editor);
   if (bg && !view.bg) console.warn("[particles] data-particles-bg is unused: this preset draws no background", bg);
   view.setRoot(root ?? el);
   views.set(el, view);
