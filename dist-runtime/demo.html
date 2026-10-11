@@ -487,7 +487,7 @@ html.only::-webkit-scrollbar { display: none; }
      the Webflow implementation guide. In Webflow, only the data-* attributes,
      the .u-particles-threejs styles and the script tag matter. -->
 <header class="ref-bar">
-  <div class="ref-bar__brand">Clarify particles<span>v1.11.0</span></div>
+  <div class="ref-bar__brand">Clarify particles<span>v1.12.0</span></div>
   <nav class="ref-tabs"><a class="ref-tab" href="#hero" data-tab="hero">Hero</a><a class="ref-tab" href="#cta" data-tab="cta">CTA</a><a class="ref-tab" href="#fjord" data-tab="fjord">What Clarify does</a><a class="ref-tab" href="#extend" data-tab="extend">Built to extend</a><a class="ref-tab ref-tab--end" href="#setup" data-tab="setup">Setup</a></nav>
 </header>
 <div class="ref-toolbar" id="ref-toolbar" hidden>
@@ -563,13 +563,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.11.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -663,13 +663,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.11.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -713,7 +713,7 @@ html.only::-webkit-scrollbar { display: none; }
   &lt;a class=&quot;btn btn--primary&quot; href=&quot;#&quot; data-particles-excite&gt;Get started&lt;/a&gt;
 &lt;/div&gt;</code></pre></div>
         <h3>Requirements</h3>
-        <ul><li>The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.</li><li><b>Two canvases:</b> the background (the grid and its lights) is drawn into the <code>data-particles-bg</code> div, at 100% × 100% of it; give it <code>position: absolute; inset: 0</code> so it covers the card. The network is drawn into <code>.u-particles-threejs</code>, which the script creates right after the background div, so the network sits on top with no z-index.</li><li><b>The network's canvas covers the whole card</b> too (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above both.</li><li><b>Optional:</b> without a <code>data-particles-bg</code> div (the earlier markup), the background is drawn on the network's canvas instead. It looks the same.</li><li><b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.</li><li><b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.</li></ul>
+        <ul><li>The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.</li><li><b>Two canvases:</b> the background (the grid and its lights) is drawn into the <code>data-particles-bg</code> div, at 100% × 100% of it; give it <code>position: absolute; inset: 0</code> so it covers the card. The network is drawn into <code>.u-particles-threejs</code>, which the script creates right after the background div, so the network sits on top with no z-index.</li><li><b>The network's canvas covers the whole card</b> too (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above both.</li><li><b>Optional:</b> without a <code>data-particles-bg</code> div (the markup before v1.12.0), the background is drawn on the network's canvas instead. It looks the same.</li><li><b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.</li><li><b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.</li></ul>
         <h3>Behaviour to expect</h3>
         <ul><li>Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.</li><li><b>Background:</b> a fine grid of squares across the card, lit only by two soft lights that glide slowly between two places (upper right behind the network, lower left under the text) on slightly different paths each time. Drawn by the script into the <code>data-particles-bg</code> div; nothing else to build.</li><li><b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.</li><li><b>Hover:</b> the nodes nearest the cursor are pushed aside.</li><li><b>Click:</b> a slow ripple of light through the connections.</li><li><b>Button:</b> hovering “Get started” lights the whole network up (mouse only).</li><li><b>Touch</b> (phones, tablets): drag sideways on the network to spin it; hold a finger still for a moment to grab it, then it turns up and down too. A normal swipe still scrolls the page.</li><li><b>Mobile:</b> the same network as a dome filling the band's width, its bottom kept in the band, cropped at the top.</li><li><b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.</li></ul>
     </div>
@@ -788,13 +788,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.11.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -864,13 +864,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.11.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -900,18 +900,18 @@ html.only::-webkit-scrollbar { display: none; }
   <div class="ref-guide ref-guide--setup">
     <header class="ref-guide__head">
       <h2>Setup</h2>
-      <div class="ref-meta"><span class="ref-pill">v1.11.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
+      <div class="ref-meta"><span class="ref-pill">v1.12.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
     </header>
     <h3><span>1</span>Add the script, once, site-wide</h3>
     
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.11.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.11.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
     <h3><span>2</span>Mark up each section</h3>

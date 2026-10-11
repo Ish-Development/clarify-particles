@@ -2,10 +2,10 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-10, v1.11.0 released)
+## Status (2026-10-11, v1.12.0 released)
 
-- **Unreleased (2026-10-11, branch `cta-bg-split`):** the Webflow dev asked to split the CTA's particles and background into two divs. New optional `data-particles-bg`: an empty div in the card (`position: absolute; inset: 0`) gets the background (grid + gliding lights) on its own canvas; the network stays in `data-particles-wrap`'s `.u-particles-threejs`, created right after that div. Same WebGL context; one more render + copy per frame. Old markup (no `data-particles-bg`) renders pixel-identical to v1.11.0 (checked); the split differs by at most 3/255 on line edges (two canvases composited instead of one). The reference page uses the split. No preset changes.
-- **Tell the devs (next release):** optional: add an empty `<div data-particles-bg>` as the CTA card's first child, styled `position: absolute; inset: 0`. Nothing else changes.
+- **v1.12.0** (2026-10-11): the Webflow dev asked to split the CTA's particles and background into two divs. New optional `data-particles-bg`: an empty div in the card (`position: absolute; inset: 0`) gets the background (grid + gliding lights) on its own canvas; the network stays in `data-particles-wrap`'s `.u-particles-threejs`, created right after that div. Same WebGL context; one more render + copy per frame. Old markup (no `data-particles-bg`) renders pixel-identical to v1.11.0 (checked); the split differs by at most 3/255 on line edges (two canvases composited instead of one). The reference page uses the split. No preset changes.
+- **Tell the devs (v1.12.0):** bump to `@1.12.0`. Optional: add an empty `<div data-particles-bg>` as the CTA card's first child, styled `position: absolute; inset: 0`. Nothing else changes.
 
 - **v1.11.0** (2026-10-10): the hero, reworked with the user (replaces the v1.4.0 look they had locked): 10,000 finer dots (sizes ×0.8; tablet 6,500 / 4,800, phones 6,500), turning at 0.55× (`rotateSpeed`), shapes hold 7 s and morph in 2.2 s with a burst and swirl mid-morph (`morphBurst` 0.45, `morphSwirl` 0.6, stagger 0.35, ease 0.1), a bigger hover hole (`hoverRadius` 220, strength 0.8 as before), and no click reaction. Engine: points `rotateSpeed`, `morphBurst`, `morphSwirl` (no-ops by default). CTA, "What Clarify does" and the globe unchanged.
 - **Tell the devs (v1.11.0):** bump to `@1.11.0`; no markup or CSS changes.
@@ -85,7 +85,7 @@ Workflow for a new section:
 
 - **Figma:** frame `13311:5898` (1512 wide); card `13311:5899`. The artwork in Figma was a static export of the old playground's burst↔sphere graph (lines `#E8E8E8` at 0.062, 2.08 px).
 - **Markup (v1.2):** the card is `data-particles-component data-particles-wrap data-preset="cta"`. The script creates `div.u-particles-threejs`, styled `absolute; top/right/bottom: 0; left: 45%`. The card has `overflow: clip` and radius 24.
-- **Background div (next release, the dev's request):** `div.cta__bg[data-particles-bg]`, the card's first child, `position: absolute; inset: 0`. The grid is drawn there on its own canvas, and `.u-particles-threejs` is created right after it (network on top, no z-index). Optional: without it the grid is drawn on the network's canvas, as in v1.10.0–1.11.0.
+- **Background div (v1.12.0, the dev's request):** `div.cta__bg[data-particles-bg]`, the card's first child, `position: absolute; inset: 0`. The grid is drawn there on its own canvas, and `.u-particles-threejs` is created right after it (network on top, no z-index). Optional: without it the grid is drawn on the network's canvas, as in v1.10.0–1.11.0.
 - **Excite:** the "Get started" button carries `data-particles-excite`.
 - **Preset:** `cta` (graph).
 
