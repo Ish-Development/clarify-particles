@@ -2,7 +2,10 @@
 
 One entry per site section: Figma source, where the effect mounts, the preset, and what was decided with the client while tuning. Figma file: **Clarify — Website Design Foundation (Internal)**, key `Z2um6nL77J4AOzXI1PC35c`.
 
-## Status (2026-10-11, v1.12.0 released)
+## Status (2026-10-11, v1.13.0 released)
+
+- **v1.13.0** (2026-10-11): the new **Integrations** section (Figma `13437:15714`), preset `integrations`: a network of boxes morphing between seven shapes, with a bolt of light through each new shape. New view type `blocks` (its own lazy chunk). Other sections unchanged.
+- **Tell the devs (v1.13.0):** bump to `@1.13.0`. Build the Integrations section: the art's column gets `data-particles-component data-particles-wrap data-preset="integrations"`; style `.u-particles-threejs` as on the reference page's Integrations tab (the whole right side, from the section's middle to the window's edge).
 
 - **v1.12.0** (2026-10-11): the Webflow dev asked to split the CTA's particles and background into two divs. New optional `data-particles-bg`: an empty div in the card (`position: absolute; inset: 0`) gets the background (grid + gliding lights) on its own canvas; the network stays in `data-particles-wrap`'s `.u-particles-threejs`, created right after that div. Same WebGL context; one more render + copy per frame. Old markup (no `data-particles-bg`) renders pixel-identical to v1.11.0 (checked); the split differs by at most 3/255 on line edges (two canvases composited instead of one). The reference page uses the split. No preset changes.
 - **Tell the devs (v1.12.0):** bump to `@1.12.0`. Optional: add an empty `<div data-particles-bg>` as the CTA card's first child, styled `position: absolute; inset: 0`. Nothing else changes.
@@ -182,3 +185,10 @@ Workflow for a new section:
 - **Drag to spin on desktop and touch** (the user, 2026-10-10: "it should be draggable on mobile and desktop"): touch uses the existing `touchSpin` (sideways drag spins, up/down still scrolls); mouse uses the new engine option `mouseSpin` (off by default, so other presets don't change). Reduced motion: no idle turn, no spin.
 - **Layout:** desktop two columns (globe cell 507 px tall, the text cell beside it, H3 28 px); tablet (≤ 991) the cell square; mobile (≤ 767) stacked as the mobile Figma: the cell at 359 : 269, the globe `scale` 1.09 (~72% of the cell's height), 130 dots, the text under it. Its own Figma frame wins over the 50svh band rule here. The rest of the Figma section (the 10.000.000 figure, the four feature cells, the chip rows) is plain Webflow content and isn't on the reference page.
 
+## Integrations: "Explore all integrations"
+
+- **Figma:** `13437:15714` (1512 wide). The client's integration logos have no clean icons, so the right side is an illustration instead: no logos.
+- **Markup:** the art's column (right) is `data-particles-component data-particles-wrap data-preset="integrations"`. `.integrations__art .u-particles-threejs` is the whole right side, placed against the section: `top: -10%; left: 50%; right: calc(50% - 50vw); height: 120%; pointer-events: none` (the user: "go past the container", nothing may clip it). Mobile (≤ 767): a full-width 50svh band at the top, the section's padding reserving it.
+- **Preset `integrations`** (type `blocks`, all defaults): boxes packed together, drawn as nodes and lines (inside lines fainter, `inner` 0.22; see-through, far side dimmer), turning slowly. Seven shapes in turn: cube (5³), cross, diamond, frame, skyline, checkerboard, hub (the user liked the chunky cross: "more shapes like this"). Every shape is scaled to the cube's on-screen height (the user: "a nice and similar height so we take up the space"). Each holds 6 s, then morphs in ~1.5 s: nodes travel to the nearest place in the next shape, swirling and settling past the mark; fast movement blurs (lines and nodes soften, moving nodes streak). As a shape locks in, a bolt branches through it from its top node.
+- **Tried and dropped on the way** (2026-10-10/11): a dotted cube built up in levels, a stacked line-drawn version, dot swarms, rigid boxes tumbling, a burst outward mid-morph ("the scaling and zooming"), stronger blur, a hover and drag-to-spin ("lets keep it tight and simple").
+- **Size limit:** the canvas's left edge is the section's middle; `zoom` 0.92 is the largest that never touches it, mid-morph included.

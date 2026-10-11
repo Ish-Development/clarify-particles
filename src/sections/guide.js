@@ -127,4 +127,23 @@ export const SECTIONS = [
       "<b>Reduced motion:</b> it stands still and doesn't spin.",
     ],
   },
+  {
+    id: "integrations",
+    label: "Integrations",
+    template: "src/sections/integrations.html",
+    title: "Integrations: the network",
+    figma: [["Desktop", "13437-15714"]],
+    attributes: [["The art's column (right)", ["data-particles-component", 'data-preset="integrations"', "data-particles-wrap"]]],
+    requirements: [
+      "<b>The effect's div is the whole right side.</b> The script creates <code>.u-particles-threejs</code> inside the art's column; place it against the section (the section has <code>position: relative</code>, the column doesn't): <code>position: absolute; top: -10%; left: 50%; right: calc(50% - 50vw); height: 120%</code>, from the section's middle to the window's right edge. The network is drawn in its middle, as big as it fits. Nothing may clip it (no <code>overflow: hidden</code> on the section), and the text needs <code>position: relative; z-index: 1</code> to stay above it.",
+      "<b>Desktop:</b> two columns as Figma, the text left (664 px), the art's column right (676 px), 781 px tall.",
+      "<b>Mobile</b> (767 px and below): the column is a full-width band, 50% of the screen height (<code>50svh</code>), at the top of the section; the section's top padding reserves it and the text follows.",
+    ],
+    behaviour: [
+      "A network of small boxes (a node on every corner, a line along every edge, see-through, the far side dimmer) turning slowly. It takes seven shapes in turn: a cube, a cross, a diamond, a frame, a skyline, a checkerboard and a hub, all about the same height.",
+      "Each shape holds for 6 s, then morphs into the next in about 1.5 s: the nodes travel to their new places, swirling on the way, and the lines stay on them. Moving fast, they blur.",
+      "As a shape locks in, a bolt of light branches through it from its top node, line by line.",
+      "No hover or drag: it plays by itself. <b>Reduced motion:</b> it shows the cube, still.",
+    ],
+  },
 ];

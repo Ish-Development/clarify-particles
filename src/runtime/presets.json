@@ -268,5 +268,9 @@
         }
       }
     ]
+  },
+  "integrations": {
+    "type": "blocks",
+    "config": {}
   }
 }

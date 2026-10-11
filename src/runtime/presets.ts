@@ -1,6 +1,6 @@
 import type { ParticleConfig } from "../core/config";
 import type { GraphConfig } from "../core/graph";
-import type { MapConfig, RuntimeOptions } from "./defaults";
+import type { BlocksConfig, MapConfig, RuntimeOptions } from "./defaults";
 import presets from "./presets.json";
 
 // Named looks the Webflow dev references with data-preset="<name>" — one per
@@ -14,7 +14,8 @@ type Tier<C> = { maxWidth: number; config: Partial<C> };
 export type Preset =
   | { type: "points"; config: Partial<ParticleConfig & RuntimeOptions>; breakpoints?: Tier<ParticleConfig & RuntimeOptions>[] }
   | { type: "graph"; config: Partial<GraphConfig & RuntimeOptions>; breakpoints?: Tier<GraphConfig & RuntimeOptions>[] }
-  | { type: "map"; config: Partial<MapConfig & RuntimeOptions>; breakpoints?: Tier<MapConfig & RuntimeOptions>[] };
+  | { type: "map"; config: Partial<MapConfig & RuntimeOptions>; breakpoints?: Tier<MapConfig & RuntimeOptions>[] }
+  | { type: "blocks"; config: Partial<BlocksConfig & RuntimeOptions>; breakpoints?: Tier<BlocksConfig & RuntimeOptions>[] };
 
 // the width under which countMobile / sizeScaleMobile apply (engine.ts)
 export const MOBILE_QUERY = "(max-width: 767px)";

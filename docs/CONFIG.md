@@ -15,7 +15,7 @@ Every setting can be part of a preset (`src/runtime/presets.json`, the recommend
 
 Unknown keys and invalid values print a `[particles]` console warning that names the element. Webflow's own `data-w-*` / `data-wf-*` attributes are ignored.
 
-The type comes from the preset (it carries its own). Without a preset, `data-particles-component="graph"` (or legacy `data-particles="graph"`) selects a **node graph**, `"map"` the **spatial map**, and anything else gives **points** (a particle-field shape).
+The type comes from the preset (it carries its own). Without a preset, `data-particles-component="graph"` (or legacy `data-particles="graph"`) selects a **node graph**, `"map"` the **spatial map**, `"blocks"` the **network of boxes**, and anything else gives **points** (a particle-field shape).
 
 ## Shared (both types)
 
@@ -208,6 +208,28 @@ Any copy key can also be set per element as an attribute (e.g. `data-alert-title
 | `fitAspect` | `1` | — | Panels narrower than this (width / height) move the camera back so the box fits across |
 | `drag` | `true` | `false` | Mouse drag orbits (desktop; touch never does) |
 | `autoplay` | `7` | — | Seconds per tab before the next opens (`0` = click only) |
+
+## Network of boxes (`data-preset="integrations"`)
+
+The Integrations section's network (`blocks-scene.ts`, type `blocks`): boxes packed together, drawn as nodes and lines, morphing from one shape to the next, with a bolt of light through each new shape. It plays by itself (`interactive` is `false`). Shared keys that apply: `mobileDpr` (default `2` here), `background`. The `integrations` preset uses the defaults.
+
+| Key | Default | Off | Meaning |
+|---|---|---|---|
+| `shapes` | `cube,cross,diamond,frame,skyline,checker,hub` | — | The shapes in turn (comma-separated, any of these) |
+| `color` | `#ffffff` | — | Nodes and lines |
+| `lineOpacity` / `lineWidth` | `0.4` / `1.5` | — | Lines (width in CSS px) |
+| `nodeSize` / `nodeOpacity` | `4` / `0.9` | — | Nodes (CSS px) |
+| `inner` | `0.22` | `0` | The inside lines and nodes, a share of the outside's brightness |
+| `backDim` | `0.3` | `1` | The far side's brightness, a share of the near side's |
+| `turnSpeed` | `0.12` | `0` | Turn about the vertical (radians per s) |
+| `holdTime` | `6` | — | Seconds each shape holds |
+| `morphTime` / `stagger` | `1.1` / `0.45` | — | Seconds one node takes to its new place / from the first node setting off to the last (bottom of the new shape first) |
+| `swirl` / `overshoot` / `burst` | `1.6` / `1` / `0` | `0` | On the way: radians the nodes swing round / their pull back and settle past the mark / how far they swing out |
+| `spinKick` | `5` | `0` | How much faster the turn gets mid-morph |
+| `blur` / `blurSpeed` | `8` / `1000` | `0` | Fast nodes and lines spread and soften: CSS px at full speed / CSS px per s that counts as full speed |
+| `streak` / `streakGain` | `0.045` / `0.45` | `0` | A moving node's streak: how far behind it trails (s) / its brightness |
+| `boltStep` / `boltFade` / `boltGain` | `0.07` / `0.45` / `1` | `boltGain: 0` | The bolt through a new shape: s per line / s it fades behind / brightness |
+| `zoom` | `0.92` | — | Share of the canvas the network fills (fitted to every shape at every point of the turn; above 1 clips) |
 
 ## Element-level markers
 

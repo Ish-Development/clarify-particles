@@ -10,10 +10,10 @@ Interactive particle/network backgrounds for Webflow sections. You don't need a 
 **Site settings → Custom code → Footer code:**
 
 ```html
-<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js"></script>
 ```
 
-Always pin the version (`@1.12.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
+Always pin the version (`@1.13.0`), never `@latest` or a branch. Pinned URLs never change, so they're cached permanently. New releases get a new version number and you update this one line.
 
 ### Or through the site's `window.libs` loader
 
@@ -22,7 +22,7 @@ Always pin the version (`@1.12.0`), never `@latest` or a branch. Pinned URLs nev
 window.loadParticles = () => {
   if (!document.querySelector("[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]")) return Promise.resolve();
   return window.libs.load("particles", () =>
-    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js")
+    import("https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js")
   );
 };
 ```
@@ -59,6 +59,7 @@ Each effect is a **component**:
 - **Tabs (the spatial map):** `data-fjord-tab="0|1|2"` on each tab. The script runs them: it adds `is-active` to the active tab (style that combo class), sets `--tab-progress` (0 → 1) on it for the timer line, moves on by itself every 7 s, and flies the map's camera. No Webflow Tabs component or interactions needed.
 - **The CTA's background (optional):** an empty `data-particles-bg` div inside the card gets the background (the grid and its gliding lights) on its own canvas, at 100% × 100% of the div; give it `position: absolute; inset: 0` to cover the card. The network stays in `.u-particles-threejs`, which the script creates right after that div, so the network is on top without a z-index. Without the div, the background is drawn on the network's canvas as before; it looks the same.
 - **The globe ("Built to extend", preset `globe`):** the globe's cell is the component and the wrap (`data-particles-component data-particles-wrap data-preset="globe"`); give it `position: relative` and `.u-particles-threejs` inside it `position: absolute; inset: 0`. It can be dragged to spin with the mouse and on touch (sideways; up/down swipes still scroll).
+- **The Integrations network (preset `integrations`):** the art's column (right) is the component and the wrap (`data-particles-component data-particles-wrap data-preset="integrations"`). Place `.u-particles-threejs` against the section (give the section `position: relative`): `position: absolute; top: -10%; left: 50%; right: calc(50% - 50vw); height: 120%; pointer-events: none`, so the network gets the whole right side, past the container, and nothing clips it (no `overflow: hidden` on the section). Under 768 px: the full-width 50svh band. It plays by itself; no hover or drag.
 - **Settings:** `data-preset` goes on the component (or the wrap, which wins if both have one).
 - **Buttons:** `data-particles-excite` elements inside a component light up **that component's** effect only, so several components on one page each react to their own button.
 
@@ -77,6 +78,7 @@ Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requ
 | Hero ("Learn from the past and predict the future") | `hero` | the hero section (`data-how-component` + `data-how-wrap`); its "Book a demo" and "Talk to an engineer" buttons get `data-particles-excite` | [#hero](https://clarify-particles.vercel.app/#hero) |
 | CTA ("See how Clarify solves yours") | `cta` | the card; an empty `data-particles-bg` div in it for the background (optional); the "Get started" button gets `data-particles-excite` | [#cta](https://clarify-particles.vercel.app/#cta) |
 | What Clarify does ("How Clarify helps you earn more, and cut cost") | `fjord` | the section (`data-fjord-component`); the map panel is `data-fjord-wrap`; the tabs get `data-fjord-tab` | [#fjord](https://clarify-particles.vercel.app/#fjord) |
+| Integrations ("Explore all integrations") | `integrations` | the art's column (right); nothing else | [#integrations](https://clarify-particles.vercel.app/#integrations) |
 
 ## Built in
 

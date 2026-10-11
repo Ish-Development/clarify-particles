@@ -107,7 +107,7 @@ html, body { margin: 0; background: #060709; }
 /* the site container: everything contained stops at 1512px (its 80px side
    margins included, so 1352px of content, as in Figma), centered on wider
    screens. Each section caps itself (their backgrounds match the page). */
-.cta, .extend, .fjord, .hero { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
+.cta, .extend, .fjord, .hero, .integrations { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
 
 /* typography rule: headings balance their lines, paragraphs avoid orphans */
 :is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
@@ -405,6 +405,44 @@ p { text-wrap: pretty; }
   .extend__copy { justify-content: flex-start; padding: 36px var(--space-5); }
 }
 
+/* --- Integrations: a network of boxes morphing between shapes (Figma
+   13437:15714, desktop 1512 wide). Two columns as Figma: the text (664 px)
+   left, the art's column (676 px) right, 12 px apart. The effect's div is
+   the whole right side: from the section's middle to the window's right
+   edge, a little taller than the section. The network is drawn in its
+   middle, as big as it fits; the text sits above it. --- */
+
+.integrations, .integrations * { box-sizing: border-box; } /* Webflow default */
+.integrations {
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, 664fr) minmax(0, 676fr); column-gap: 12px;
+  min-height: 781px;
+  padding: 0 var(--grid-margin);
+  background: var(--background-bg-primary);
+  font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased;
+}
+.integrations__text { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--space-7, 36px); }
+.integrations__copy { display: flex; flex-direction: column; gap: var(--space-5); max-width: 500px; color: var(--text-text-primary); }
+.integrations__title {
+  margin: 0;
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+}
+.integrations__body { margin: 0; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
+/* the art's column holds the effect's div, placed against the section */
+.integrations__art .u-particles-threejs {
+  position: absolute; top: -10%; left: 50%; right: calc(50% - 50vw);
+  height: 120%;
+  pointer-events: none;
+}
+/* mobile (767px and below): the network in a full-width band, 50% of the
+   screen's height, at the top; the section's padding-top reserves it */
+@media (max-width: 767px) {
+  .integrations { display: block; min-height: 0; padding: calc(50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
+  .integrations__art { position: absolute; top: 0; left: 0; right: 0; height: 50svh; }
+  .integrations__art .u-particles-threejs { top: 0; left: 0; right: 0; height: 100%; }
+}
+
 /* --- reference page chrome (not part of the site) --- */
 body { color: var(--text-text-secondary); font: 400 15px/1.55 var(--family-text-primary); -webkit-font-smoothing: antialiased; }
 .ref-bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 32px; padding: 0 24px; height: 52px; background: rgba(6, 7, 9, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--navigation-navbar-border); }
@@ -487,8 +525,8 @@ html.only::-webkit-scrollbar { display: none; }
      the Webflow implementation guide. In Webflow, only the data-* attributes,
      the .u-particles-threejs styles and the script tag matter. -->
 <header class="ref-bar">
-  <div class="ref-bar__brand">Clarify particles<span>v1.12.0</span></div>
-  <nav class="ref-tabs"><a class="ref-tab" href="#hero" data-tab="hero">Hero</a><a class="ref-tab" href="#cta" data-tab="cta">CTA</a><a class="ref-tab" href="#fjord" data-tab="fjord">What Clarify does</a><a class="ref-tab" href="#extend" data-tab="extend">Built to extend</a><a class="ref-tab ref-tab--end" href="#setup" data-tab="setup">Setup</a></nav>
+  <div class="ref-bar__brand">Clarify particles<span>v1.13.0</span></div>
+  <nav class="ref-tabs"><a class="ref-tab" href="#hero" data-tab="hero">Hero</a><a class="ref-tab" href="#cta" data-tab="cta">CTA</a><a class="ref-tab" href="#fjord" data-tab="fjord">What Clarify does</a><a class="ref-tab" href="#extend" data-tab="extend">Built to extend</a><a class="ref-tab" href="#integrations" data-tab="integrations">Integrations</a><a class="ref-tab ref-tab--end" href="#setup" data-tab="setup">Setup</a></nav>
 </header>
 <div class="ref-toolbar" id="ref-toolbar" hidden>
   <div class="ref-bps" role="group" aria-label="Screen width"><div class="ref-bps__group"><span class="ref-bps__label">Desktop</span><div class="ref-seg"><button type="button" data-w="1920" data-h="1080" title="1920 × 1080">1920</button><button type="button" data-w="1512" data-h="982" title="1512 × 982 (Figma frame)">1512<i class="ref-dot" aria-hidden="true"></i></button><button type="button" data-w="1280" data-h="800" title="1280 × 800">1280</button></div></div><div class="ref-bps__group"><span class="ref-bps__label">Tablet</span><div class="ref-seg"><button type="button" data-w="991" data-h="1024" title="991 × 1024">991</button></div></div><div class="ref-bps__group"><span class="ref-bps__label">Mobile</span><div class="ref-seg"><button type="button" data-w="767" data-h="1024" title="767 × 1024">767</button><button type="button" data-w="479" data-h="900" title="479 × 900">479</button><button type="button" data-w="393" data-h="852" title="393 × 852 (Figma frame)">393<i class="ref-dot" aria-hidden="true"></i></button><button type="button" data-w="320" data-h="568" title="320 × 568">320</button></div></div></div>
@@ -563,13 +601,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.13.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -663,13 +701,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.13.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -788,13 +826,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.13.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -864,13 +902,13 @@ html.only::-webkit-scrollbar { display: none; }
         <h3><span>1</span>Add the script</h3>
         
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.13.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
@@ -896,22 +934,106 @@ html.only::-webkit-scrollbar { display: none; }
   </div>
 </section>
 
-<section class="ref-panel" data-panel="setup" hidden>
-  <div class="ref-guide ref-guide--setup">
+<section class="ref-panel" data-panel="integrations" hidden>
+  <div class="ref-live">
+<section class="integrations">
+  <div class="integrations__text">
+    <div class="eyebrow">
+      <span class="eyebrow__grid" aria-hidden="true"
+        ><i class="on"></i><i></i><i></i><i></i
+        ><i></i><i class="on"></i><i class="on"></i><i></i
+        ><i></i><i class="on"></i><i class="on"></i><i></i
+        ><i></i><i></i><i></i><i class="on"></i
+      ></span>
+      <span class="eyebrow__label">Integrations</span>
+    </div>
+    <div class="integrations__copy">
+      <h2 class="integrations__title">Explore all integrations</h2>
+      <p class="integrations__body">Our catalogue of supported integrations is ever expanding. Like the universe.</p>
+    </div>
+  </div>
+  <!-- the cube's column is the particles component (scope + preset) and its
+       wrap: the script creates div.u-particles-threejs inside it, which the
+       CSS stretches over the column -->
+  <div class="integrations__art" data-particles-component data-particles-wrap data-preset="integrations"></div>
+</section>
+
+  </div>
+  <div class="ref-stage">
+    <div class="ref-frame">
+      <iframe title="Integrations section" data-src="demo.html?only=integrations"></iframe>
+      <div class="ref-handle" title="Drag to resize"></div>
+    </div>
+  </div>
+  <div class="ref-guide">
     <header class="ref-guide__head">
-      <h2>Setup</h2>
-      <div class="ref-meta"><span class="ref-pill">v1.12.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
+      <h2>Integrations: the network</h2>
+      <div class="ref-meta"><span class="ref-pill">preset <code>integrations</code></span><a href="https://www.figma.com/design/Z2um6nL77J4AOzXI1PC35c/?node-id=13437-15714" target="_blank" rel="noopener">Figma: Desktop</a></div>
     </header>
-    <h3><span>1</span>Add the script, once, site-wide</h3>
-    
+    <div class="ref-guide__main">
+        <h3><span>1</span>Add the script</h3>
+        
     <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
-    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
-    <p>Always pin the version (<code>@1.12.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.13.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
     <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
   if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
   return window.libs.load(&quot;particles&quot;, () =&gt;
-    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.12.0/dist-runtime/particles.js&quot;)
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;)
+  );
+};</code></pre></div>
+        <h3><span>2</span>Attributes</h3>
+        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The art's column (right)</td><td><code>data-particles-component</code><br><code>data-preset=&quot;integrations&quot;</code><br><code>data-particles-wrap</code></td></tr></tbody></table>
+        <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
+        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
+        <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>.integrations__art .u-particles-threejs {
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  right: calc(50% - 50vw);
+  height: 120%;
+  pointer-events: none;
+}
+@media (max-width: 767px) {
+  .integrations__art .u-particles-threejs {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+  }
+}</code></pre></div>
+        <h3><span>4</span>Resulting markup</h3>
+        <div class="ref-code"><div class="ref-code__bar"><span>HTML</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;div class=&quot;integrations__art&quot; data-particles-component data-particles-wrap data-preset=&quot;integrations&quot;&gt;
+  <span class="dim">&lt;div class=&quot;u-particles-threejs&quot;&gt;   ← created by the script</span>
+    <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;</span>
+  <span class="dim">&lt;/div&gt;</span>
+  <span class="dim">… section content …</span>
+&lt;/div&gt;</code></pre></div>
+        <h3>Requirements</h3>
+        <ul><li><b>The effect's div is the whole right side.</b> The script creates <code>.u-particles-threejs</code> inside the art's column; place it against the section (the section has <code>position: relative</code>, the column doesn't): <code>position: absolute; top: -10%; left: 50%; right: calc(50% - 50vw); height: 120%</code>, from the section's middle to the window's right edge. The network is drawn in its middle, as big as it fits. Nothing may clip it (no <code>overflow: hidden</code> on the section), and the text needs <code>position: relative; z-index: 1</code> to stay above it.</li><li><b>Desktop:</b> two columns as Figma, the text left (664 px), the art's column right (676 px), 781 px tall.</li><li><b>Mobile</b> (767 px and below): the column is a full-width band, 50% of the screen height (<code>50svh</code>), at the top of the section; the section's top padding reserves it and the text follows.</li></ul>
+        <h3>Behaviour to expect</h3>
+        <ul><li>A network of small boxes (a node on every corner, a line along every edge, see-through, the far side dimmer) turning slowly. It takes seven shapes in turn: a cube, a cross, a diamond, a frame, a skyline, a checkerboard and a hub, all about the same height.</li><li>Each shape holds for 6 s, then morphs into the next in about 1.5 s: the nodes travel to their new places, swirling on the way, and the lines stay on them. Moving fast, they blur.</li><li>As a shape locks in, a bolt of light branches through it from its top node, line by line.</li><li>No hover or drag: it plays by itself. <b>Reduced motion:</b> it shows the cube, still.</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="ref-panel" data-panel="setup" hidden>
+  <div class="ref-guide ref-guide--setup">
+    <header class="ref-guide__head">
+      <h2>Setup</h2>
+      <div class="ref-meta"><span class="ref-pill">v1.13.0</span><a href="https://github.com/Ish-Development/clarify-particles/blob/main/runtime/README.md" target="_blank" rel="noopener">Full handover README</a><a href="https://github.com/Ish-Development/clarify-particles/blob/main/docs/CONFIG.md" target="_blank" rel="noopener">All settings</a></div>
+    </header>
+    <h3><span>1</span>Add the script, once, site-wide</h3>
+    
+    <p><b>Site settings → Custom code → Footer code</b> (once for the whole site; skip if it's already there):</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>HTML · jsDelivr CDN</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;script type=&quot;module&quot; src=&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;&gt;&lt;/script&gt;</code></pre></div>
+    <p>Always pin the version (<code>@1.13.0</code>), never <code>@latest</code> or a branch. A new look or fix ships as a new version number, and you only update this line.</p>
+    <p><b>Or</b> through the site's <code>window.libs</code> loader. It must use <code>import()</code>: the file is an ES module that loads its engine relative to its own URL.</p>
+    <div class="ref-code"><div class="ref-code__bar"><span>JS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>window.loadParticles = () =&gt; {
+  if (!document.querySelector(&quot;[data-particles-component], [data-how-component], [data-fjord-component], [data-particles]&quot;)) return Promise.resolve();
+  return window.libs.load(&quot;particles&quot;, () =&gt;
+    import(&quot;https://cdn.jsdelivr.net/gh/Ish-Development/clarify-particles@1.13.0/dist-runtime/particles.js&quot;)
   );
 };</code></pre></div>
     <h3><span>2</span>Mark up each section</h3>

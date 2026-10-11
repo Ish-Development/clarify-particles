@@ -11,7 +11,7 @@
 /* the site container: everything contained stops at 1512px (its 80px side
    margins included, so 1352px of content, as in Figma), centered on wider
    screens. Each section caps itself (their backgrounds match the page). */
-.cta, .extend, .fjord, .hero { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
+.cta, .extend, .fjord, .hero, .integrations { box-sizing: border-box; max-width: 1512px; margin-inline: auto; }
 
 /* typography rule: headings balance their lines, paragraphs avoid orphans */
 :is(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
@@ -307,4 +307,42 @@ p { text-wrap: pretty; }
   .extend__row { grid-template-columns: minmax(0, 1fr); }
   .extend__globe { aspect-ratio: 359 / 269; border-right: 0; border-bottom: 1px solid var(--border-border-primary); }
   .extend__copy { justify-content: flex-start; padding: 36px var(--space-5); }
+}
+
+/* --- Integrations: a network of boxes morphing between shapes (Figma
+   13437:15714, desktop 1512 wide). Two columns as Figma: the text (664 px)
+   left, the art's column (676 px) right, 12 px apart. The effect's div is
+   the whole right side: from the section's middle to the window's right
+   edge, a little taller than the section. The network is drawn in its
+   middle, as big as it fits; the text sits above it. --- */
+
+.integrations, .integrations * { box-sizing: border-box; } /* Webflow default */
+.integrations {
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, 664fr) minmax(0, 676fr); column-gap: 12px;
+  min-height: 781px;
+  padding: 0 var(--grid-margin);
+  background: var(--background-bg-primary);
+  font-family: var(--family-text-primary); -webkit-font-smoothing: antialiased;
+}
+.integrations__text { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; gap: var(--space-7, 36px); }
+.integrations__copy { display: flex; flex-direction: column; gap: var(--space-5); max-width: 500px; color: var(--text-text-primary); }
+.integrations__title {
+  margin: 0;
+  font: 500 var(--headings-size-h2) / 1.1 var(--family-heading-primary);
+  letter-spacing: -1px;
+}
+.integrations__body { margin: 0; font: 400 var(--body-size-text-medium) / 1.35 var(--family-text-primary); }
+/* the art's column holds the effect's div, placed against the section */
+.integrations__art .u-particles-threejs {
+  position: absolute; top: -10%; left: 50%; right: calc(50% - 50vw);
+  height: 120%;
+  pointer-events: none;
+}
+/* mobile (767px and below): the network in a full-width band, 50% of the
+   screen's height, at the top; the section's padding-top reserves it */
+@media (max-width: 767px) {
+  .integrations { display: block; min-height: 0; padding: calc(50svh + var(--space-7, 36px)) var(--grid-margin) var(--section-space-m); }
+  .integrations__art { position: absolute; top: 0; left: 0; right: 0; height: 50svh; }
+  .integrations__art .u-particles-threejs { top: 0; left: 0; right: 0; height: 100%; }
 }

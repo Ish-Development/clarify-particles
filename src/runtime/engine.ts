@@ -40,8 +40,9 @@ import { ParticleSystem } from "../core/particles";
 import { GraphSystem } from "../core/graph";
 import { applyClick, applyHover, type InteractionConfig, type Steerable } from "../core/interaction";
 import { hexToRgb01, particleColor } from "../core/color";
-import type { MapViewConfig, RuntimeOptions } from "./defaults";
+import type { BlocksViewConfig, MapViewConfig, RuntimeOptions } from "./defaults";
 import type { GraphSpec, PointsSpec, ViewSpec } from "./spec";
+import type { BlocksScene } from "./blocks-scene";
 import type { MapOverlay, MapScene } from "./map-scene";
 
 // = MOBILE_QUERY in presets.ts (kept literal: the engine imports no loader code)
@@ -1764,6 +1765,58 @@ const NO_SYSTEM: Steerable = {
 
 // Wait (briefly) for the in-scene text's fonts, so the labels aren't drawn
 // in a fallback face; the site normally has them loaded already.
+// The integrations network (blocks-scene.ts, its own chunk): a 3D line
+// drawing that animates by itself; no pointer reactions.
+class BlocksView extends View {
+  readonly system = NO_SYSTEM;
+  readonly is3d = true;
+  private blocks: BlocksScene | null = null;
+  private disposed = false;
+
+  constructor(el: HTMLElement, cfg: BlocksViewConfig) {
+    super(el, cfg);
+    import("./blocks-scene")
+      .then((m) => {
+        if (this.disposed) return;
+        const blocks = new m.BlocksScene(cfg);
+        blocks.setReducedMotion(reducedMotion.matches);
+        this.blocks = blocks;
+        this.scene.add(blocks.root);
+        this.camera = blocks.camera;
+        this.onResize();
+        if (this.visible && !this.running) this.paint();
+        wake();
+      })
+      .catch((err) => console.warn("[particles] the network failed to load", err));
+    this.start();
+  }
+
+  stats() {
+    return { blocks: this.blocks ? "ready" : "loading" };
+  }
+
+  step(dt: number) {
+    this.blocks?.update(dt);
+  }
+
+  paint() {
+    if (this.blocks) super.paint();
+  }
+
+  protected sync() {}
+
+  protected onResize() {
+    this.blocks?.setSize(this.cw, this.ch, this.dpr);
+  }
+
+  protected onLook() {}
+
+  protected disposeGpu() {
+    this.disposed = true;
+    this.blocks?.dispose();
+  }
+}
+
 function fontsReady(cfg: MapViewConfig) {
   if (!document.fonts?.load) return Promise.resolve();
   const load = Promise.all([cfg.fontSans, cfg.fontMono].map((f) => document.fonts.load(`400 64px ${f}`).catch(() => [])));
@@ -2303,7 +2356,9 @@ export function mount(
       ? new GraphView(el, spec.config, bg)
       : spec.type === "map"
         ? new MapView(el, spec.config)
-        : new PointsView(el, spec.config, editor);
+        : spec.type === "blocks"
+          ? new BlocksView(el, spec.config)
+          : new PointsView(el, spec.config, editor);
   if (bg && !view.bg) console.warn("[particles] data-particles-bg is unused: this preset draws no background", bg);
   view.setRoot(root ?? el);
   views.set(el, view);

@@ -1,12 +1,13 @@
 import { defaultConfig, SHAPE_NAMES } from "../core/config";
 import { defaultGraphConfig, GRAPH_MODES } from "../core/graphConfig";
-import { graphDefaults, mapDefaults, pointsDefaults, type GraphViewConfig, type MapViewConfig, type PointsConfig } from "./defaults";
+import { blocksDefaults, graphDefaults, mapDefaults, pointsDefaults, type BlocksViewConfig, type GraphViewConfig, type MapViewConfig, type PointsConfig } from "./defaults";
 import { maxWidthQuery, PRESETS } from "./presets";
 
 export type PointsSpec = { type: "points"; config: PointsConfig };
 export type GraphSpec = { type: "graph"; config: GraphViewConfig };
 export type MapSpec = { type: "map"; config: MapViewConfig };
-export type ViewSpec = PointsSpec | GraphSpec | MapSpec;
+export type BlocksSpec = { type: "blocks"; config: BlocksViewConfig };
+export type ViewSpec = PointsSpec | GraphSpec | MapSpec | BlocksSpec;
 
 // Reserved dataset keys that aren't config fields.
 const RESERVED = new Set([
@@ -61,8 +62,8 @@ export function parseSpec(sources: HTMLElement | HTMLElement[]): ViewSpec {
   }
 
   const typeAttr = ds.particles || ds.particlesComponent || ds.howComponent || ds.fjordComponent;
-  const type = typeAttr === "graph" || typeAttr === "map" ? typeAttr : !typeAttr && preset ? preset.type : "points";
-  const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : type === "map" ? mapDefaults : pointsDefaults) };
+  const type = typeAttr === "graph" || typeAttr === "map" || typeAttr === "blocks" ? typeAttr : !typeAttr && preset ? preset.type : "points";
+  const cfg: Record<string, unknown> = { ...(type === "graph" ? graphDefaults : type === "map" ? mapDefaults : type === "blocks" ? blocksDefaults : pointsDefaults) };
 
   if (preset) {
     if (preset.type !== type) warn(el, `preset "${ds.preset}" is a ${preset.type} preset`);

@@ -251,3 +251,71 @@ export const mapDefaults: MapViewConfig = {
   drag: true,
   autoplay: 7,
 };
+
+// --- the integrations network (type "blocks", blocks-scene.ts): boxes
+// packed together, drawn as nodes and lines (a node on every corner, a line
+// along every edge, the inside ones fainter), morphing from one shape to
+// the next: the nodes travel, the lines stay on them.
+export interface BlocksConfig {
+  shapes: string; // in turn, from: cube, cross, diamond, frame, skyline, checker, hub
+  color: string;
+  lineOpacity: number;
+  lineWidth: number; // CSS px
+  nodeSize: number; // CSS px
+  nodeOpacity: number;
+  backDim: number; // the far side's brightness, a share of the near side's
+  inner: number; // the inside lines' and nodes' brightness, a share of the outside's (0: none)
+  turnSpeed: number; // radians per s about the vertical
+  holdTime: number; // s each shape holds
+  morphTime: number; // s one node takes to its new place
+  stagger: number; // s from the first node setting off to the last
+  burst: number; // how far the nodes swing out on the way (share of their distance)
+  swirl: number; // radians they swing round on the way
+  overshoot: number; // 0 = plain ease, 1 = a clear pull back and settle past the mark
+  spinKick: number; // how much faster the turn gets mid-morph
+  boltStep: number; // s the bolt takes per line, on average
+  boltFade: number; // s the light takes to fade behind it
+  boltGain: number; // the bolt's brightness
+  blur: number; // CSS px a node or line spreads (softens) at full speed
+  blurSpeed: number; // CSS px per s on screen at which the blur is full
+  streak: number; // s a moving node's streak trails behind it (0: none)
+  streakGain: number; // the streak's brightness
+  zoom: number; // share of the canvas the network fills
+}
+export type BlocksViewConfig = BlocksConfig &
+  RuntimeOptions & { hoverRadius: number; hoverStrength: number; clickBehavior: "none"; background: string };
+
+export const blocksDefaults: BlocksViewConfig = {
+  ...runtimeDefaults,
+  interactive: false,
+  touchHover: false,
+  hoverRadius: 0,
+  hoverStrength: 0,
+  clickBehavior: "none",
+  mobileDpr: 2,
+  background: "transparent",
+  shapes: "cube,cross,diamond,frame,skyline,checker,hub",
+  color: "#ffffff",
+  lineOpacity: 0.4,
+  lineWidth: 1.5,
+  nodeSize: 4,
+  nodeOpacity: 0.9,
+  backDim: 0.3,
+  inner: 0.22,
+  turnSpeed: 0.12,
+  holdTime: 6,
+  morphTime: 1.1,
+  stagger: 0.45,
+  burst: 0,
+  swirl: 1.6,
+  overshoot: 1,
+  spinKick: 5,
+  boltStep: 0.07,
+  boltFade: 0.45,
+  boltGain: 1,
+  blur: 8,
+  blurSpeed: 1000,
+  streak: 0.045,
+  streakGain: 0.45,
+  zoom: 0.92,
+};
