@@ -70,13 +70,16 @@ function mountTracked(key: HTMLElement, m: Engine) {
     const host = createHost(key);
     tracked.set(key, host);
     const sources = host.wrap === key ? [key] : [key, host.wrap];
-    m.mount(host.el, parseSpec(sources), { root: key });
+    m.mount(host.el, parseSpec(sources), { root: key, bg: host.bg });
     requestAnimationFrame(() => {
       if (!host.el.clientWidth || !host.el.clientHeight) {
         console.warn(
           "[particles] .u-particles-threejs has no size — give that class a position and size in Webflow (e.g. absolute, filling the wrap)",
           host.el,
         );
+      }
+      if (host.bg && (!host.bg.clientWidth || !host.bg.clientHeight)) {
+        console.warn("[particles] [data-particles-bg] has no size — give it a position and size in Webflow (e.g. absolute, inset 0)", host.bg);
       }
     });
   } else {

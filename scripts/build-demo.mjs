@@ -24,9 +24,9 @@ const FIGMA = "https://www.figma.com/design/Z2um6nL77J4AOzXI1PC35c/?node-id=";
 const sectionsCss = read("src/sections/sections.css").replace(/@import[^;]+;/, "");
 const css = read("src/sections/tokens.css") + "\n" + sectionsCss;
 
-// every `.<cls> .u-particles-threejs { … }` rule in sections.css, with the
-// @media it sits in (one level deep, as written there)
-function effectRules(cls) {
+// every `<selector> { … }` rule in sections.css, with the @media it sits
+// in (one level deep, as written there)
+function cssRules(selector) {
   const src = sectionsCss.replace(/\/\*[\s\S]*?\*\//g, "");
   const re = /@media([^{]+)\{|([^{}]+)\{([^{}]*)\}|\}/g;
   const rules = [];
@@ -35,21 +35,33 @@ function effectRules(cls) {
   while ((m = re.exec(src))) {
     if (m[1] !== undefined) media = m[1].trim();
     else if (m[2] !== undefined) {
-      if (m[2].trim() === `.${cls} .u-particles-threejs`) rules.push({ media, decls: m[3].split(";").map((d) => d.trim()).filter(Boolean) });
+      if (m[2].trim() === selector) rules.push({ media, decls: m[3].split(";").map((d) => d.trim()).filter(Boolean) });
     } else media = null;
   }
-  if (!rules.length) throw new Error(`sections.css: no .${cls} .u-particles-threejs rule`);
   return rules;
 }
 
-function cssSnippet(cls) {
-  return effectRules(cls)
-    .map(({ media, decls }) => {
-      const pad = media ? "    " : "  ";
-      const rule = `${media ? "  " : ""}.${cls} .u-particles-threejs {\n${decls.map((d) => `${pad}${d};`).join("\n")}\n${media ? "  " : ""}}`;
-      return media ? `@media ${media} {\n${rule}\n}` : rule;
-    })
+// the `.<cls> .u-particles-threejs` rules, then the background element's
+// (`.<bgCls>`, if the section has a data-particles-bg element)
+function cssSnippet(cls, bgCls) {
+  const effect = `.${cls} .u-particles-threejs`;
+  if (!cssRules(effect).length) throw new Error(`sections.css: no ${effect} rule`);
+  const selectors = bgCls ? [effect, `.${bgCls}`] : [effect];
+  return selectors
+    .flatMap((selector) =>
+      cssRules(selector).map(({ media, decls }) => {
+        const pad = media ? "    " : "  ";
+        const rule = `${media ? "  " : ""}${selector} {\n${decls.map((d) => `${pad}${d};`).join("\n")}\n${media ? "  " : ""}}`;
+        return media ? `@media ${media} {\n${rule}\n}` : rule;
+      }),
+    )
     .join("\n");
+}
+
+// the section's data-particles-bg element (its opening tag and class), if any
+function bgElement(template) {
+  const m = template.replace(/<!--[\s\S]*?-->/g, "").match(/<([a-z][a-z0-9]*)(\s[^>]*?\sdata-particles-bg(?=[\s>=])[^>]*)>/i);
+  return m && { tag: m[1], open: `<${m[1]}${m[2]}>`.replace(/\s+/g, " "), cls: m[2].match(/class="([^"\s]+)/)?.[1] };
 }
 
 // skeleton of the component markup: its opening tag, the div + canvas the
@@ -63,8 +75,10 @@ function markupSnippet(template) {
     m[0].replace(/\s+/g, " "),
   );
   const dim = (s) => `<span class="dim">${esc(s)}</span>`;
+  const bg = bgElement(template);
   return [
     esc(open),
+    ...(bg ? [`  ${esc(bg.open)}`, `    ${dim("<canvas></canvas>                 ← created by the script")}`, `  ${esc(`</${bg.tag}>`)}`] : []),
     `  ${dim('<div class="u-particles-threejs">   ← created by the script')}`,
     `    ${dim("<canvas></canvas>")}`,
     `  ${dim("</div>")}`,
@@ -117,6 +131,7 @@ const panels = SECTIONS.map((s) => {
   if (!comp) throw new Error(`${s.template}: no data-particles-component (or data-how/fjord-component) element`);
   const cls = comp[0].match(/class="([^"\s]+)/)[1];
   const preset = comp[0].match(/data-preset="([^"]+)"/)[1];
+  const bg = bgElement(html);
   const figma = s.figma.map(([label, node]) => `<a href="${FIGMA}${node}" target="_blank" rel="noopener">Figma: ${label}</a>`).join("");
   const attrs = s.attributes
     .map(([el, as]) => `<tr><td>${el}</td><td>${as.map((a) => `<code>${esc(a)}</code>`).join("<br>")}</td></tr>`)
@@ -142,9 +157,11 @@ ${html}
         ${scriptSteps()}
         <h3><span>2</span>Attributes</h3>
         <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody>${attrs}</tbody></table>
-        <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
-        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
-        ${code("CSS", esc(cssSnippet(cls)))}
+        <h3><span>3</span>Style <code>.u-particles-threejs</code>${bg ? ` and <code>.${bg.cls}</code>` : ""}</h3>
+        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).${
+          bg ? ` The background is drawn at 100% × 100% of the <code>data-particles-bg</code> element, so its CSS decides where the background sits.` : ""
+        }</p>
+        ${code("CSS", esc(cssSnippet(cls, bg?.cls)))}
         <h3><span>4</span>Resulting markup</h3>
         ${code("HTML", markupSnippet(html))}
         <h3>Requirements</h3>
@@ -171,6 +188,7 @@ const setup = `
       "Structure",
       [
         `[data-particles-component]   <span class="dim">the component: its preset, and the scope for its buttons</span>`,
+        `  [data-particles-bg]        <span class="dim">where the background goes (optional, CTA): canvas at 100% × 100%</span>`,
         `  [data-particles-wrap]      <span class="dim">where the effect goes (optional: defaults to the component)</span>`,
         `    div.u-particles-threejs  <span class="dim">CREATED BY THE SCRIPT: style this class in Webflow</span>`,
         `      &lt;canvas&gt;               <span class="dim">created by the script, 100% × 100% of that div</span>`,

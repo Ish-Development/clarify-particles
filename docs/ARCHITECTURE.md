@@ -48,6 +48,7 @@ dist-runtime/      COMMITTED build output served by jsDelivr (particles.js, engi
        - **The div:** for each `[data-particles-component]`, the loader creates `div.u-particles-threejs` inside its `[data-particles-wrap]` (`host.ts`). Webflow styles that class.
        - **The canvas:** the engine puts a 2D `<canvas>` in that div at 100% × 100%, with no inset.
        - **Scope:** the component is the view's `root`, which scopes its excite buttons, parallax and click handling.
+       - **Background element (optional):** a `[data-particles-bg]` in the component gets its own 2D canvas (`BgLayer`, 100% × 100% of it) with the graph's backdrop (glow, grid, `background`) in a second scene; the network's canvas keeps the rest. Each frame renders both into the shared GL buffer (one more render + `drawImage`, no second context). The view runs while either element is near the screen. Without it, the backdrop is drawn on the view's canvas as before.
        - **Legacy:** a `[data-particles]` element gets the canvas directly.
        - **Earlier versions:** a wrapper box and a `canvasInset` option (removed in v1.1).
      - **Each frame:** the view's scene is rendered into the shared GL buffer, and `drawImage` copies it into the view's own canvas.

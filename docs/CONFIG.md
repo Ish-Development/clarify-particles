@@ -2,6 +2,8 @@
 
 Markup: `[data-particles-component]` > `[data-particles-wrap]`. The script creates `div.u-particles-threejs` in the wrap, with the canvas at 100% × 100% inside it. Style that class in Webflow to set the effect's area (see runtime/README.md). Settings go on the component or the wrap, and the wrap wins.
 
+Optional: a `[data-particles-bg]` element in the component. A graph's backdrop (`background`, `glow`, `grid`) is then drawn there, on its own canvas at 100% × 100% of that element (its coordinates, e.g. `glowX` and `gridGlows`, are that element's), instead of under the network. Same WebGL context. When it's a child of the wrap, `.u-particles-threejs` is created right after it, so the network stacks on top. Ignored (with a console warning) by presets with no backdrop.
+
 Every setting can be part of a preset (`src/runtime/presets.json`, the recommended route) or be set per element. Resolution order, later wins:
 
 1. **Defaults:** below.

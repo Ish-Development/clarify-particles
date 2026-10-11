@@ -49,18 +49,21 @@ export const SECTIONS = [
     ],
     attributes: [
       ["The card (Figma <code>13311:5899</code>)", ["data-particles-component", 'data-preset="cta"', "data-particles-wrap"]],
+      ["An empty div inside the card, covering it (the background)", ["data-particles-bg"]],
       ["The <b>“Get started”</b> button", ["data-particles-excite"]],
     ],
     requirements: [
       "The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.",
-      "<b>The canvas covers the whole card</b> (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above it.",
+      "<b>Two canvases:</b> the background (the grid and its lights) is drawn into the <code>data-particles-bg</code> div, at 100% × 100% of it; give it <code>position: absolute; inset: 0</code> so it covers the card. The network is drawn into <code>.u-particles-threejs</code>, which the script creates right after the background div, so the network sits on top with no z-index.",
+      "<b>The network's canvas covers the whole card</b> too (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above both.",
+      "<b>Optional:</b> without a <code>data-particles-bg</code> div (the earlier markup), the background is drawn on the network's canvas instead. It looks the same.",
       "<b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.",
       "<b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).",
       "<b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.",
     ],
     behaviour: [
       "Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.",
-      "<b>Background:</b> a fine grid of squares across the card, lit only by two soft lights that glide slowly between two places (upper right behind the network, lower left under the text) on slightly different paths each time. Drawn by the script; nothing to build.",
+      "<b>Background:</b> a fine grid of squares across the card, lit only by two soft lights that glide slowly between two places (upper right behind the network, lower left under the text) on slightly different paths each time. Drawn by the script into the <code>data-particles-bg</code> div; nothing else to build.",
       "<b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.",
       "<b>Hover:</b> the nodes nearest the cursor are pushed aside.",
       "<b>Click:</b> a slow ripple of light through the connections.",

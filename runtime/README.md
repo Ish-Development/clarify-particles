@@ -45,6 +45,7 @@ Each effect is a **component**:
 
 ```
 [data-particles-component]        the component (e.g. the card): its settings + the scope for its buttons
+  [data-particles-bg]             where the background goes (optional, CTA): canvas at 100% x 100%
   [data-particles-wrap]           where the effect goes (optional: defaults to the component itself)
     div.u-particles-threejs       CREATED BY THE SCRIPT: style this class in Webflow
       <canvas>                    created by the script, 100% x 100% of that div
@@ -56,6 +57,7 @@ Each effect is a **component**:
 - **The spatial map's panel size is yours:** set the `data-fjord-wrap` element's size per breakpoint in Webflow (height or aspect ratio). The map, camera and cards fit whatever box they get. It's framed for roughly 16:10 to square; avoid very wide, short strips. The reference page uses 552 px tall on desktop, 16:10 on tablet, square on phones.
 - **The spatial map's cards and labels** are drawn by the script (HTML over the map); nothing to build. Their text can be changed per section with attributes on the component, e.g. `data-route-text="EVT-2291 · Pump 7 maintenance risk"` (all keys: `docs/CONFIG.md`, "The staged story").
 - **Tabs (the spatial map):** `data-fjord-tab="0|1|2"` on each tab. The script runs them: it adds `is-active` to the active tab (style that combo class), sets `--tab-progress` (0 → 1) on it for the timer line, moves on by itself every 7 s, and flies the map's camera. No Webflow Tabs component or interactions needed.
+- **The CTA's background (optional):** an empty `data-particles-bg` div inside the card gets the background (the grid and its gliding lights) on its own canvas, at 100% × 100% of the div; give it `position: absolute; inset: 0` to cover the card. The network stays in `.u-particles-threejs`, which the script creates right after that div, so the network is on top without a z-index. Without the div, the background is drawn on the network's canvas as before; it looks the same.
 - **The globe ("Built to extend", preset `globe`):** the globe's cell is the component and the wrap (`data-particles-component data-particles-wrap data-preset="globe"`); give it `position: relative` and `.u-particles-threejs` inside it `position: absolute; inset: 0`. It can be dragged to spin with the mouse and on touch (sideways; up/down swipes still scroll).
 - **Settings:** `data-preset` goes on the component (or the wrap, which wins if both have one).
 - **Buttons:** `data-particles-excite` elements inside a component light up **that component's** effect only, so several components on one page each react to their own button.
@@ -73,7 +75,7 @@ Each section's attributes, `.u-particles-threejs` CSS (desktop and mobile), requ
 | Section | Preset | Component | Tab |
 |---|---|---|---|
 | Hero ("Learn from the past and predict the future") | `hero` | the hero section (`data-how-component` + `data-how-wrap`); its "Book a demo" and "Talk to an engineer" buttons get `data-particles-excite` | [#hero](https://clarify-particles.vercel.app/#hero) |
-| CTA ("See how Clarify solves yours") | `cta` | the card; the "Get started" button gets `data-particles-excite` | [#cta](https://clarify-particles.vercel.app/#cta) |
+| CTA ("See how Clarify solves yours") | `cta` | the card; an empty `data-particles-bg` div in it for the background (optional); the "Get started" button gets `data-particles-excite` | [#cta](https://clarify-particles.vercel.app/#cta) |
 | What Clarify does ("How Clarify helps you earn more, and cut cost") | `fjord` | the section (`data-fjord-component`); the map panel is `data-fjord-wrap`; the tabs get `data-fjord-tab` | [#fjord](https://clarify-particles.vercel.app/#fjord) |
 
 ## Built in

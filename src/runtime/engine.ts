@@ -657,6 +657,19 @@ function blendDst(blend: RuntimeOptions["blend"]) {
 
 // --- shared renderer ---
 
+// What the Stage draws: a scene into a 2D canvas (a view, or a view's
+// backdrop drawn into its own element)
+interface DrawTarget {
+  readonly pw: number;
+  readonly ph: number;
+  readonly ctx: CanvasRenderingContext2D;
+  readonly scene: Scene;
+  readonly camera: Camera | null;
+  readonly is3d: boolean;
+  readonly clearColor: Color;
+  readonly clearAlpha: number;
+}
+
 class Stage {
   readonly renderer: WebGLRenderer;
   readonly maxPointSize: number;
@@ -725,7 +738,7 @@ class Stage {
     });
   }
 
-  draw(view: View) {
+  draw(view: DrawTarget) {
     if (this.lost) return;
     const { pw, ph } = view;
     const aa = view.is3d ? this.aa() : null;
@@ -783,7 +796,65 @@ class Stage {
 
 type ViewConfig = InteractionConfig & RuntimeOptions & { background: string };
 
-abstract class View {
+// A view's backdrop in its own element (component markup's
+// [data-particles-bg]) instead of under the network on the view's canvas:
+// the graph's glow and grid, and `background`. Same GL context: one more
+// render + copy per frame. Its canvas fills the element exactly (no bleed).
+class BgLayer implements DrawTarget {
+  readonly canvas = document.createElement("canvas");
+  readonly ctx: CanvasRenderingContext2D;
+  readonly scene = new Scene();
+  readonly clearColor = new Color();
+  clearAlpha = 0;
+  readonly camera: Camera | null = null;
+  readonly is3d = false;
+  cw = 1;
+  ch = 1;
+  pw = 1;
+  ph = 1;
+  // the zone's (the view's element's) top-left, in this canvas' CSS px
+  zx = 0;
+  zy = 0;
+  visible = false;
+  private readonly prevStyle: { position: string; isolation: string };
+
+  constructor(readonly el: HTMLElement) {
+    this.ctx = this.canvas.getContext("2d")!;
+    // as the view's canvas: behind the element's content, never blocks clicks
+    this.prevStyle = { position: el.style.position, isolation: el.style.isolation };
+    if (getComputedStyle(el).position === "static") el.style.position = "relative";
+    el.style.isolation = "isolate";
+    this.canvas.setAttribute("aria-hidden", "true");
+    this.canvas.style.cssText =
+      "position:absolute;top:0;left:0;width:100%;height:100%;display:block;pointer-events:none;z-index:-1;opacity:0";
+    el.prepend(this.canvas);
+  }
+
+  measure(zone: HTMLElement, dpr: number) {
+    // layout px (offsetWidth is unaffected by CSS transforms on ancestors)
+    const b = this.el.getBoundingClientRect();
+    const z = zone.getBoundingClientRect();
+    const k = this.el.offsetWidth / (b.width || 1);
+    this.cw = Math.max(1, this.el.clientWidth);
+    this.ch = Math.max(1, this.el.clientHeight);
+    this.zx = (z.left - b.left) * k - this.el.clientLeft;
+    this.zy = (z.top - b.top) * k - this.el.clientTop;
+    this.pw = Math.max(1, Math.round(this.cw * dpr));
+    this.ph = Math.max(1, Math.round(this.ch * dpr));
+    if (this.canvas.width !== this.pw || this.canvas.height !== this.ph) {
+      this.canvas.width = this.pw;
+      this.canvas.height = this.ph;
+    }
+  }
+
+  dispose() {
+    this.canvas.remove();
+    this.el.style.position = this.prevStyle.position;
+    this.el.style.isolation = this.prevStyle.isolation;
+  }
+}
+
+abstract class View implements DrawTarget {
   readonly canvas = document.createElement("canvas");
   readonly ctx: CanvasRenderingContext2D;
   readonly scene = new Scene();
@@ -818,13 +889,19 @@ abstract class View {
   // the component this effect belongs to: scope for its excite buttons,
   // parallax and click handling (the element itself for legacy markup)
   root: HTMLElement;
+  // the backdrop's own element, if the markup has one (graph views)
+  readonly bg: BgLayer | null;
+  // the zone itself is near the screen (visible also counts the backdrop)
+  private zoneVisible = false;
 
   constructor(
     readonly el: HTMLElement,
     readonly cfg: ViewConfig,
+    bgEl: HTMLElement | null = null,
   ) {
     this.root = el;
     this.ctx = this.canvas.getContext("2d")!;
+    this.bg = bgEl ? new BgLayer(bgEl) : null;
     this.applyBackground();
 
     // The canvas sits behind the element's content but above its background:
@@ -844,12 +921,19 @@ abstract class View {
     this.measure();
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.visibilityObserver = new IntersectionObserver(
-      ([entry]) => {
+      (entries) => {
         // element removed from the page without destroy() (page
         // transitions, CMS re-renders): free its GPU resources
         if (!el.isConnected) return unmount(el);
-        this.visible = entry.isIntersecting;
-        if (this.visible && reducedMotion.matches) this.drawStill();
+        for (const entry of entries) {
+          if (entry.target === el) this.zoneVisible = entry.isIntersecting;
+          else if (this.bg) this.bg.visible = entry.isIntersecting;
+        }
+        // a backdrop in its own element keeps the effect running while
+        // only it is on screen
+        const was = this.visible;
+        this.visible = this.zoneVisible || !!this.bg?.visible;
+        if (this.visible && !was && reducedMotion.matches) this.drawStill();
         wake();
       },
       { rootMargin: "100px 0px" },
@@ -901,11 +985,14 @@ abstract class View {
 
   private applyBackground() {
     const bg = this.cfg.background;
+    // painted by the backdrop's canvas, if it has its own
+    const target = this.bg ?? this;
     this.clearAlpha = 0;
+    target.clearAlpha = 0;
     if (bg && bg !== "transparent") {
       const [r, g, b] = hexToRgb01(bg);
-      this.clearColor.setRGB(r, g, b, SRGBColorSpace);
-      this.clearAlpha = 1;
+      target.clearColor.setRGB(r, g, b, SRGBColorSpace);
+      target.clearAlpha = 1;
     }
   }
 
@@ -923,6 +1010,10 @@ abstract class View {
     this.resizeObserver.observe(this.el);
     this.visibilityObserver.observe(this.el);
     this.enterObserver.observe(this.el);
+    if (this.bg) {
+      this.resizeObserver.observe(this.bg.el);
+      this.visibilityObserver.observe(this.bg.el);
+    }
   }
 
   private measure() {
@@ -952,6 +1043,7 @@ abstract class View {
     this.dpr = Math.min(window.devicePixelRatio || 1, isMobile() ? this.cfg.mobileDpr : 2);
     this.pw = Math.max(1, Math.round(this.cw * this.dpr));
     this.ph = Math.max(1, Math.round(this.ch * this.dpr));
+    this.bg?.measure(this.el, this.dpr);
   }
 
   // The component this effect belongs to (set by mount). With `bleed` the
@@ -1017,12 +1109,15 @@ abstract class View {
 
   paint() {
     this.sync();
+    if (this.bg) stage?.draw(this.bg);
     stage?.draw(this);
     if (!this.shown && stage && !stage.lost) {
       this.shown = true;
       // ease in rather than pop; reduced motion shows it immediately
-      if (!reducedMotion.matches) this.canvas.style.transition = "opacity 0.8s ease-out";
-      this.canvas.style.opacity = "1";
+      for (const c of this.bg ? [this.bg.canvas, this.canvas] : [this.canvas]) {
+        if (!reducedMotion.matches) c.style.transition = "opacity 0.8s ease-out";
+        c.style.opacity = "1";
+      }
       // lets the site sequence its own intro animations with the effect
       this.el.dispatchEvent(new CustomEvent("particles:ready", { bubbles: true }));
       note("first frame");
@@ -1057,6 +1152,7 @@ abstract class View {
     if (spin?.view === this) endSpin();
     this.disposeGpu();
     this.canvas.remove();
+    this.bg?.dispose();
     this.el.style.position = this.prevStyle.position;
     this.el.style.isolation = this.prevStyle.isolation;
     for (const [prop, value] of Object.entries(this.touchStyle)) this.el.style.setProperty(prop, value);
@@ -1278,8 +1374,9 @@ class GraphView extends View {
   private gridPointer: { x: number; y: number } | null = null;
   private gridDt = 0;
 
-  constructor(el: HTMLElement, cfg: GraphSpec["config"]) {
-    super(el, cfg);
+  // bgEl: [data-particles-bg], used only if there's a backdrop to draw
+  constructor(el: HTMLElement, cfg: GraphSpec["config"], bgEl: HTMLElement | null = null) {
+    super(el, cfg, hasBackdrop(cfg) ? bgEl : null);
     this.graphCfg = cfg;
     this.system = new GraphSystem(cfg, this.w, this.h);
     const n = this.system.count;
@@ -1292,10 +1389,12 @@ class GraphView extends View {
     this.glowMaterial.side = DoubleSide;
     this.glowMesh = new Mesh(this.glowGeometry, this.glowMaterial);
     this.glowMesh.frustumCulled = false;
-    this.scene.add(this.glowMesh);
+    // the backdrop (glow, grid) goes in its own element's scene, if any
+    const backdrop = this.bg?.scene ?? this.scene;
+    backdrop.add(this.glowMesh);
     // grid pattern: over the glow, under the network
     this.grid = new GridLayer(cfg);
-    this.scene.add(this.grid.mesh);
+    backdrop.add(this.grid.mesh);
 
     // edges first (drawn under the nodes); every layer's lineGap strips go
     // before any line, so no strip covers another layer's line
@@ -1490,8 +1589,17 @@ class GraphView extends View {
 
   onPointer(p: { x: number; y: number } | null) {
     this.system.setPointer(p);
-    // the grid covers the canvas: its coordinates are the canvas'
-    this.gridPointer = p ? { x: p.x + this.ox, y: p.y + this.oy } : null;
+    // the grid covers the backdrop's canvas: its coordinates are that canvas'
+    const b = this.bg;
+    this.gridPointer = p ? (b ? { x: p.x + b.zx, y: p.y + b.zy } : { x: p.x + this.ox, y: p.y + this.oy }) : null;
+  }
+
+  // the backdrop's canvas size in CSS px (its own element's, or this canvas)
+  private get backW() {
+    return this.bg ? this.bg.cw : this.cw;
+  }
+  private get backH() {
+    return this.bg ? this.bg.ch : this.ch;
   }
 
   step(dt: number) {
@@ -1517,7 +1625,7 @@ class GraphView extends View {
     this.nodeSizeAttr.needsUpdate = true;
     this.nodeAlphaAttr.needsUpdate = true;
     this.syncGlow();
-    this.grid.update(this.gridPointer, this.gridDt, this.cw, this.ch);
+    this.grid.update(this.gridPointer, this.gridDt, this.backW, this.backH);
     this.gridDt = 0;
 
     s.layers.forEach((layer, li) => {
@@ -1586,18 +1694,22 @@ class GraphView extends View {
     const cfg = this.graphCfg;
     const on = cfg.glow > 0;
     this.glowMesh.visible = on;
+    const c = [cfg.glowX * this.backW, cfg.glowY * this.backH];
+    const b = this.bg;
     for (const m of [this.glowMaterial, this.nodeMaterial]) {
       const u = m.uniforms;
       u.uGlow.value = on ? Math.min(1, cfg.glow) : 0;
-      u.uGlowC.value = [cfg.glowX * this.cw, cfg.glowY * this.ch];
-      u.uGlowS.value = [Math.max(1, cfg.glowSizeX * this.cw), Math.max(1, cfg.glowSizeY * this.ch)];
+      // the nodes are on this canvas: the backdrop's px moved into its own
+      u.uGlowC.value = b && m === this.nodeMaterial ? [c[0] - b.zx + this.ox, c[1] - b.zy + this.oy] : c;
+      u.uGlowS.value = [Math.max(1, cfg.glowSizeX * this.backW), Math.max(1, cfg.glowSizeY * this.backH)];
     }
   }
 
   protected onResize() {
     const res = [this.cw, this.ch];
-    this.glowMaterial.uniforms.uRes.value = res;
-    this.grid.resize(this.cw, this.ch, this.pw, this.ph, this.dpr);
+    const b = this.bg;
+    this.glowMaterial.uniforms.uRes.value = b ? [b.cw, b.ch] : res;
+    this.grid.resize(this.backW, this.backH, b ? b.pw : this.pw, b ? b.ph : this.ph, this.dpr);
     const off = [this.ox, this.oy];
     this.nodeMaterial.uniforms.uRes.value = res;
     this.nodeMaterial.uniforms.uOffset.value = off;
@@ -1629,6 +1741,11 @@ class GraphView extends View {
     this.pulseGeometry.dispose();
     this.pulseMaterial.dispose();
   }
+}
+
+// Does a graph draw anything behind its network (worth its own element)?
+function hasBackdrop(cfg: GraphSpec["config"]) {
+  return cfg.grid > 0 || cfg.glow > 0 || (!!cfg.background && cfg.background !== "transparent");
 }
 
 // --- the spatial map (3D, tab-driven; the scene itself is map-scene.ts) ---
@@ -2021,10 +2138,11 @@ function onSpinContextMenu(e: Event) {
 function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return;
   for (const view of views.values()) {
-    // the press landed on the effect's element or one of its ancestors
-    // within the component (wrap, card) — not on text or other content
+    // the press landed on the effect's element (or its background's) or one
+    // of its ancestors within the component (wrap, card) — not on text or
+    // other content
     const t = e.target;
-    const onEffect = t === view.el || (t instanceof Element && t.contains(view.el) && view.root.contains(t));
+    const onEffect = t === view.el || t === view.bg?.el || (t instanceof Element && t.contains(view.el) && view.root.contains(t));
     if (!view.cfg.interactive || !onEffect) continue;
     if (view.localPointer(e.clientX, e.clientY)) {
       e.preventDefault();
@@ -2161,7 +2279,12 @@ function listen(on: boolean) {
 
 // `editor` = the playground: exact config (no mobile particle reduction).
 // `root` = the component the effect belongs to (defaults to `el`).
-export function mount(el: HTMLElement, spec: ViewSpec, { editor = false, root }: { editor?: boolean; root?: HTMLElement } = {}) {
+// `bg` = the component's [data-particles-bg]: the backdrop is drawn there.
+export function mount(
+  el: HTMLElement,
+  spec: ViewSpec,
+  { editor = false, root, bg }: { editor?: boolean; root?: HTMLElement; bg?: HTMLElement | null } = {},
+) {
   if (views.has(el)) return;
   if (!stage) {
     try {
@@ -2177,10 +2300,11 @@ export function mount(el: HTMLElement, spec: ViewSpec, { editor = false, root }:
   }
   const view =
     spec.type === "graph"
-      ? new GraphView(el, spec.config)
+      ? new GraphView(el, spec.config, bg)
       : spec.type === "map"
         ? new MapView(el, spec.config)
         : new PointsView(el, spec.config, editor);
+  if (bg && !view.bg) console.warn("[particles] data-particles-bg is unused: this preset draws no background", bg);
   view.setRoot(root ?? el);
   views.set(el, view);
 }
@@ -2220,11 +2344,12 @@ export function setPaused(p: boolean) {
 
 // Replace an element's view (new particle buffers) while keeping the shared
 // GL context alive — unmount + mount would tear it down and recreate it.
-export function remount(el: HTMLElement, spec: ViewSpec, opts?: { editor?: boolean; root?: HTMLElement }) {
+export function remount(el: HTMLElement, spec: ViewSpec, opts?: { editor?: boolean; root?: HTMLElement; bg?: HTMLElement | null }) {
   const root = views.get(el)?.root;
+  const bg = views.get(el)?.bg?.el;
   views.get(el)?.dispose();
   views.delete(el);
-  mount(el, spec, { root, ...opts });
+  mount(el, spec, { root, bg, ...opts });
 }
 
 // Live state for the ?debug overlay / support: is the loop running, is the

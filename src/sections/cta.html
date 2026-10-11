@@ -1,8 +1,12 @@
 <section class="cta">
   <!-- the card is the particles component (scope + preset) and its wrap:
        the script creates div.u-particles-threejs inside it, which the CSS
-       places over the right of the card (Webflow styles that class) -->
+       places over the right of the card (Webflow styles that class).
+       data-particles-bg: the background (the grid) is drawn here, its own
+       canvas covering the card; the script puts the network's div right
+       after it, so the network is on top -->
   <div class="cta__card" data-particles-component data-particles-wrap data-preset="cta">
+    <div class="cta__bg" data-particles-bg></div>
     <div class="cta__content">
       <div class="eyebrow">
         <span class="eyebrow__grid" aria-hidden="true"

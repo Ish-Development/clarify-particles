@@ -149,6 +149,8 @@ p { text-wrap: pretty; }
 /* the effect's area: the div the script creates, over the right 55% of the
    card (Webflow styles .u-particles-threejs the same way) */
 .cta__card .u-particles-threejs { position: absolute; top: 0; right: 0; bottom: 0; left: 45%; }
+/* the background's element (data-particles-bg): covers the card */
+.cta__bg { position: absolute; inset: 0; }
 .cta__content { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-6); }
 .cta__text { display: flex; flex-direction: column; gap: var(--space-4); width: 488px; }
 .cta__title {
@@ -619,8 +621,12 @@ html.only::-webkit-scrollbar { display: none; }
 <section class="cta">
   <!-- the card is the particles component (scope + preset) and its wrap:
        the script creates div.u-particles-threejs inside it, which the CSS
-       places over the right of the card (Webflow styles that class) -->
+       places over the right of the card (Webflow styles that class).
+       data-particles-bg: the background (the grid) is drawn here, its own
+       canvas covering the card; the script puts the network's div right
+       after it, so the network is on top -->
   <div class="cta__card" data-particles-component data-particles-wrap data-preset="cta">
+    <div class="cta__bg" data-particles-bg></div>
     <div class="cta__content">
       <div class="eyebrow">
         <span class="eyebrow__grid" aria-hidden="true"
@@ -667,9 +673,9 @@ html.only::-webkit-scrollbar { display: none; }
   );
 };</code></pre></div>
         <h3><span>2</span>Attributes</h3>
-        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The card (Figma <code>13311:5899</code>)</td><td><code>data-particles-component</code><br><code>data-preset=&quot;cta&quot;</code><br><code>data-particles-wrap</code></td></tr><tr><td>The <b>“Get started”</b> button</td><td><code>data-particles-excite</code></td></tr></tbody></table>
-        <h3><span>3</span>Style <code>.u-particles-threejs</code></h3>
-        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint).</p>
+        <table class="ref-table"><thead><tr><th>Element</th><th>Attributes</th></tr></thead><tbody><tr><td>The card (Figma <code>13311:5899</code>)</td><td><code>data-particles-component</code><br><code>data-preset=&quot;cta&quot;</code><br><code>data-particles-wrap</code></td></tr><tr><td>An empty div inside the card, covering it (the background)</td><td><code>data-particles-bg</code></td></tr><tr><td>The <b>“Get started”</b> button</td><td><code>data-particles-excite</code></td></tr></tbody></table>
+        <h3><span>3</span>Style <code>.u-particles-threejs</code> and <code>.cta__bg</code></h3>
+        <p>The script creates this div inside the component and draws the canvas at 100% × 100% of it. It adds no size or position, so this CSS decides where the effect sits (<code>767px</code> = Webflow's mobile landscape breakpoint). The background is drawn at 100% × 100% of the <code>data-particles-bg</code> element, so its CSS decides where the background sits.</p>
         <div class="ref-code"><div class="ref-code__bar"><span>CSS</span><button class="ref-copy" type="button">Copy</button></div><pre><code>.cta__card .u-particles-threejs {
   position: absolute;
   top: 0;
@@ -690,9 +696,16 @@ html.only::-webkit-scrollbar { display: none; }
     left: 0;
     height: 50svh;
   }
+}
+.cta__bg {
+  position: absolute;
+  inset: 0;
 }</code></pre></div>
         <h3><span>4</span>Resulting markup</h3>
         <div class="ref-code"><div class="ref-code__bar"><span>HTML</span><button class="ref-copy" type="button">Copy</button></div><pre><code>&lt;div class=&quot;cta__card&quot; data-particles-component data-particles-wrap data-preset=&quot;cta&quot;&gt;
+  &lt;div class=&quot;cta__bg&quot; data-particles-bg&gt;
+    <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;                 ← created by the script</span>
+  &lt;/div&gt;
   <span class="dim">&lt;div class=&quot;u-particles-threejs&quot;&gt;   ← created by the script</span>
     <span class="dim">&lt;canvas&gt;&lt;/canvas&gt;</span>
   <span class="dim">&lt;/div&gt;</span>
@@ -700,9 +713,9 @@ html.only::-webkit-scrollbar { display: none; }
   &lt;a class=&quot;btn btn--primary&quot; href=&quot;#&quot; data-particles-excite&gt;Get started&lt;/a&gt;
 &lt;/div&gt;</code></pre></div>
         <h3>Requirements</h3>
-        <ul><li>The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.</li><li><b>The canvas covers the whole card</b> (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above it.</li><li><b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.</li><li><b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.</li></ul>
+        <ul><li>The card keeps <code>position: relative</code>, <code>overflow: clip</code> (or <code>hidden</code>) and its 24 px radius. The network bleeds off the card's edges, and the card crops it.</li><li><b>Two canvases:</b> the background (the grid and its lights) is drawn into the <code>data-particles-bg</code> div, at 100% × 100% of it; give it <code>position: absolute; inset: 0</code> so it covers the card. The network is drawn into <code>.u-particles-threejs</code>, which the script creates right after the background div, so the network sits on top with no z-index.</li><li><b>The network's canvas covers the whole card</b> too (the preset has <code>bleed</code> on). <code>.u-particles-threejs</code> only decides where the network sits and how big it is, so nodes that drift past it spill softly instead of being cut. The card's content needs <code>position: relative; z-index: 1</code> to stay above both.</li><li><b>Optional:</b> without a <code>data-particles-bg</code> div (the earlier markup), the background is drawn on the network's canvas instead. It looks the same.</li><li><b>Desktop:</b> the network sits in the right 55%, and its left edge always stays inside that area, so it never reaches the text. The card follows the site container, which stops at 1512 px.</li><li><b>Tablet</b> (768–991 px): same horizontal layout, tightened: 64 px / 48 px card padding, the network in the right half, the text in the left half (<code>max-width: calc(50% - 24px)</code>).</li><li><b>Mobile</b> (767 px and below) stacks: the zone is a full-width band at the top of the card, 50% of the screen height (<code>50svh</code>). The card's top padding reserves it (band + 36 px gap). The text is centered below in the phone design's 313 px column and the button goes full width. The network recenters itself for this (the preset has settings per breakpoint), so only the CSS above is needed.</li></ul>
         <h3>Behaviour to expect</h3>
-        <ul><li>Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.</li><li><b>Background:</b> a fine grid of squares across the card, lit only by two soft lights that glide slowly between two places (upper right behind the network, lower left under the text) on slightly different paths each time. Drawn by the script; nothing to build.</li><li><b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.</li><li><b>Hover:</b> the nodes nearest the cursor are pushed aside.</li><li><b>Click:</b> a slow ripple of light through the connections.</li><li><b>Button:</b> hovering “Get started” lights the whole network up (mouse only).</li><li><b>Touch</b> (phones, tablets): drag sideways on the network to spin it; hold a finger still for a moment to grab it, then it turns up and down too. A normal swipe still scrolls the page.</li><li><b>Mobile:</b> the same network as a dome filling the band's width, its bottom kept in the band, cropped at the top.</li><li><b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.</li></ul>
+        <ul><li>Three round network shapes (constellation → clusters → spiral). Each holds for 6 s, then glides into the next over 2 s.</li><li><b>Background:</b> a fine grid of squares across the card, lit only by two soft lights that glide slowly between two places (upper right behind the network, lower left under the text) on slightly different paths each time. Drawn by the script into the <code>data-particles-bg</code> div; nothing else to build.</li><li><b>Depth:</b> far nodes are smaller and dimmer, and the network tilts gently toward the cursor.</li><li><b>Hover:</b> the nodes nearest the cursor are pushed aside.</li><li><b>Click:</b> a slow ripple of light through the connections.</li><li><b>Button:</b> hovering “Get started” lights the whole network up (mouse only).</li><li><b>Touch</b> (phones, tablets): drag sideways on the network to spin it; hold a finger still for a moment to grab it, then it turns up and down too. A normal swipe still scrolls the page.</li><li><b>Mobile:</b> the same network as a dome filling the band's width, its bottom kept in the band, cropped at the top.</li><li><b>Resizing</b> across 768 px (or rotating a tablet) swaps between the compositions.</li></ul>
     </div>
   </div>
 </section>
@@ -904,6 +917,7 @@ html.only::-webkit-scrollbar { display: none; }
     <h3><span>2</span>Mark up each section</h3>
     <p>Each effect is a <b>component</b>. Every section tab lists its exact attributes.</p>
     <div class="ref-code"><div class="ref-code__bar"><span>Structure</span><button class="ref-copy" type="button">Copy</button></div><pre><code>[data-particles-component]   <span class="dim">the component: its preset, and the scope for its buttons</span>
+  [data-particles-bg]        <span class="dim">where the background goes (optional, CTA): canvas at 100% × 100%</span>
   [data-particles-wrap]      <span class="dim">where the effect goes (optional: defaults to the component)</span>
     div.u-particles-threejs  <span class="dim">CREATED BY THE SCRIPT: style this class in Webflow</span>
       &lt;canvas&gt;               <span class="dim">created by the script, 100% × 100% of that div</span></code></pre></div>
