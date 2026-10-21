@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Models</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; background: #030304; color: #c7c7cc; font: 13px "Geist", system-ui, sans-serif; }
+      header { padding: 24px 24px 8px; }
+      h1 { margin: 0 0 4px; font-size: 18px; font-weight: 500; color: #f4f7fa; text-wrap: balance; }
+      header p { margin: 0; color: #8e8e93; text-wrap: pretty; }
+      #grid { padding: 0 24px 24px; }
+      #grid h2 { margin: 24px 0 12px; font: 11px "Geist Mono", ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #8e8e93; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+      a.tile { display: block; color: inherit; text-decoration: none; background: #060709; border: 1px solid #ffffff12; border-radius: 12px; overflow: hidden; }
+      a.tile:hover { border-color: #ffffff40; }
+      .art { position: relative; aspect-ratio: 1; }
+      .name { display: flex; justify-content: space-between; padding: 10px 12px; border-top: 1px solid #ffffff0d; }
+      .name em { font: 11px "Geist Mono", ui-monospace, monospace; font-style: normal; color: #6e6e73; }
+      .name em.new { color: #a4c9e9; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Clarify models</h1>
+      <p>Every model, held still, by style. Click one to open it in the export lab.</p>
+    </header>
+    <main id="grid"></main>
+    <script type="module" src="./models-gallery.ts"></script>
+  </body>
+</html>

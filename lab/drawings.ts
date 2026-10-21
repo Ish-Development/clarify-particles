@@ -1,0 +1,833 @@
+// More flat drawings for brand assets, in the Technical depth cards' language
+// (glyph-scene.ts): the 435-unit Figma card, origin in the middle, y up;
+// hairlines at the preset's lineOpacity (alpha 1 = as the rings), dots
+// crisp, motion slow. Registered with the glyph scene so `kind` picks them;
+// lab only, nothing here ships.
+// Their motion is the site's: a bolt of light runs through the lines (bright
+// at its head, a glow behind it, branching the quickest way to every node,
+// as through the Integrations blocks), what it reaches flashes, and a small
+// ring of light spreads from where it lands (the rings' meetings, the
+// spider's footfalls); moving dots trail a glow.
+import { registerDrawing, type Drawing, type Pen } from "../src/runtime/glyph-scene";
+
+const TAU = Math.PI * 2;
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+const wrap = (a: number) => ((a % TAU) + TAU) % TAU;
+type Pt = [number, number];
+const dist = (a: Pt, b: Pt) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+// a circle (or an arc) in segments
+function arc(pen: Pen, x: number, y: number, r: number, segs: number, alpha: (mid: number) => number, from = 0, to = TAU) {
+  for (let s = 0; s < segs; s++) {
+    const a0 = from + ((to - from) * s) / segs;
+    const a1 = from + ((to - from) * (s + 1)) / segs;
+    pen.line(x + Math.cos(a0) * r, y + Math.sin(a0) * r, x + Math.cos(a1) * r, y + Math.sin(a1) * r, alpha((a0 + a1) / 2));
+  }
+}
+const lengthOf = (pts: Pt[]) => pts.reduce((s, p, i) => (i ? s + dist(pts[i - 1], p) : 0), 0);
+function pointAt(pts: Pt[], d: number): Pt {
+  for (let i = 1; i < pts.length; i++) {
+    const len = dist(pts[i - 1], pts[i]);
+    if (d <= len) {
+      const k = len > 0 ? d / len : 0;
+      return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k];
+    }
+    d -= len;
+  }
+  return pts[pts.length - 1];
+}
+// short segments, so light along a line can fade smoothly
+function subdivide(pts: Pt[], step = 8): Pt[] {
+  const out: Pt[] = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const n = Math.max(1, Math.ceil(dist(pts[i - 1], pts[i]) / step));
+    for (let k = 1; k <= n; k++) out.push([pts[i - 1][0] + ((pts[i][0] - pts[i - 1][0]) * k) / n, pts[i - 1][1] + ((pts[i][1] - pts[i - 1][1]) * k) / n]);
+  }
+  return out;
+}
+// a cubic curve as points
+function cubic(p0: Pt, p1: Pt, p2: Pt, p3: Pt, n: number): Pt[] {
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const t = i / n;
+    const u = 1 - t;
+    return [0, 1].map((k) => u * u * u * p0[k] + 3 * u * u * t * p1[k] + 3 * u * t * t * p2[k] + t * t * t * p3[k]) as Pt;
+  });
+}
+
+// A line with light on it: everywhere `base`; behind the head (units along
+// from its start) `glow`, brightest at the head, as the blocks' bolt.
+function litLine(pen: Pen, pts: Pt[], base: number, head = -1, glow = 0) {
+  let s = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const len = dist(pts[i - 1], pts[i]);
+    const mid = s + len / 2;
+    const lit = head >= 0 && mid <= head ? glow * (0.45 + 0.55 * Math.exp(-(head - mid) / 28)) : 0;
+    pen.line(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], base + lit);
+    s += len;
+  }
+}
+
+// The bolt: from a seed node it takes the quickest way to every node it can
+// reach (each line a little slower or quicker), so it branches; only the
+// lines it reached a node by light up. Times in s since the strike.
+type Edge = { a: number; b: number };
+class Bolt {
+  t = Infinity;
+  // when the last node is reached, s after the strike
+  private last = 0;
+  private readonly hit: Float64Array;
+  private readonly tin: Float64Array;
+  private readonly tout: Float64Array;
+  private readonly fromB: Uint8Array;
+  private readonly adj: [number, number][][];
+  constructor(
+    n: number,
+    readonly edges: Edge[],
+    private readonly o: { speed: number; jitter: number; fade: number; gain: number; reach?: number },
+  ) {
+    this.hit = new Float64Array(n).fill(Infinity);
+    this.tin = new Float64Array(edges.length).fill(Infinity);
+    this.tout = new Float64Array(edges.length).fill(Infinity);
+    this.fromB = new Uint8Array(edges.length);
+    this.adj = Array.from({ length: n }, () => []);
+    edges.forEach(({ a, b }, k) => {
+      this.adj[a].push([b, k]);
+      this.adj[b].push([a, k]);
+    });
+  }
+  strike(seed: number, len: (k: number) => number) {
+    const { speed, jitter } = this.o;
+    const reach = this.o.reach ?? Infinity;
+    this.hit.fill(Infinity);
+    this.tin.fill(Infinity);
+    this.tout.fill(Infinity);
+    this.hit[seed] = 0;
+    const done = new Uint8Array(this.hit.length);
+    for (;;) {
+      let u = -1;
+      for (let i = 0; i < this.hit.length; i++) if (!done[i] && this.hit[i] < Infinity && (u < 0 || this.hit[i] < this.hit[u])) u = i;
+      if (u < 0) break;
+      done[u] = 1;
+      for (const [v, k] of this.adj[u]) {
+        const t = this.hit[u] + (len(k) / speed) * (1 - jitter / 2 + jitter * Math.random());
+        if (t > reach || t >= this.hit[v]) continue;
+        this.hit[v] = t;
+        this.tin[k] = this.hit[u];
+        this.tout[k] = t;
+        this.fromB[k] = this.edges[k].b === u ? 1 : 0;
+      }
+    }
+    this.edges.forEach((e, k) => {
+      if (this.tout[k] === Infinity) return;
+      const to = this.fromB[k] ? e.a : e.b;
+      if (this.hit[to] !== this.tout[k]) this.tin[k] = this.tout[k] = Infinity;
+    });
+    this.last = Math.max(0, ...Array.from(this.hit).filter((h) => h < Infinity));
+    this.t = 0;
+  }
+  // the bolt has reached everything it will, and its light has died down
+  // (a strike never cuts one off midway)
+  done() {
+    return !(this.t < this.last + this.o.fade * 2.5);
+  }
+  // advances; the nodes it reached in this step
+  step(dt: number): number[] {
+    const before = this.t;
+    this.t += dt;
+    const out: number[] = [];
+    this.hit.forEach((h, i) => {
+      if (h > before && h <= this.t) out.push(i);
+    });
+    return out;
+  }
+  // edge k's points (from a to b) drawn with the bolt on them
+  draw(pen: Pen, k: number, pts: Pt[], base: number) {
+    if (!(this.t >= this.tin[k])) return litLine(pen, pts, base);
+    const head = clamp01((this.t - this.tin[k]) / Math.max(1e-3, this.tout[k] - this.tin[k]));
+    const glow = this.o.gain * Math.exp(-Math.max(0, this.t - this.tout[k]) / this.o.fade);
+    const p = this.fromB[k] ? [...pts].reverse() : pts;
+    litLine(pen, p, base, head * lengthOf(p), glow);
+  }
+  flash(i: number) {
+    return this.t >= this.hit[i] ? Math.exp(-(this.t - this.hit[i]) / this.o.fade) : 0;
+  }
+}
+
+// small rings of light spreading from where something lands
+const SPARK = { life: 0.7, size: 18, segs: 24 };
+class Sparks {
+  // `at`: where it is (a moving dot's spark goes with it)
+  private list: { at: () => Pt; t: number }[] = [];
+  constructor(readonly max: number) {}
+  get lines() {
+    return this.max * SPARK.segs;
+  }
+  add(p: Pt | (() => Pt)) {
+    this.list.push({ at: typeof p === "function" ? p : () => p, t: 0 });
+    if (this.list.length > this.max) this.list.shift();
+  }
+  step(dt: number) {
+    for (const s of this.list) s.t += dt;
+    this.list = this.list.filter((s) => s.t < SPARK.life);
+  }
+  draw(pen: Pen) {
+    for (const s of this.list) {
+      const [x, y] = s.at();
+      const k = s.t / SPARK.life;
+      const r = 3 + SPARK.size * (1 - (1 - k) ** 3);
+      const a = 1.6 * (1 - k) ** 2;
+      arc(pen, x, y, r, SPARK.segs, () => a);
+      pen.dot(x, y, 3 + 4 * (1 - k), 1 - k);
+    }
+  }
+}
+
+// A drawing's connections, swapped for new ones every so often: the new
+// set fades in as the old one fades out (FADE s), so a still can be paused
+// on whichever wiring reads best.
+const FADE = 1.2;
+const fadeIn = (t: number) => {
+  const p = clamp01(t / FADE);
+  return p * p * (3 - 2 * p);
+};
+
+/* ORBIT: a core, three rings round it, riders on each (each trailing a
+ * glow), linked inward ring by ring to the core, a chord across a ring
+ * here and there; a ring of ticks outside. It all turns together, slowly,
+ * as one figure, so the links hold. Every few s a bolt leaves the core and
+ * branches out along the links; each rider it reaches flashes and sparks.
+ * Every REWIRE bolts the links fade over to a new wiring. */
+const ORBIT = { rings: [62, 108, 154], riders: [2, 3, 5], loop: 48, core: 11, rider: 6, ticks: 60, tickR: 182, segs: 120, trail: 0.8, every: 3.6, rewire: 2, chords: 0.3 };
+type OrbitWiring = { links: Edge[]; bolt: Bolt; t: number };
+class Orbit implements Drawing {
+  readonly maxLines = ORBIT.rings.length * ORBIT.segs + 2 * 18 * 40 + 12 * SPARK.segs;
+  readonly maxDots = 1 + 10 + ORBIT.ticks + 12;
+  private t = 4;
+  private since = ORBIT.every - 0.6;
+  private strikes = 0;
+  private rewired = false;
+  private wire: OrbitWiring;
+  private old: Edge[] | null = null;
+  private readonly sparks = new Sparks(12);
+  // node 0: the core; then the riders, ring by ring
+  private readonly ring: number[] = [-1];
+  private readonly slot: number[] = [-1];
+  constructor() {
+    ORBIT.riders.forEach((n, k) => {
+      for (let j = 0; j < n; j++) {
+        this.ring.push(k);
+        this.slot.push(j);
+      }
+    });
+    this.wire = this.wiring(true);
+    this.wire.t = FADE;
+  }
+  private angle(i: number) {
+    const k = this.ring[i];
+    const { riders, loop } = ORBIT;
+    return k * 1.3 + (this.slot[i] * TAU) / riders[k] + (this.t * TAU) / loop;
+  }
+  private at(i: number): Pt {
+    if (i === 0) return [0, 0];
+    const r = ORBIT.rings[this.ring[i]];
+    const a = this.angle(i);
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  }
+  // each rider to one a ring in (the first ring's to the core): the nearest,
+  // or (a new wiring) the nearest or the next nearest; then a chord to the
+  // next rider round now and then. The figure turns as one, so it holds.
+  private wiring(nearest: boolean): OrbitWiring {
+    const links: Edge[] = [];
+    for (let i = 1; i < this.ring.length; i++) {
+      const k = this.ring[i];
+      let to = 0;
+      if (k > 0) {
+        const inner = this.ring.map((rk, j) => (rk === k - 1 ? j : -1)).filter((j) => j > 0);
+        inner.sort((a, b) => dist(this.at(i), this.at(a)) - dist(this.at(i), this.at(b)));
+        to = inner[!nearest && inner.length > 1 && Math.random() < 0.4 ? 1 : 0];
+      }
+      links.push({ a: to, b: i });
+    }
+    if (!nearest)
+      for (let i = 1; i < this.ring.length; i++) {
+        const k = this.ring[i];
+        const n = ORBIT.riders[k];
+        if (n < 3 || Math.random() >= ORBIT.chords) continue;
+        const next = this.ring.findIndex((rk, j) => rk === k && this.slot[j] === (this.slot[i] + 1) % n);
+        links.push({ a: i, b: next });
+      }
+    return { links, bolt: new Bolt(this.ring.length, links, { speed: 170, jitter: 0.4, fade: 0.7, gain: 1.8 }), t: 0 };
+  }
+  step(dt: number) {
+    this.t += dt;
+    this.since += dt;
+    this.wire.t += dt;
+    if (this.wire.t > FADE) this.old = null;
+    this.sparks.step(dt);
+    for (const i of this.wire.bolt.step(dt)) if (i > 0) this.sparks.add(() => this.at(i));
+    if (this.since > ORBIT.every && this.wire.bolt.done()) {
+      this.since = 0;
+      if (this.strikes > 0 && this.strikes % ORBIT.rewire === 0 && !this.rewired) {
+        // a new wiring, and the next bolt once it has faded in
+        this.old = this.wire.links;
+        this.wire = this.wiring(false);
+        this.rewired = true;
+        this.since = ORBIT.every - FADE - 0.3;
+      } else {
+        const links = this.wire.links;
+        this.wire.bolt.strike(0, (k) => dist(this.at(links[k].a), this.at(links[k].b)));
+        this.strikes++;
+        this.rewired = false;
+      }
+    }
+  }
+  draw(pen: Pen) {
+    const { rings, core, rider, ticks, tickR, segs, trail } = ORBIT;
+    // the rings, a glow trailing each rider
+    rings.forEach((r, k) => {
+      const mine = this.ring.map((rk, i) => (rk === k ? i : -1)).filter((i) => i > 0);
+      arc(pen, 0, 0, r, segs, (mid) => {
+        let l = 0;
+        for (const i of mine) {
+          const back = wrap(this.angle(i) - mid);
+          if (back < trail) l = Math.max(l, (1 - back / trail) ** 2);
+        }
+        return 0.7 + 1.4 * l;
+      });
+    });
+    const m = fadeIn(this.wire.t);
+    if (this.old) for (const e of this.old) litLine(pen, subdivide([this.at(e.a), this.at(e.b)]), 1 - m);
+    this.wire.links.forEach((e, k) => this.wire.bolt.draw(pen, k, subdivide([this.at(e.a), this.at(e.b)]), m));
+    for (let i = 0; i < ticks; i++) {
+      const a = (i / ticks) * TAU;
+      pen.dot(Math.cos(a) * tickR, Math.sin(a) * tickR, 2.5, i % 5 ? 0.35 : 0.8);
+    }
+    const f = (i: number) => this.wire.bolt.flash(i);
+    pen.dot(0, 0, core * (1 + 0.5 * f(0)), 1);
+    for (let i = 1; i < this.ring.length; i++) pen.dot(...this.at(i), rider * (1 + 0.7 * f(i)), 1);
+    this.sparks.draw(pen);
+  }
+}
+
+/* ROUTES: a lattice of dots; a few routes cross it in right angles, left
+ * to right, sharing a stretch here and there. Every few s a bolt sets off
+ * from one route's start and runs through the routes, branching where they
+ * meet; the ends it reaches flash and spark. Every REWIRE bolts the routes
+ * fade over to a new set. */
+const ROUTES = { n: 9, gap: 40, routes: [3, 5], end: 5, every: 3.2, rewire: 2 };
+type RouteSet = { nodes: Pt[]; edges: Edge[]; starts: number[]; ends: number[]; bolt: Bolt; t: number };
+class Routes implements Drawing {
+  readonly square = true;
+  readonly maxLines = 2 * 140 * Math.ceil(ROUTES.gap / 8) + 8 * SPARK.segs;
+  readonly maxDots = ROUTES.n * ROUTES.n + 2 * 140 + 8;
+  private since = ROUTES.every - 0.5;
+  private strikes = 0;
+  private rewired = false;
+  private set: RouteSet;
+  private old: RouteSet | null = null;
+  private readonly sparks = new Sparks(8);
+  constructor() {
+    this.set = this.routes();
+    this.set.t = FADE;
+  }
+  // 3 to 5 routes from rows picked at random, stepping up or down a dot at
+  // a time now and then
+  private routes(): RouteSet {
+    const { n, gap } = ROUTES;
+    const c = (i: number) => (i - (n - 1) / 2) * gap;
+    const nodes: Pt[] = [];
+    const edges: Edge[] = [];
+    const starts: number[] = [];
+    const ends: number[] = [];
+    const ids = new Map<string, number>();
+    const node = (p: Pt) => {
+      const k = `${p[0]},${p[1]}`;
+      if (!ids.has(k)) ids.set(k, nodes.push(p) - 1);
+      return ids.get(k)!;
+    };
+    const seen = new Set<string>();
+    const link = (a: number, b: number) => {
+      const k = a < b ? `${a}-${b}` : `${b}-${a}`;
+      if (a !== b && !seen.has(k)) {
+        seen.add(k);
+        edges.push({ a, b });
+      }
+    };
+    const [lo, hi] = ROUTES.routes;
+    const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+    const rows = Array.from({ length: n }, (_, j) => j)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count);
+    for (let j of rows) {
+      let prev = node([c(0), c(j)]);
+      starts.push(prev);
+      for (let i = 1; i < n; i++) {
+        if (Math.random() < 0.45) {
+          const to = Math.max(0, Math.min(n - 1, j + (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 2))));
+          while (j !== to) {
+            j += Math.sign(to - j);
+            const q = node([c(i - 1), c(j)]);
+            link(prev, q);
+            prev = q;
+          }
+        }
+        const q = node([c(i), c(j)]);
+        link(prev, q);
+        prev = q;
+      }
+      ends.push(prev);
+    }
+    return { nodes, edges, starts, ends, bolt: new Bolt(nodes.length, edges, { speed: 230, jitter: 0.5, fade: 0.6, gain: 1.9 }), t: 0 };
+  }
+  step(dt: number) {
+    const r = this.set;
+    this.since += dt;
+    r.t += dt;
+    if (r.t > FADE) this.old = null;
+    this.sparks.step(dt);
+    for (const i of r.bolt.step(dt)) if (r.ends.includes(i) || r.starts.includes(i)) this.sparks.add(r.nodes[i]);
+    if (this.since > ROUTES.every && r.bolt.done()) {
+      this.since = 0;
+      if (this.strikes > 0 && this.strikes % ROUTES.rewire === 0 && !this.rewired) {
+        this.old = r;
+        this.set = this.routes();
+        this.rewired = true;
+        this.since = ROUTES.every - FADE - 0.3;
+      } else {
+        r.bolt.strike(r.starts[Math.floor(Math.random() * r.starts.length)], (k) => dist(r.nodes[r.edges[k].a], r.nodes[r.edges[k].b]));
+        this.strikes++;
+        this.rewired = false;
+      }
+    }
+  }
+  draw(pen: Pen) {
+    const { n, gap, end } = ROUTES;
+    const r = this.set;
+    const m = fadeIn(r.t);
+    const o = this.old;
+    if (o) for (const e of o.edges) litLine(pen, subdivide([o.nodes[e.a], o.nodes[e.b]]), 1 - m);
+    r.edges.forEach((e, k) => r.bolt.draw(pen, k, subdivide([r.nodes[e.a], r.nodes[e.b]]), m));
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) pen.dot((i - (n - 1) / 2) * gap, (j - (n - 1) / 2) * gap, 2.5, 0.45);
+    r.nodes.forEach((p, i) => {
+      const f = r.bolt.flash(i);
+      if (f > 0.02) pen.dot(...p, 2.5 + 3 * f, f);
+    });
+    if (o) for (const i of [...o.starts, ...o.ends]) pen.dot(...o.nodes[i], end, 1 - m);
+    for (const i of [...r.starts, ...r.ends]) pen.dot(...r.nodes[i], end * (1 + 0.6 * r.bolt.flash(i)), m);
+    this.sparks.draw(pen);
+  }
+}
+
+/* SIGNAL: a spectrum, a row of bars about a baseline, tallest in the
+ * middle, each rising and falling at its own pace; a dot on each tip.
+ * Every few s a sweep of light crosses it, left to right, lighting each
+ * bar as it passes and leaving a glow behind. */
+const SIGNAL = { bars: 41, span: 170, min: 6, max: 132, dot: 3, every: 3.8, cross: 1.5 };
+class Signal implements Drawing {
+  readonly maxLines = SIGNAL.bars + 1;
+  readonly maxDots = SIGNAL.bars * 2;
+  private t = 3;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { bars, span, min, max, dot, every, cross } = SIGNAL;
+    // the sweep: from past the left end to past the right one
+    const p = (this.t % every) / cross;
+    const sx = -span - 40 + (2 * span + 80) * p;
+    pen.line(-span - 14, 0, span + 14, 0, 0.5);
+    for (let i = 0; i < bars; i++) {
+      const x = -span + (i * 2 * span) / (bars - 1);
+      const env = Math.exp(-((x / 100) ** 2));
+      const w = 0.55 + 0.45 * Math.sin(this.t * 1.1 + i * 0.47) * Math.sin(this.t * 0.63 + i * 0.19 + 1);
+      const h = min + (max - min) * env * w;
+      const g = p <= 1.3 ? Math.exp(-(((x - sx) / 22) ** 2)) + (x < sx ? 0.45 * Math.exp(-(sx - x) / 70) : 0) : 0;
+      pen.line(x, -h, x, h, 1.2 + 1.8 * g);
+      pen.dot(x, h, dot * (1 + 0.8 * g), 1);
+      pen.dot(x, -h, dot * (1 + 0.8 * g), 1);
+    }
+  }
+}
+
+/* TREE: a hierarchy, one root over 3, 9 and 18, joined by right-angled
+ * links. Every few s a bolt drops from the root and branches down through
+ * every link; each node it reaches flashes, each leaf sparks. */
+const TREE = { levels: [150, 55, -40, -135], kids: [3, 3, 2], width: 340, every: 3.4, sizes: [10, 7, 5, 3.5] };
+class Tree implements Drawing {
+  readonly maxLines: number;
+  readonly maxDots = 31 + 12;
+  private since = TREE.every - 0.4;
+  private readonly nodes: { x: number; y: number; level: number; parent: number }[] = [];
+  private readonly edges: Edge[] = [];
+  private readonly links: Pt[][] = [];
+  private readonly bolt: Bolt;
+  private readonly sparks = new Sparks(18);
+  constructor() {
+    const { levels, kids, width } = TREE;
+    // leaves evenly across, each parent over the middle of its children
+    const count = kids.reduce((n, k) => n * k, 1);
+    const build = (level: number, parent: number, first: number): number => {
+      const i = this.nodes.push({ x: 0, y: levels[level], level, parent }) - 1;
+      if (level === levels.length - 1) {
+        this.nodes[i].x = -width / 2 + (first * width) / (count - 1);
+        return 1;
+      }
+      let used = 0;
+      const xs: number[] = [];
+      for (let k = 0; k < kids[level]; k++) {
+        const c = this.nodes.length;
+        used += build(level + 1, i, first + used);
+        xs.push(this.nodes[c].x);
+      }
+      this.nodes[i].x = (xs[0] + xs[xs.length - 1]) / 2;
+      return used;
+    };
+    build(0, -1, 0);
+    for (let i = 1; i < this.nodes.length; i++) {
+      const n = this.nodes[i];
+      const p = this.nodes[n.parent];
+      const mid = (p.y + n.y) / 2;
+      this.edges.push({ a: n.parent, b: i });
+      this.links.push(
+        subdivide([
+          [p.x, p.y],
+          [p.x, mid],
+          [n.x, mid],
+          [n.x, n.y],
+        ]),
+      );
+    }
+    this.bolt = new Bolt(this.nodes.length, this.edges, { speed: 260, jitter: 0.5, fade: 0.7, gain: 1.9 });
+    this.maxLines = this.links.reduce((s, l) => s + l.length - 1, 0) + this.sparks.lines;
+  }
+  step(dt: number) {
+    this.since += dt;
+    this.sparks.step(dt);
+    for (const i of this.bolt.step(dt)) if (this.nodes[i].level === TREE.levels.length - 1) this.sparks.add([this.nodes[i].x, this.nodes[i].y]);
+    if (this.since > TREE.every && this.bolt.done()) {
+      this.since = 0;
+      this.bolt.strike(0, (k) => lengthOf(this.links[k]));
+    }
+  }
+  draw(pen: Pen) {
+    this.links.forEach((pts, k) => this.bolt.draw(pen, k, pts, 0.85));
+    this.nodes.forEach((n, i) => pen.dot(n.x, n.y, TREE.sizes[n.level] * (1 + 0.8 * this.bolt.flash(i)), 1));
+    this.sparks.draw(pen);
+  }
+}
+
+/* CONVERGE: many inputs on the left curve into one core; a few outputs
+ * leave it on the right. Signals run in along the inputs, each with a glow
+ * behind it; one landing in the core makes it flash and spark and sends a
+ * signal out along an output, which flashes and sparks as it arrives. */
+const CONVERGE = { inputs: 22, outputs: 5, x: 178, inSpan: 160, outSpan: 96, segs: 22, run: 1.4, fade: 0.6, core: 11, gap: 0.35 };
+type Run = { curve: number; t: number };
+class Converge implements Drawing {
+  readonly maxLines = (CONVERGE.inputs + CONVERGE.outputs) * CONVERGE.segs + 10 * SPARK.segs;
+  readonly maxDots = CONVERGE.inputs + CONVERGE.outputs + 1 + 20;
+  private t = 0;
+  private coreAt = -Infinity;
+  private lastOut = -Infinity;
+  private readonly curves: { pts: Pt[]; len: number; out: boolean; flashAt: number }[] = [];
+  private readonly runs: Run[] = [];
+  private readonly sparks = new Sparks(10);
+  constructor() {
+    const { inputs, outputs, x, inSpan, outSpan, segs } = CONVERGE;
+    for (let i = 0; i < inputs; i++) {
+      const y = -inSpan + (i * 2 * inSpan) / (inputs - 1);
+      const pts = cubic([-x, y], [-x + 95, y], [-70, 0], [0, 0], segs);
+      this.curves.push({ pts, len: lengthOf(pts), out: false, flashAt: -Infinity });
+    }
+    for (let i = 0; i < outputs; i++) {
+      const y = -outSpan + (i * 2 * outSpan) / (outputs - 1);
+      const pts = cubic([0, 0], [70, 0], [x - 95, y], [x, y], segs);
+      this.curves.push({ pts, len: lengthOf(pts), out: true, flashAt: -Infinity });
+    }
+    // a few already on their way in
+    for (let k = 0; k < 3; k++) this.runs.push({ curve: Math.floor(Math.random() * inputs), t: Math.random() * CONVERGE.run });
+  }
+  step(dt: number) {
+    const { inputs, outputs, run, fade, gap } = CONVERGE;
+    this.t += dt;
+    this.sparks.step(dt);
+    // a new signal sets off on an input about every 0.6 s
+    if (Math.random() < dt / 0.6) this.runs.push({ curve: Math.floor(Math.random() * inputs), t: 0 });
+    for (const r of this.runs) {
+      const before = r.t;
+      r.t += dt;
+      if (before < run && r.t >= run) {
+        const c = this.curves[r.curve];
+        if (!c.out) {
+          // landed in the core: it flashes, and sends one out (not too often)
+          this.coreAt = this.t;
+          this.sparks.add([0, 0]);
+          if (this.t - this.lastOut > gap) {
+            this.lastOut = this.t;
+            this.runs.push({ curve: inputs + Math.floor(Math.random() * outputs), t: 0 });
+          }
+        } else {
+          c.flashAt = this.t;
+          this.sparks.add(c.pts[c.pts.length - 1]);
+        }
+      }
+    }
+    for (let i = this.runs.length - 1; i >= 0; i--) if (this.runs[i].t > run + fade * 3) this.runs.splice(i, 1);
+  }
+  draw(pen: Pen) {
+    const { run, fade, core } = CONVERGE;
+    // the brightest signal on each curve
+    const on = new Map<number, Run>();
+    for (const r of this.runs) if (!on.has(r.curve) || r.t < on.get(r.curve)!.t) on.set(r.curve, r);
+    const heads: Pt[] = [];
+    this.curves.forEach((c, i) => {
+      const r = on.get(i);
+      const base = c.out ? 1.1 : 0.75;
+      if (!r) return litLine(pen, c.pts, base);
+      const head = Math.min(1, r.t / run) * c.len;
+      litLine(pen, c.pts, base, head, 1.9 * Math.exp(-Math.max(0, r.t - run) / fade));
+      if (r.t < run) heads.push(pointAt(c.pts, head));
+    });
+    for (const c of this.curves) {
+      const f = Math.exp(-(this.t - c.flashAt) / fade);
+      pen.dot(...(c.out ? c.pts[c.pts.length - 1] : c.pts[0]), c.out ? 6 * (1 + 0.6 * f) : 3, 1);
+    }
+    for (const h of heads) pen.dot(...h, 4, 1);
+    pen.dot(0, 0, core * (1 + 0.5 * Math.exp(-(this.t - this.coreAt) / fade)), 1);
+    this.sparks.draw(pen);
+  }
+}
+
+/* MESHES: a tiling (hexagons, triangles, squares, rhombi...) cut to a
+ * shape, a dot on every corner. A bolt strikes a corner and crawls out
+ * along the edges, branching, till it has run through the whole mesh, the
+ * corners it reaches flashing; then, after a rest, the next. Now and then a
+ * cell glows and fades. */
+// every: the rest between bolts; each runs through the whole mesh
+const MESH = { every: 0.8, speed: 150, cellEvery: 1.6, cellFade: 2.2 };
+type Poly = Pt[];
+type Clip = (c: Pt) => boolean;
+class Mesh implements Drawing {
+  readonly maxLines: number;
+  readonly maxDots: number;
+  private t = 0;
+  private since = MESH.every - 0.4;
+  private nextCell = 0;
+  private readonly corners: Pt[] = [];
+  private readonly edges: Edge[] = [];
+  private readonly cells: { v: number[]; c: Pt }[] = [];
+  private readonly lit: { cell: number; t: number }[] = [];
+  private readonly bolt: Bolt;
+  private readonly sparks = new Sparks(4);
+  // dot: a corner's dot size
+  constructor(
+    polys: Poly[],
+    private readonly dot = 2.5,
+  ) {
+    const ids = new Map<string, number>();
+    const corner = (p: Pt) => {
+      const k = `${Math.round(p[0] * 10)},${Math.round(p[1] * 10)}`;
+      if (!ids.has(k)) ids.set(k, this.corners.push(p) - 1);
+      return ids.get(k)!;
+    };
+    const seen = new Set<string>();
+    for (const poly of polys) {
+      const v = poly.map(corner);
+      const c: Pt = [poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length];
+      this.cells.push({ v, c });
+      v.forEach((a, i) => {
+        const b = v[(i + 1) % v.length];
+        const k = a < b ? `${a}-${b}` : `${b}-${a}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          this.edges.push({ a, b });
+        }
+      });
+    }
+    this.bolt = new Bolt(this.corners.length, this.edges, { speed: MESH.speed, jitter: 0.6, fade: 0.8, gain: 2 });
+    this.maxLines = this.edges.reduce((s, e) => s + Math.max(1, Math.ceil(dist(this.corners[e.a], this.corners[e.b]) / 8)), 0) + 2 * 8 + this.sparks.lines;
+    this.maxDots = this.corners.length + 2 + 4;
+  }
+  step(dt: number) {
+    this.t += dt;
+    this.since += dt;
+    this.sparks.step(dt);
+    this.bolt.step(dt);
+    for (const l of this.lit) l.t += dt;
+    while (this.lit.length && this.lit[0].t > MESH.cellFade) this.lit.shift();
+    if (this.t >= this.nextCell) {
+      this.nextCell = this.t + MESH.cellEvery;
+      this.lit.push({ cell: Math.floor(Math.random() * this.cells.length), t: 0 });
+    }
+    if (this.since > MESH.every && this.bolt.done()) {
+      this.since = 0;
+      const seed = Math.floor(Math.random() * this.corners.length);
+      this.bolt.strike(seed, (k) => dist(this.corners[this.edges[k].a], this.corners[this.edges[k].b]));
+      this.sparks.add(this.corners[seed]);
+    }
+  }
+  draw(pen: Pen) {
+    this.edges.forEach((e, k) => this.bolt.draw(pen, k, subdivide([this.corners[e.a], this.corners[e.b]]), 0.7));
+    for (const l of this.lit) {
+      const k = 1 - l.t / MESH.cellFade;
+      const v = this.cells[l.cell].v.map((i) => this.corners[i]);
+      v.forEach((p, i) => pen.line(p[0], p[1], v[(i + 1) % v.length][0], v[(i + 1) % v.length][1], 1.4 * k * k));
+    }
+    this.corners.forEach((p, i) => {
+      const f = this.bolt.flash(i);
+      pen.dot(p[0], p[1], this.dot * (1 + 1.2 * f), 0.45 + 0.55 * f);
+    });
+    for (const l of this.lit) pen.dot(...this.cells[l.cell].c, 5, 1 - l.t / MESH.cellFade);
+    this.sparks.draw(pen);
+  }
+}
+
+// the tilings, kept where a cell's centre falls inside the clip
+const SQ3 = Math.sqrt(3);
+// a hexagon's shape round the middle (flat-topped), a circle, a square
+const inHex = (R: number): Clip => ([x, y]) => Math.abs(y) <= (SQ3 / 2) * R && Math.abs(x) + Math.abs(y) / SQ3 <= R;
+const inCircle = (R: number): Clip => ([x, y]) => Math.hypot(x, y) <= R;
+const inSquare = (R: number): Clip => ([x, y]) => Math.abs(x) <= R && Math.abs(y) <= R;
+const centre = (poly: Poly): Pt => [poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length];
+const keep = (polys: Poly[], clip: Clip) => polys.filter((p) => clip(centre(p)));
+const span = 220; // tile out to here, then clip
+function hexagons(r: number): Poly[] {
+  const out: Poly[] = [];
+  const n = Math.ceil(span / r);
+  for (let q = -n; q <= n; q++)
+    for (let s = -n; s <= n; s++) {
+      const c: Pt = [1.5 * r * q, SQ3 * r * (s + q / 2)];
+      out.push(Array.from({ length: 6 }, (_, i): Pt => [c[0] + Math.cos((i * TAU) / 6) * r, c[1] + Math.sin((i * TAU) / 6) * r]));
+    }
+  return out;
+}
+function triangles(a: number): Poly[] {
+  const out: Poly[] = [];
+  const h = (a * SQ3) / 2;
+  const n = Math.ceil(span / h) + 2;
+  const P = (i: number, j: number): Pt => [(i + j / 2) * a, j * h];
+  for (let j = -n; j <= n; j++)
+    for (let i = -2 * n; i <= 2 * n; i++) {
+      out.push([P(i, j), P(i + 1, j), P(i, j + 1)]);
+      out.push([P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)]);
+    }
+  return out;
+}
+function squares(a: number, turn = 0): Poly[] {
+  const out: Poly[] = [];
+  const n = Math.ceil(span / a);
+  const rot = ([x, y]: Pt): Pt => [x * Math.cos(turn) - y * Math.sin(turn), x * Math.sin(turn) + y * Math.cos(turn)];
+  for (let i = -n; i < n; i++)
+    for (let j = -n; j < n; j++)
+      out.push(
+        [
+          [i * a, j * a],
+          [(i + 1) * a, j * a],
+          [(i + 1) * a, (j + 1) * a],
+          [i * a, (j + 1) * a],
+        ].map((p) => rot(p as Pt)),
+      );
+  return out;
+}
+// rhombille: each hexagon split into three rhombi, which read as cubes
+function rhombi(r: number): Poly[] {
+  return hexagons(r).flatMap((v) => {
+    const c = centre(v);
+    return [
+      [c, v[0], v[1], v[2]],
+      [c, v[2], v[3], v[4]],
+      [c, v[4], v[5], v[0]],
+    ];
+  });
+}
+// kagome: the triangles joining the middles of a triangle lattice's edges
+function kagome(a: number): Poly[] {
+  const mid = (p: Pt, q: Pt): Pt => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  return triangles(a * 2).map(([p, q, r]) => [mid(p, q), mid(q, r), mid(r, p)]);
+}
+// octagons and squares (the truncated square tiling)
+function octagons(a: number): Poly[] {
+  const out: Poly[] = [];
+  const e = a / (1 + Math.SQRT2); // the shared edge
+  const R = e / (2 * Math.sin(Math.PI / 8));
+  const n = Math.ceil(span / a);
+  for (let i = -n; i <= n; i++)
+    for (let j = -n; j <= n; j++) {
+      out.push(Array.from({ length: 8 }, (_, k): Pt => [i * a + Math.cos(Math.PI / 8 + (k * TAU) / 8) * R, j * a + Math.sin(Math.PI / 8 + (k * TAU) / 8) * R]));
+      const c: Pt = [(i + 0.5) * a, (j + 0.5) * a];
+      const h = e / Math.SQRT2;
+      out.push([
+        [c[0] + h, c[1]],
+        [c[0], c[1] + h],
+        [c[0] - h, c[1]],
+        [c[0], c[1] - h],
+      ]);
+    }
+  return out;
+}
+// bricks: rows of 2 × 1 blocks, every other row offset by half; each
+// brick's top and bottom carry the corners of the bricks against it
+function bricks(a: number): Poly[] {
+  const out: Poly[] = [];
+  const n = Math.ceil(span / a);
+  for (let j = -n; j <= n; j++) {
+    const off = j & 1 ? a : 0;
+    for (let i = -n; i <= n; i++) {
+      const x = i * 2 * a + off;
+      const y = j * a;
+      out.push([
+        [x, y],
+        [x + a, y],
+        [x + 2 * a, y],
+        [x + 2 * a, y + a],
+        [x + a, y + a],
+        [x, y + a],
+      ]);
+    }
+  }
+  return out;
+}
+// polar: rings and spokes, a fan of triangles in the middle
+function polar(rings: number, spokes: number, r0: number, R: number): Poly[] {
+  const out: Poly[] = [];
+  const at = (r: number, k: number): Pt => [Math.cos((k * TAU) / spokes) * r, Math.sin((k * TAU) / spokes) * r];
+  for (let k = 0; k < spokes; k++) out.push([[0, 0], at(r0, k), at(r0, k + 1)]);
+  for (let j = 0; j < rings; j++) {
+    const a = r0 + ((R - r0) * j) / rings;
+    const b = r0 + ((R - r0) * (j + 1)) / rings;
+    for (let k = 0; k < spokes; k++) out.push([at(a, k), at(b, k), at(b, k + 1), at(a, k + 1)]);
+  }
+  return out;
+}
+
+export const DRAWING_KINDS: [string, string][] = [
+  ["orbit", "Orbit"],
+  ["routes", "Routes"],
+  ["signal", "Signal"],
+  ["tree", "Tree"],
+  ["converge", "Converge"],
+  ["hex", "Hex mesh"],
+  ["hexFine", "Hex mesh fine"],
+  ["triMesh", "Triangle mesh"],
+  ["squareMesh", "Square mesh"],
+  ["diamondMesh", "Diamond mesh"],
+  ["cubeMesh", "Cube mesh"],
+  ["kagomeMesh", "Kagome mesh"],
+  ["polarMesh", "Polar mesh"],
+  ["octagonMesh", "Octagon mesh"],
+  ["brickMesh", "Brick mesh"],
+];
+registerDrawing("orbit", () => new Orbit());
+registerDrawing("routes", () => new Routes());
+registerDrawing("signal", () => new Signal());
+registerDrawing("tree", () => new Tree());
+registerDrawing("converge", () => new Converge());
+registerDrawing("hex", () => new Mesh(keep(hexagons(26), inHex(150))));
+registerDrawing("hexFine", () => new Mesh(keep(hexagons(14), inHex(175)), 1.8));
+registerDrawing("triMesh", () => new Mesh(keep(triangles(26), inHex(175)), 2));
+registerDrawing("squareMesh", () => new Mesh(keep(squares(22), inCircle(170)), 2));
+registerDrawing("diamondMesh", () => new Mesh(keep(squares(24, Math.PI / 4), inSquare(150)), 2));
+registerDrawing("cubeMesh", () => new Mesh(keep(rhombi(22), inHex(170)), 2));
+registerDrawing("kagomeMesh", () => new Mesh(keep(kagome(22), inHex(175)), 2));
+registerDrawing("polarMesh", () => new Mesh(polar(9, 48, 22, 175), 1.8));
+registerDrawing("octagonMesh", () => new Mesh(keep(octagons(36), inCircle(170)), 2));
+registerDrawing("brickMesh", () => new Mesh(keep(bricks(18), inSquare(150)), 2));

@@ -1,7 +1,7 @@
-import { SHAPE_NAMES, type ParticleConfig, type ShapeName } from "./config";
+import type { ParticleConfig, ShapeName } from "./config";
 import { Noise2D } from "./noise";
 import { makeRng } from "./rng";
-import { makeShape3D, shapePoint, type Point } from "./shapes";
+import { isDotShape, makeShape3D, shapePoint, type Point } from "./shapes";
 
 // touch spin: how far the finger can tip the shape toward/away (radians)
 const SPIN_TILT_MAX = 1;
@@ -120,11 +120,11 @@ export class ParticleSystem {
       this.seqShapes = cfg.sequence
         .split(",")
         .map((x) => x.trim())
-        .filter((x): x is ShapeName => (SHAPE_NAMES as readonly string[]).includes(x));
+        .filter((x): x is ShapeName => isDotShape(x));
       this.seqTime = 0;
     }
     let target: ShapeName = cfg.shape;
-    if ((SHAPE_NAMES as readonly string[]).includes(cfg.holdShape)) {
+    if (isDotShape(cfg.holdShape)) {
       target = cfg.holdShape as ShapeName;
     } else if (this.seqShapes.length > 0) {
       const L = this.seqShapes.length;

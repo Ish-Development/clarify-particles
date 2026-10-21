@@ -43,7 +43,7 @@ import type { BlocksConfig } from "./defaults";
 
 // a shape: filled cells of a grid (i across, j up, k deep), the cells'
 // width and height
-interface Cells {
+export interface Cells {
   cells: [number, number, number][];
   size: number;
   height: number;
@@ -79,15 +79,29 @@ const SHAPES: Record<string, () => Cells> = {
   // three bars through the middle, two boxes thick
   cross: () => pick(6, (i, j, k) => [i, j, k].filter((x) => x === 2 || x === 3).length >= 2, 0.5),
 };
-function fill(nx: number, nz: number, levels: (i: number, k: number) => number, size: number, height = size): Cells {
+export function fill(nx: number, nz: number, levels: (i: number, k: number) => number, size: number, height = size): Cells {
   const cells: [number, number, number][] = [];
   for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) for (let j = 0; j < levels(i, k); j++) cells.push([i, j, k]);
   return { cells, size, height };
 }
-function pick(n: number, inside: (i: number, j: number, k: number) => boolean, size: number): Cells {
+export function pick(n: number, inside: (i: number, j: number, k: number) => boolean, size: number): Cells {
   const cells: [number, number, number][] = [];
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) for (let k = 0; k < n; k++) if (inside(i, j, k)) cells.push([i, j, k]);
   return { cells, size, height: size };
+}
+
+// More shapes, from outside the shipped chunk (the export lab's): `shapes`
+// then names them like the seven above. A block shape is cells; a line
+// shape is its network as it is (nodes in units, centred; lines between
+// them, outer or inner), for shapes that aren't boxes. `hidden` nodes draw
+// no dot (the points along a curve), their lines as usual.
+export type Net = { pos: number[][]; lines: [number, number, boolean][]; outer: boolean[]; hidden?: boolean[] };
+const LINE_SHAPES: Record<string, () => Net> = {};
+export function registerBlockShape(name: string, make: () => Cells) {
+  SHAPES[name] = make;
+}
+export function registerLineShape(name: string, make: () => Net) {
+  LINE_SHAPES[name] = make;
 }
 
 // a shape's network: nodes (positions, centred, and whether they're on the
@@ -293,8 +307,8 @@ export class BlocksScene {
     const names = cfg.shapes
       .split(",")
       .map((s) => s.trim())
-      .filter((s) => SHAPES[s]);
-    const nets = (names.length ? names : ["cube"]).map((n) => network(SHAPES[n]()));
+      .filter((s) => SHAPES[s] || LINE_SHAPES[s]);
+    const nets = (names.length ? names : ["cube"]).map((n) => (LINE_SHAPES[n] ? LINE_SHAPES[n]() : network(SHAPES[n]())));
     // every shape at least as tall on screen as the first, at any point of the turn
     // (screen y is (2y - x - z) / sqrt 6 after the turn), but no wider
     // than a quarter more than it
@@ -370,7 +384,7 @@ export class BlocksScene {
       const index = new Map<number, number>(); // the shape's node id -> network node
       assign.forEach((sl, i) => {
         place.set(sl.p, i * 3);
-        real[i] = sl.real ? (net.outer[sl.id] ? 1 : cfg.inner) : 0;
+        real[i] = sl.real ? ((net as Net).hidden?.[sl.id] ? 0 : net.outer[sl.id] ? 1 : cfg.inner) : 0;
         if (sl.real) index.set(sl.id, i);
       });
       this.places.push(place);

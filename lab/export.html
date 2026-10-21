@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Export lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #030304; color: #8e949a; font: 12px "Geist Mono", ui-monospace, monospace; overflow: hidden; }
+      /* the panel keeps the right 312 px; the timeline dock the bottom */
+      #stage { position: absolute; inset: 0 312px 140px 0; overflow: hidden; }
+      #frame { position: absolute; left: 50%; top: 50%; overflow: hidden; outline: 1px dashed #ffffff40; cursor: grab; }
+      #frame:active { cursor: grabbing; }
+      #effect { position: absolute; }
+      #hud { position: fixed; left: 20px; bottom: 150px; pointer-events: none; }
+      /* DialKit's timeline dock: dark, along the bottom, stopping short of the
+         panel's column so the two never overlap */
+      .dialkit-timeline { right: 324px !important; }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <div id="frame"><div id="effect"></div></div>
+    </div>
+    <div id="hud"></div>
+    <script type="module" src="./export.ts"></script>
+  </body>
+</html>

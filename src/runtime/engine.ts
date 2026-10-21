@@ -676,15 +676,14 @@ class Stage {
   readonly renderer: WebGLRenderer;
   readonly maxPointSize: number;
   private readonly camera = new Camera();
-  private bufW = 1;
-  private bufH = 1;
+  // the GL buffer's size, and the largest the browser really gives (cap)
+  private readonly buf = { w: 1, h: 1, capW: Infinity, capH: Infinity };
   // 3D views (the map: thin lines, depth, perspective) draw with their own
   // antialiased renderer — a second GL context, created only on pages that
   // have one, so the dots and networks render exactly as before
   private aaRenderer: WebGLRenderer | null = null;
   private aaFailed = false;
-  private aaW = 1;
-  private aaH = 1;
+  private readonly aaBuf = { w: 1, h: 1, capW: Infinity, capH: Infinity };
   lost = false;
   lostAt = 0;
 
@@ -747,42 +746,51 @@ class Stage {
     const r = aa ?? this.renderer;
     // the GL buffer only ever grows (to the largest section seen), so
     // switching between differently sized sections never reallocates it
-    let bufH: number;
-    if (aa) {
-      if (pw > this.aaW || ph > this.aaH) {
-        this.aaW = Math.max(this.aaW, pw);
-        this.aaH = Math.max(this.aaH, ph);
-        aa.setSize(this.aaW, this.aaH, false);
+    const buf = aa ? this.aaBuf : this.buf;
+    if ((pw > buf.w && buf.w < buf.capW) || (ph > buf.h && buf.h < buf.capH)) {
+      buf.w = Math.min(buf.capW, Math.max(buf.w, pw));
+      buf.h = Math.min(buf.capH, Math.max(buf.h, ph));
+      r.setSize(buf.w, buf.h, false);
+      // past some size the browser quietly gives a smaller buffer (Chrome
+      // halves one over ~8k px) and stretches it: keep to what it gave
+      const gl = r.getContext();
+      if (gl.drawingBufferWidth < buf.w || gl.drawingBufferHeight < buf.h) {
+        buf.w = buf.capW = gl.drawingBufferWidth;
+        buf.h = buf.capH = gl.drawingBufferHeight;
+        r.setSize(buf.w, buf.h, false);
       }
-      bufH = this.aaH;
-    } else {
-      if (pw > this.bufW || ph > this.bufH) {
-        this.bufW = Math.max(this.bufW, pw);
-        this.bufH = Math.max(this.bufH, ph);
-        this.renderer.setSize(this.bufW, this.bufH, false);
-      }
-      bufH = this.bufH;
     }
-    r.setViewport(0, 0, pw, ph);
-    r.setScissor(0, 0, pw, ph);
     r.setScissorTest(true);
     r.setClearColor(view.clearColor, view.clearAlpha);
-    r.clear(true, view.is3d, false);
-    if (view.is3d && !aa) {
-      // fallback for a 3D view on the main renderer: sort its transparent
-      // layers and tone-map like the antialiased renderer would
-      r.sortObjects = true;
-      r.toneMapping = ACESFilmicToneMapping;
-    }
-    r.render(view.scene, view.camera ?? this.camera);
-    if (view.is3d && !aa) {
-      r.sortObjects = false;
-      r.toneMapping = NoToneMapping;
-    }
-    // GL's viewport origin is bottom-left; in image space that region sits
-    // at the bottom of the buffer
     view.ctx.clearRect(0, 0, pw, ph);
-    view.ctx.drawImage(r.domElement, 0, bufH - ph, pw, ph, 0, 0, pw, ph);
+    // A frame bigger than the buffer (only the export lab's high-res stills)
+    // is drawn in tiles: each renders the whole frame's viewport, shifted so
+    // the tile lands at the buffer's bottom left. Anything else is one tile,
+    // at viewport (0, 0, pw, ph) as always. (Shaders reading gl_FragCoord,
+    // the grid and glow, would see tile coordinates.)
+    for (let ty = 0; ty < ph; ty += buf.h) {
+      for (let tx = 0; tx < pw; tx += buf.w) {
+        const tw = Math.min(buf.w, pw - tx);
+        const th = Math.min(buf.h, ph - ty);
+        r.setViewport(-tx, ty + th - ph, pw, ph);
+        r.setScissor(0, 0, tw, th);
+        r.clear(true, view.is3d, false);
+        if (view.is3d && !aa) {
+          // fallback for a 3D view on the main renderer: sort its transparent
+          // layers and tone-map like the antialiased renderer would
+          r.sortObjects = true;
+          r.toneMapping = ACESFilmicToneMapping;
+        }
+        r.render(view.scene, view.camera ?? this.camera);
+        if (view.is3d && !aa) {
+          r.sortObjects = false;
+          r.toneMapping = NoToneMapping;
+        }
+        // GL's viewport origin is bottom-left; in image space that region
+        // sits at the bottom of the buffer
+        view.ctx.drawImage(r.domElement, 0, buf.h - th, tw, th, tx, ty, tw, th);
+      }
+    }
   }
 
   dispose() {
@@ -1042,7 +1050,7 @@ abstract class View implements DrawTarget {
     } else {
       Object.assign(this.canvas.style, { left: "0", top: "0", width: "100%", height: "100%" });
     }
-    this.dpr = Math.min(window.devicePixelRatio || 1, isMobile() ? this.cfg.mobileDpr : 2);
+    this.dpr = exportScale || Math.min(window.devicePixelRatio || 1, isMobile() ? this.cfg.mobileDpr : 2);
     this.pw = Math.max(1, Math.round(this.cw * this.dpr));
     this.ph = Math.max(1, Math.round(this.ch * this.dpr));
     this.bg?.measure(this.el, this.dpr);
@@ -2048,6 +2056,8 @@ class MapView extends View {
 
 let stage: Stage | null = null;
 let paused = false;
+// pixel ratio forced by the export lab (0 = the screen's, capped at 2)
+let exportScale = 0;
 const views = new Map<HTMLElement, View>();
 let rafId = 0;
 let lastT = 0;
@@ -2450,6 +2460,12 @@ export function refreshLook(el: HTMLElement) {
 export function setPaused(p: boolean) {
   paused = p;
   if (!p) wake();
+}
+
+// Render at a fixed pixel ratio, past the screen's (the export lab's
+// high-res stills). Applies to views mounted or resized afterwards.
+export function setExportScale(k: number) {
+  exportScale = k;
 }
 
 // Replace an element's view (new particle buffers) while keeping the shared

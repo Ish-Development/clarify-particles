@@ -1,4 +1,4 @@
-import type { ShapeName } from "./config";
+import { SHAPE_NAMES, type ShapeName } from "./config";
 import type { Noise2D } from "./noise";
 
 export interface Point {
@@ -290,7 +290,7 @@ function spherePoint(i: number, n: number, w: number, h: number, _t: number, _no
   project3D(Math.cos(theta) * radiusAtY, y, Math.sin(theta) * radiusAtY, three, cx, cy, R * shell.scale, out);
 }
 
-interface Vec3 {
+export interface Vec3 {
   x: number;
   y: number;
   z: number;
@@ -833,6 +833,17 @@ function burstPoint(i: number, n: number, w: number, h: number, out: Point, thre
   project3D(Math.cos(theta) * ry * r, y * r, Math.sin(theta) * ry * r, three, w / 2, h / 2, Math.min(w, h) * 0.38, out);
 }
 
+// More 3D shapes, from outside the shipped engine (the export lab's): `at`
+// puts particle j of m in unit space (about radius 1), drawn like the
+// built-in ones (turned, tumbling, nested copies), `size` of the canvas'
+// shorter side across.
+type ExtraShape = { at: (j: number, m: number, t: number, out: Vec3) => void; size: number };
+const EXTRA = new Map<string, ExtraShape>();
+export function registerDotShape(name: string, at: ExtraShape["at"], size = 0.4) {
+  EXTRA.set(name, { at, size });
+}
+export const isDotShape = (name: string) => (SHAPE_NAMES as readonly string[]).includes(name) || EXTRA.has(name);
+
 export function shapePoint(
   shape: ShapeName,
   i: number,
@@ -929,5 +940,12 @@ export function shapePoint(
     case "burst":
       burstPoint(i, n, w, h, out, three);
       break;
+    default: {
+      const x = EXTRA.get(shape);
+      if (!x) break;
+      shellFor(i, n, three.copies);
+      x.at(shell.idx, shell.count, t, v3);
+      project3D(v3.x, v3.y, v3.z, three, w / 2, h / 2, Math.min(w, h) * x.size * shell.scale, out);
+    }
   }
 }

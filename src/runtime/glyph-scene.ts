@@ -97,7 +97,7 @@ const TAU = Math.PI * 2;
 
 // what a drawing writes each frame: lines (alpha relative to lineOpacity)
 // and dots (size in design units, alpha relative to nodeOpacity)
-interface Pen {
+export interface Pen {
   line(ax: number, ay: number, bx: number, by: number, alpha: number): void;
   dot(x: number, y: number, size: number, alpha: number): void;
 }
@@ -107,7 +107,7 @@ interface Cross {
   there: number; // where on the other ring
   spot: number; // the crossing
 }
-interface Drawing {
+export interface Drawing {
   readonly square?: boolean; // square dots
   readonly maxLines: number;
   readonly maxDots: number;
@@ -679,6 +679,12 @@ const DRAWINGS: Record<string, () => Drawing> = {
   pendulum: () => new Pendulum(),
   rings: () => new Rings(),
 };
+
+// More drawings, from outside the shipped chunk (the export lab's): `kind`
+// then picks them like the three above.
+export function registerDrawing(kind: string, make: () => Drawing) {
+  DRAWINGS[kind] = make;
+}
 
 export class GlyphScene {
   readonly root = new Group();

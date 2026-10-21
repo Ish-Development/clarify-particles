@@ -463,10 +463,11 @@ function buildAtom(n: number, seed: number): Layout {
   return { x, y, z, weight, edges };
 }
 
-// Icosahedron wireframe: the 12 vertices plus nodes spaced along its 30
-// edges, each edge a chain.
-function buildIcosa(n: number, seed: number): Layout {
-  const rng = makeRng(seed);
+// The icosahedron in the network style: the geo sphere's even lattice (and
+// its nearest-neighbour mesh), each node pushed in onto the solid's flat
+// faces, a corner on the top pole where networkOf puts the hub.
+function buildIcosaNet(n: number, seed: number): Layout {
+  const l = buildGeoSphere(n, seed);
   const t = (1 + Math.sqrt(5)) / 2;
   const raw = [
     [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
@@ -474,41 +475,31 @@ function buildIcosa(n: number, seed: number): Layout {
     [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1],
   ];
   const len = Math.hypot(1, t);
-  const V = raw.map((v) => v.map((c) => c / len));
-  const E: [number, number][] = [];
-  for (let a = 0; a < 12; a++) {
-    for (let b = a + 1; b < 12; b++) {
-      const d = Math.hypot(V[a][0] - V[b][0], V[a][1] - V[b][1], V[a][2] - V[b][2]);
-      if (d < 1.1) E.push([a, b]); // edge length is ~1.05 on the unit sphere
-    }
+  // turn corner 0 onto the pole: about the z axis, as it lies in the xy plane
+  const a = Math.atan2(raw[0][0], raw[0][1]);
+  const V = raw.map(([x, y, z]) => [(x * Math.cos(a) - y * Math.sin(a)) / len, (x * Math.sin(a) + y * Math.cos(a)) / len, z / len]);
+  const near = (p: number[], q: number[]) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 1.1;
+  // the 20 faces' normals; every face is the same distance h from the centre
+  const N: number[][] = [];
+  for (let i = 0; i < 12; i++)
+    for (let j = i + 1; j < 12; j++)
+      for (let k = j + 1; k < 12; k++) {
+        if (!near(V[i], V[j]) || !near(V[j], V[k]) || !near(V[i], V[k])) continue;
+        const c = [0, 1, 2].map((d) => V[i][d] + V[j][d] + V[k][d]);
+        const r = Math.hypot(c[0], c[1], c[2]);
+        N.push(c.map((x) => x / r));
+      }
+  const h = N[0][0] * V[0][0] + N[0][1] * V[0][1] + N[0][2] * V[0][2];
+  const { x, y, z } = l;
+  for (let i = 0; i < n; i++) {
+    let m = 0;
+    for (const f of N) m = Math.max(m, x[i] * f[0] + y[i] * f[1] + z[i] * f[2]);
+    const k = m > 0 ? h / m : 1;
+    x[i] *= k;
+    y[i] *= k;
+    z[i] *= k;
   }
-  const x = new Float32Array(n);
-  const y = new Float32Array(n);
-  const z = new Float32Array(n);
-  const weight = new Float32Array(n);
-  const edges: [number, number][] = [];
-  const nv = Math.min(12, n);
-  for (let i = 0; i < nv; i++) {
-    [x[i], y[i], z[i]] = V[i];
-    weight[i] = 1;
-  }
-  const along = Math.max(0, n - nv);
-  let i = nv;
-  E.forEach(([a, b], e) => {
-    const k = Math.floor(along / E.length) + (e < along % E.length ? 1 : 0);
-    let prev = a;
-    for (let m = 1; m <= k && i < n; m++, i++) {
-      const f = m / (k + 1);
-      x[i] = V[a][0] + (V[b][0] - V[a][0]) * f;
-      y[i] = V[a][1] + (V[b][1] - V[a][1]) * f;
-      z[i] = V[a][2] + (V[b][2] - V[a][2]) * f;
-      weight[i] = rng.next() * 0.6;
-      edges.push([prev, i]);
-      prev = i;
-    }
-    if (a < nv && b < nv) edges.push([prev, b]);
-  });
-  return { x, y, z, weight, edges };
+  return l;
 }
 
 // Rippling grid, leaned back so the waves read in depth.
@@ -614,8 +605,9 @@ function buildShape(shape: GraphShape, n: number, seed: number, cfg: GraphConfig
       return buildKnot(n, seed);
     case "atom":
       return buildAtom(n, seed);
+    // in the network style too: the sphere lattice pressed onto its faces
     case "icosa":
-      return buildIcosa(n, seed);
+      return networkOf(buildIcosaNet(n, seed + 1), n, seed, 0.92, 1 - cfg.morphHold);
     case "wave":
       return buildWave(n, seed);
   }
