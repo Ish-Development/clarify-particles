@@ -132,7 +132,7 @@ const HIDDEN = new Set(["Constellation", "Clusters", "Dot dome", "Dot planet", "
   "Block skyline", "Block wave", "Block checker", "Block stack", "Block modules", "Block bridge", "Block ring", "Block arch",
   "Network globe sparse", "Block frame", "Block walls", "Block corner", "Block stairs", "Line gem",
   "Kagome mesh", "Triangle mesh", "Diamond mesh", "Polar mesh", "Hex mesh fine", "Brick mesh",
-  "Line saddle", "Line Möbius"]);
+  "Line saddle", "Line Möbius", "Line torus knot"]);
 for (let i = MODELS.length - 1; i >= 0; i--) if (HIDDEN.has(MODELS[i].name)) MODELS.splice(i, 1);
 
 // within a style, shape families together: round, then spirals and
