@@ -197,13 +197,14 @@ const fadeIn = (t: number) => {
  * as one figure, so the links hold. Every few s a bolt leaves the core and
  * branches out along the links; each rider it reaches flashes and sparks.
  * Every REWIRE bolts the links fade over to a new wiring. */
-const ORBIT = { rings: [62, 108, 154], riders: [2, 3, 5], loop: 48, core: 11, rider: 6, ticks: 60, tickR: 182, segs: 120, trail: 0.8, every: 3.6, rewire: 2, chords: 0.3 };
+const ORBIT = { rings: [62, 108, 154], riders: [2, 3, 5], loop: 48, core: 11, rider: 6, ticks: 60, tickR: 182, segs: 120, trail: 0.8, every: 5, rewire: 2, chords: 0.3 };
 type OrbitWiring = { links: Edge[]; bolt: Bolt; t: number };
 class Orbit implements Drawing {
   readonly maxLines = ORBIT.rings.length * ORBIT.segs + 2 * 18 * 40 + 12 * SPARK.segs;
   readonly maxDots = 1 + 10 + ORBIT.ticks + 12;
   private t = 4;
-  private since = ORBIT.every - 0.6;
+  // the first bolt somewhere in the first rest, so a page of them doesn't flash at once
+  private since = ORBIT.every * Math.random();
   private strikes = 0;
   private rewired = false;
   private wire: OrbitWiring;
@@ -314,13 +315,13 @@ class Orbit implements Drawing {
  * from one route's start and runs through the routes, branching where they
  * meet; the ends it reaches flash and spark. Every REWIRE bolts the routes
  * fade over to a new set. */
-const ROUTES = { n: 9, gap: 40, routes: [3, 5], end: 5, every: 3.2, rewire: 2 };
+const ROUTES = { n: 9, gap: 40, routes: [3, 5], end: 5, every: 5, rewire: 2 };
 type RouteSet = { nodes: Pt[]; edges: Edge[]; starts: number[]; ends: number[]; bolt: Bolt; t: number };
 class Routes implements Drawing {
   readonly square = true;
   readonly maxLines = 2 * 140 * Math.ceil(ROUTES.gap / 8) + 8 * SPARK.segs;
   readonly maxDots = ROUTES.n * ROUTES.n + 2 * 140 + 8;
-  private since = ROUTES.every - 0.5;
+  private since = ROUTES.every * Math.random();
   private strikes = 0;
   private rewired = false;
   private set: RouteSet;
@@ -452,11 +453,11 @@ class Signal implements Drawing {
 /* TREE: a hierarchy, one root over 3, 9 and 18, joined by right-angled
  * links. Every few s a bolt drops from the root and branches down through
  * every link; each node it reaches flashes, each leaf sparks. */
-const TREE = { levels: [150, 55, -40, -135], kids: [3, 3, 2], width: 340, every: 3.4, sizes: [10, 7, 5, 3.5] };
+const TREE = { levels: [150, 55, -40, -135], kids: [3, 3, 2], width: 340, every: 5, sizes: [10, 7, 5, 3.5] };
 class Tree implements Drawing {
   readonly maxLines: number;
   readonly maxDots = 31 + 12;
-  private since = TREE.every - 0.4;
+  private since = TREE.every * Math.random();
   private readonly nodes: { x: number; y: number; level: number; parent: number }[] = [];
   private readonly edges: Edge[] = [];
   private readonly links: Pt[][] = [];
@@ -603,14 +604,14 @@ class Converge implements Drawing {
  * corners it reaches flashing; then, after a rest, the next. Now and then a
  * cell glows and fades. */
 // every: the rest between bolts; each runs through the whole mesh
-const MESH = { every: 0.8, speed: 150, cellEvery: 1.6, cellFade: 2.2 };
+const MESH = { every: 3, speed: 150, cellEvery: 1.6, cellFade: 2.2 };
 type Poly = Pt[];
 type Clip = (c: Pt) => boolean;
 class Mesh implements Drawing {
   readonly maxLines: number;
   readonly maxDots: number;
   private t = 0;
-  private since = MESH.every - 0.4;
+  private since = MESH.every * Math.random();
   private nextCell = 0;
   private readonly corners: Pt[] = [];
   private readonly edges: Edge[] = [];
