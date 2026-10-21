@@ -52,6 +52,8 @@ const kit = createDialKit(
       w: [1584, 16, MAX, 1],
       h: [396, 16, MAX, 1],
       scale: { type: "select", options: ["1", "2", "3", "4"], default: "2" },
+      // light: the model inverted, dark lines on Bone 100
+      mode: { type: "select", options: ["dark", "light"], default: "dark" },
       background: { type: "select", options: ["colour", "transparent"], default: "colour" },
       colour: { type: "color", default: "#060709" },
     },
@@ -177,6 +179,7 @@ function layout() {
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
   frame.style.background = o.background === "colour" ? o.colour : "transparent";
+  effect.style.filter = o.mode === "light" ? "invert(1)" : "none";
   Object.assign(effect.style, {
     width: `${r.w}px`,
     height: `${r.h}px`,
@@ -210,7 +213,7 @@ const actions: Record<string, () => void> = {
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, mode: out().mode };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
@@ -320,7 +323,13 @@ kit.subscribe((nv) => {
     return;
   }
   const again = nv.model !== last.model || o.scale !== last.scale;
-  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h };
+  // a new mode takes its own background (changed after, it stays)
+  if (!restoring && o.mode !== last.mode) {
+    last = { ...last, mode: o.mode };
+    kit.setValues({ output: { colour: o.mode === "light" ? "#f4f7fa" : "#060709" } });
+    return;
+  }
+  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, mode: o.mode };
   layout();
   if (again) remount();
   if (!restoring) record();
@@ -499,6 +508,7 @@ function render(): Promise<Blob> {
     ctx.fillRect(0, 0, c.width, c.height);
   }
   const r = rect();
+  if (o.mode === "light") ctx.filter = "invert(1)";
   ctx.drawImage(view.canvas, r.left * k, r.top * k, r.w * k, r.h * k);
   return new Promise((ok, fail) => c.toBlob((blob) => (blob ? ok(blob) : fail(new Error("toBlob failed"))), "image/png"));
 }
@@ -534,7 +544,7 @@ function svgText() {
   if (!view) return "";
   const o = out();
   const r = rect();
-  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.background === "colour" ? o.colour : null });
+  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.background === "colour" ? o.colour : null, invert: o.mode === "light" });
 }
 function copySvg() {
   const svg = svgText();

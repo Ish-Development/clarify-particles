@@ -14,11 +14,17 @@ import { Color, Vector3, type BufferAttribute, type BufferGeometry, type Instanc
 import type { View } from "../src/runtime/engine";
 
 type Rgb = number[] | Color;
-const hex = (c: Rgb) => "#" + (c instanceof Color ? c.getHexString() : c.map((x) => Math.round(Math.min(1, Math.max(0, x)) * 255).toString(16).padStart(2, "0")).join(""));
+// light mode: every colour inverted, as the preview and the PNG are
+let invert = false;
+const hex = (c: Rgb) => {
+  const v = c instanceof Color ? [c.r, c.g, c.b] : c;
+  return "#" + v.map((x) => Math.round((invert ? 1 - Math.min(1, Math.max(0, x)) : Math.min(1, Math.max(0, x))) * 255).toString(16).padStart(2, "0")).join("");
+};
 const n = (x: number) => String(Math.round(x * 100) / 100);
 const op = (a: number) => (a >= 0.999 ? "" : ` opacity="${n(a)}"`);
 
-export function viewToSvg(view: View, frame: { w: number; h: number; left: number; top: number; background: string | null }): string {
+export function viewToSvg(view: View, frame: { w: number; h: number; left: number; top: number; background: string | null; invert?: boolean }): string {
+  invert = !!frame.invert;
   const { scene, camera, cw, ch, dpr } = view;
   scene.updateMatrixWorld();
   camera?.updateMatrixWorld();
@@ -138,7 +144,8 @@ export function viewToSvg(view: View, frame: { w: number; h: number; left: numbe
         // solid: an opaque dot, dimmed toward black by its alpha
         // (on the raw sRGB values, as the shader does)
         if (solid) {
-          const c = [1, 3, 5].map((k) => parseInt(fill.slice(k, k + 2), 16) / 255);
+          // (from the source colour: fill is already inverted in light mode)
+          const c = [1, 3, 5].map((k) => parseInt(fill.slice(k, k + 2), 16) / 255).map((x) => (invert ? 1 - x : x));
           out.push(shapeAt(d / 2, ` fill="${hex(c.map((x) => x * a))}"`));
         } else out.push(shapeAt(d / 2, ` fill="${fill}"${op(a)}`));
       }
