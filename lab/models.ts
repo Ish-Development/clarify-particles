@@ -4,7 +4,7 @@
 // edges), with no backdrop pattern. Plus new ones for brand assets only.
 // Listed by style, then shape family (ORDER). Shared by the export lab and
 // the gallery.
-import { blocksDefaults } from "../src/runtime/defaults";
+import { blocksDefaults, glyphDefaults, graphDefaults } from "../src/runtime/defaults";
 import { PRESETS } from "../src/runtime/presets";
 import { parseSpec, type ViewSpec } from "../src/runtime/spec";
 import { BLOCK_SHAPES } from "./blocks";
@@ -171,6 +171,58 @@ export function crispDots(m: Model, d: { density: number; size: number; opacity:
     opacityMin: d.opacity,
     opacityMax: 1,
   };
+}
+
+// Each style's own panel in the export lab, shown only for its models: the
+// dials (multipliers on the model's own settings, 1: as it is, unless said)
+// and what they set on a model.
+const x1 = (max: number, min = 0): [number, number, number, number] => [1, min, max, 0.05];
+const LINE_DIALS = {
+  lines: { brightness: x1(3), width: x1(4, 0.25) },
+  dots: { brightness: x1(2), size: x1(4) },
+  // the inside lines, and how bright the far side draws
+  depth: { inner: x1(4), farSide: x1(3.3) },
+  // rest: s between bolts (not a multiplier)
+  electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [3.5, 0.5, 15, 0.1] as [number, number, number, number] },
+};
+export const STYLE_DIALS = {
+  // fewer, bigger, more solid dots read crisp as a still (crispDots);
+  // 1 / 1 / 0.25 is the site's look
+  dots: { density: [0.5, 0.1, 1, 0.05], size: [1.6, 0.5, 4, 0.05], opacity: [0.6, 0, 1, 0.05] },
+  network: { lines: { brightness: x1(3), width: x1(4, 0.25) }, nodes: { size: x1(4) } },
+  blocks: LINE_DIALS,
+  lines: LINE_DIALS,
+  drawing: { lines: { brightness: x1(3), width: x1(4, 0.25) }, dots: { brightness: x1(2) }, electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2) } },
+} as const;
+type Dials = Record<string, Record<string, number>>;
+const cap = (n: number) => Math.min(1, n);
+// what a style panel's values set on a model (the drawings' electricity is
+// set apart, in drawings.ts LOOK)
+export function styleOverrides(m: Model, values: unknown): Record<string, unknown> {
+  const d = values as Dials;
+  const p = PRESETS[m.preset];
+  if (m.style === "dots") return crispDots(m, values as { density: number; size: number; opacity: number });
+  if (m.style === "lines" || m.style === "blocks") {
+    const c = { ...blocksDefaults, ...p.config, ...m.config } as unknown as Record<string, number>;
+    return {
+      lineOpacity: c.lineOpacity * d.lines.brightness,
+      lineWidth: c.lineWidth * d.lines.width,
+      nodeOpacity: cap(c.nodeOpacity * d.dots.brightness),
+      nodeSize: c.nodeSize * d.dots.size,
+      inner: cap(c.inner * d.depth.inner),
+      backDim: cap(c.backDim * d.depth.farSide),
+      boltGain: c.boltGain * d.electricity.brightness,
+      boltStep: c.boltStep / d.electricity.speed,
+      boltFade: c.boltFade * d.electricity.afterglow,
+      boltEvery: d.electricity.rest,
+    };
+  }
+  if (m.style === "network") {
+    const c = { ...graphDefaults, ...p.config, ...m.config } as unknown as Record<string, number>;
+    return { lineOpacity: cap(c.lineOpacity * d.lines.brightness), lineWidth: c.lineWidth * d.lines.width, sizeMin: c.sizeMin * d.nodes.size, sizeMax: c.sizeMax * d.nodes.size };
+  }
+  const c = { ...glyphDefaults, ...p.config, ...m.config } as unknown as Record<string, number>;
+  return { lineOpacity: c.lineOpacity * d.lines.brightness, lineWidth: c.lineWidth * d.lines.width, nodeOpacity: cap(c.nodeOpacity * d.dots.brightness) };
 }
 
 // a model's spec: its preset and the still overrides. The parser only knows

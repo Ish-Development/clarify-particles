@@ -14,7 +14,8 @@
 import { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
-import { MODELS, STYLES, crispDots, modelByName, specFor } from "./models";
+import { LOOK } from "./drawings";
+import { MODELS, STYLES, STYLE_DIALS, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { viewToSvg } from "./svg";
 
 const SIZES: Record<string, [number, number]> = {
@@ -62,13 +63,6 @@ const kit = createDialKit(
       x: [0, -MAX, MAX, 1],
       y: [0, -MAX, MAX, 1],
       centre: { type: "action", label: "Centre in frame" },
-    },
-    // the dot models only: fewer, bigger, more solid dots read crisp as a
-    // still (models.ts crispDots); 1 / 1 / 0.25 is the site's look
-    dots: {
-      density: [0.5, 0.1, 1, 0.05],
-      size: [1.6, 0.5, 4, 0.05],
-      opacity: [0.6, 0, 1, 0.05],
     },
     // a new take: new random choices (wirings, bolts), from 0 s
     take: { type: "action", label: "New take" },
@@ -123,12 +117,36 @@ function showFrame() {
   ghost = null;
 }
 
+// --- the model's own panel: one per style (Dots, Lines, Network...), shown
+// only while a model of that style is up, its values kept between visits ---
+const PANEL_NAMES: Record<Style, string> = { dots: "Dots", network: "Network", blocks: "Blocks", lines: "Lines", drawing: "Drawing" };
+let stylePanel: { style: Style; kit: ReturnType<typeof createDialKit> } | null = null;
+let styleTimer = 0;
+function showPanel(style: Style) {
+  if (stylePanel?.style === style) return;
+  stylePanel?.kit.destroy();
+  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: `export-${style}`, persist: true });
+  stylePanel = { style, kit: k };
+  // a dial rebuilds the model at the same moment, once the dial settles
+  k.subscribe(() => {
+    clearTimeout(styleTimer);
+    styleTimer = window.setTimeout(remount, 150);
+    if (!restoring) record();
+  }, false);
+}
+const styleValues = () => stylePanel?.kit.values as unknown;
+
 function mountModel() {
   holdFrame();
   unmount(effect);
   setExportScale(scale());
   const m = modelByName(v().model);
-  mount(effect, specFor(effect, m, crispDots(m, v().dots)), { root: effect });
+  showPanel(m.style);
+  const sv = styleValues();
+  // the drawings' electricity is read live by drawings.ts
+  const e = m.style === "drawing" ? (sv as { electricity: { brightness: number; speed: number; afterglow: number } }).electricity : null;
+  Object.assign(LOOK, e ? { gain: e.brightness, speed: e.speed, fade: e.afterglow } : { gain: 1, speed: 1, fade: 1 });
+  mount(effect, specFor(effect, m, styleOverrides(m, sv)), { root: effect });
 }
 
 // a new model (or size, or dots) at the same moment
@@ -189,8 +207,7 @@ const actions: Record<string, () => void> = {
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-const dotsKey = () => JSON.stringify(v().dots);
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, dots: dotsKey() };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
@@ -286,7 +303,6 @@ function setPlaying(p: boolean) {
 }
 function drawTimeline() {}
 
-let dotsTimer = 0;
 kit.subscribe((nv) => {
   const o = nv.output;
   if (!restoring && o.size !== last.size && SIZES[o.size]) {
@@ -301,15 +317,9 @@ kit.subscribe((nv) => {
     return;
   }
   const again = nv.model !== last.model || o.scale !== last.scale;
-  // the dots' dials rebuild the dots: once the dial settles
-  const dots = dotsKey() !== last.dots;
-  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, dots: dotsKey() };
+  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h };
   layout();
   if (again) remount();
-  else if (dots) {
-    clearTimeout(dotsTimer);
-    dotsTimer = window.setTimeout(remount, 150);
-  }
   if (!restoring) record();
 }, false);
 window.addEventListener("resize", layout);
@@ -319,7 +329,8 @@ const snap = () => {
   const val = v();
   // the dials' own values only, not the action buttons
   const plain = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x !== "object"));
-  return JSON.stringify({ model: val.model, output: plain(val.output), placement: plain(val.placement), dots: plain(val.dots) });
+  // and the model's own panel, with its style
+  return JSON.stringify({ model: val.model, output: plain(val.output), placement: plain(val.placement), panel: stylePanel ? { style: stylePanel.style, values: stylePanel.kit.values } : null });
 };
 const undos: string[] = [];
 let redos: string[] = [];
@@ -347,8 +358,14 @@ function travel(from: string[], to: string[]) {
   to.push(committed);
   committed = s;
   restoring = true;
-  kit.setValues(JSON.parse(s));
-  setTimeout(() => (restoring = false));
+  const { panel, ...main } = JSON.parse(s);
+  kit.setValues(main);
+  // the model's panel once it's the right one (a model change swaps it)
+  setTimeout(() => {
+    const now = stylePanel;
+    if (panel && now && now.style === panel.style) now.kit.setValues(panel.values);
+    setTimeout(() => (restoring = false));
+  });
 }
 
 // --- preview zoom and pan ---
@@ -548,4 +565,4 @@ committed = snap();
 
 layout();
 remount();
-(window as unknown as { lab: unknown }).lab = { kit, render, svgText, seek, setPlaying, take, timeline };
+(window as unknown as { lab: unknown }).lab = { kit, render, svgText, seek, setPlaying, take, timeline, panel: () => stylePanel?.kit };

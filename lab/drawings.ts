@@ -67,6 +67,10 @@ function litLine(pen: Pen, pts: Pt[], base: number, head = -1, glow = 0) {
   }
 }
 
+// The electricity's look, set from the export lab's Drawing panel:
+// brightness, speed and afterglow, multipliers (1: as designed)
+export const LOOK = { gain: 1, speed: 1, fade: 1 };
+
 // The bolt: from a seed node it takes the quickest way to every node it can
 // reach (each line a little slower or quicker), so it branches; only the
 // lines it reached a node by light up. Times in s since the strike.
@@ -109,7 +113,7 @@ class Bolt {
       if (u < 0) break;
       done[u] = 1;
       for (const [v, k] of this.adj[u]) {
-        const t = this.hit[u] + (len(k) / speed) * (1 - jitter / 2 + jitter * Math.random());
+        const t = this.hit[u] + (len(k) / (speed * LOOK.speed)) * (1 - jitter / 2 + jitter * Math.random());
         if (t > reach || t >= this.hit[v]) continue;
         this.hit[v] = t;
         this.tin[k] = this.hit[u];
@@ -128,7 +132,7 @@ class Bolt {
   // the bolt has reached everything it will, and its light has died down
   // (a strike never cuts one off midway)
   done() {
-    return !(this.t < this.last + this.o.fade * 2.5);
+    return !(this.t < this.last + this.o.fade * LOOK.fade * 2.5);
   }
   // advances; the nodes it reached in this step
   step(dt: number): number[] {
@@ -144,12 +148,12 @@ class Bolt {
   draw(pen: Pen, k: number, pts: Pt[], base: number) {
     if (!(this.t >= this.tin[k])) return litLine(pen, pts, base);
     const head = clamp01((this.t - this.tin[k]) / Math.max(1e-3, this.tout[k] - this.tin[k]));
-    const glow = this.o.gain * Math.exp(-Math.max(0, this.t - this.tout[k]) / this.o.fade);
+    const glow = this.o.gain * LOOK.gain * Math.exp(-Math.max(0, this.t - this.tout[k]) / (this.o.fade * LOOK.fade));
     const p = this.fromB[k] ? [...pts].reverse() : pts;
     litLine(pen, p, base, head * lengthOf(p), glow);
   }
   flash(i: number) {
-    return this.t >= this.hit[i] ? Math.exp(-(this.t - this.hit[i]) / this.o.fade) : 0;
+    return this.t >= this.hit[i] ? Math.min(1.5, LOOK.gain) * Math.exp(-(this.t - this.hit[i]) / (this.o.fade * LOOK.fade)) : 0;
   }
 }
 
