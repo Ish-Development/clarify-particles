@@ -48,6 +48,7 @@ export function viewToSvg(view: View, frame: { w: number; h: number; left: numbe
       return [((v.x + 1) / 2) * cw + frame.left, ((1 - v.y) / 2) * ch + frame.top];
     };
     const out: string[] = [];
+    const runs: { pts: [number, number][]; a: number }[] = [];
 
     if ((o as Mesh).isMesh && (at("aEnds") || at("aA"))) {
       // edges: instanced quads
@@ -78,9 +79,21 @@ export function viewToSvg(view: View, frame: { w: number; h: number; left: numbe
           if (bolt) a = Math.min(1, a + bolt.getY(i));
         }
         if (a < 0.004 || (p[0] === q[0] && p[1] === q[1])) continue;
-        out.push(`<line x1="${n(p[0])}" y1="${n(p[1])}" x2="${n(q[0])}" y2="${n(q[1])}"${op(a)}/>`);
+        // a segment that carries on from the last one, at the same opacity,
+        // joins it: a curve comes out as one polyline, not a run of pieces
+        // overlapping at every joint
+        const last = runs[runs.length - 1];
+        const end = last?.pts[last.pts.length - 1];
+        if (last && end && Math.abs(end[0] - p[0]) < 0.05 && Math.abs(end[1] - p[1]) < 0.05 && Math.abs(last.a - a) < 0.02) last.pts.push(q);
+        else runs.push({ pts: [p, q], a });
       }
-      if (out.length) groups.push(`<g id="lines-${++lineGroups}" stroke="${color}" stroke-width="${n(width)}" stroke-linecap="butt" fill="none">\n${out.join("\n")}\n</g>`);
+      for (const r of runs) {
+        const closed = r.pts.length > 3 && Math.hypot(r.pts[0][0] - r.pts[r.pts.length - 1][0], r.pts[0][1] - r.pts[r.pts.length - 1][1]) < 0.05;
+        const pts = (closed ? r.pts.slice(0, -1) : r.pts).map(([x, y]) => `${n(x)},${n(y)}`).join(" ");
+        if (r.pts.length === 2) out.push(`<line x1="${n(r.pts[0][0])}" y1="${n(r.pts[0][1])}" x2="${n(r.pts[1][0])}" y2="${n(r.pts[1][1])}"${op(r.a)}/>`);
+        else out.push(`<${closed ? "polygon" : "polyline"} points="${pts}"${op(r.a)}/>`);
+      }
+      if (out.length) groups.push(`<g id="lines-${++lineGroups}" stroke="${color}" stroke-width="${n(width)}" stroke-linecap="butt" stroke-linejoin="round" fill="none">\n${out.join("\n")}\n</g>`);
       continue;
     }
 

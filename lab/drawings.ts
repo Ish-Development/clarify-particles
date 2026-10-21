@@ -644,7 +644,8 @@ class Halo implements Drawing {
 /* IRIS: a camera iris. Two families of strokes lean either way across the
  * band between the rings, crossing into a lattice round the empty middle;
  * the inner ring opens and closes slowly. */
-const IRIS = { n: 48, outer: 175, inner: [70, 110], lean: 0.55, period: 18 };
+// lean: dot steps a stroke turns across the band (a whole number, so it ends on a dot)
+const IRIS = { n: 48, outer: 175, inner: [70, 110], lean: 4, period: 18 };
 class Iris implements Drawing {
   readonly maxLines = IRIS.n * 2 + 2 * 96;
   readonly maxDots = IRIS.n * 2;
@@ -665,7 +666,7 @@ class Iris implements Drawing {
       const a = (i * TAU) / n;
       const l = on * swept(a, h, SWEEP.tail);
       for (const dir of [1, -1]) {
-        const b = a + dir * lean;
+        const b = a + (dir * lean * TAU) / n;
         pen.line(Math.cos(a) * outer, Math.sin(a) * outer, Math.cos(b) * inner, Math.sin(b) * inner, (dir > 0 ? 1 : 0.55) + 1.5 * l);
       }
       pen.dot(Math.cos(a) * outer, Math.sin(a) * outer, 3.5 * (1 + 0.6 * l), 1);
