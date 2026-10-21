@@ -270,6 +270,7 @@ export class BlocksScene {
   private readonly boltOut: Float32Array;
   private readonly boltFromB: Uint8Array;
   private boltClock = -Infinity; // s since the last bolt (none yet: never reached)
+  private boltLast = 0; // s after its strike the last bolt reaches its last node
   private readonly now: Float32Array; // node positions this frame
   private readonly nodeGeo = new BufferGeometry();
   private readonly lineGeo = new InstancedBufferGeometry();
@@ -574,6 +575,7 @@ export class BlocksScene {
       const to = this.boltFromB[k] ? l.a : l.b;
       if (this.hit[to] !== this.boltOut[k]) this.boltIn[k] = this.boltOut[k] = Infinity;
     });
+    this.boltLast = Math.max(0, ...Array.from(this.hit).filter((h) => h < Infinity));
     this.boltClock = 0;
   }
 
@@ -709,6 +711,9 @@ export class BlocksScene {
       this.clock = 0;
       this.strike();
     }
+    // boltEvery: a shape held (stills) gets a bolt again, each once the last
+    // has died down
+    if (!this.morphing && c.boltEvery > 0 && (this.boltClock === -Infinity || this.boltClock > this.boltLast + c.boltFade * 3 + c.boltEvery)) this.strike();
     this.draw(dt);
     return true;
   }

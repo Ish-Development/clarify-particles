@@ -229,6 +229,7 @@ The Integrations section's network (`blocks-scene.ts`, type `blocks`): boxes pac
 | `blur` / `blurSpeed` | `8` / `1000` | `0` | Fast nodes and lines spread and soften: CSS px at full speed / CSS px per s that counts as full speed |
 | `streak` / `streakGain` | `0.045` / `0.45` | `0` | A moving node's streak: how far behind it trails (s) / its brightness |
 | `boltStep` / `boltFade` / `boltGain` | `0.07` / `0.45` / `1` | `boltGain: 0` | The bolt through a new shape: s per line / s it fades behind / brightness |
+| `boltEvery` | `0` | `1.2` | s between bolts while a shape holds, each once the last has died down (0: a bolt only after a morph; for stills of one shape) |
 | `zoom` | `0.92` | — | Share of the canvas the network fills (fitted to every shape at every point of the turn; above 1 clips) |
 
 ## Technical depth cards (`data-preset="depth-api"`, `"depth-data"`, `"depth-security"`)

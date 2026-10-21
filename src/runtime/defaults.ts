@@ -276,6 +276,7 @@ export interface BlocksConfig {
   boltStep: number; // s the bolt takes per line, on average
   boltFade: number; // s the light takes to fade behind it
   boltGain: number; // the bolt's brightness
+  boltEvery: number; // s between bolts while a shape holds (0: only after a morph)
   blur: number; // CSS px a node or line spreads (softens) at full speed
   blurSpeed: number; // CSS px per s on screen at which the blur is full
   streak: number; // s a moving node's streak trails behind it (0: none)
@@ -313,6 +314,7 @@ export const blocksDefaults: BlocksViewConfig = {
   boltStep: 0.07,
   boltFade: 0.45,
   boltGain: 1,
+  boltEvery: 0,
   blur: 8,
   blurSpeed: 1000,
   streak: 0.045,

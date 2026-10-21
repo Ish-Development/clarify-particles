@@ -53,7 +53,8 @@ const STILL: Record<string, Record<string, unknown>> = {
   // the blocks' motion blur and streaks grow with on-screen speed, so a
   // big still of a turning shape came out soft. They start in true
   // isometric (three faces) and turn slowly, to pause at another angle
-  blocks: { blur: 0, streak: 0, turnSpeed: 0.03 },
+  // A held shape gets a bolt now and then too (boltEvery), not only after a morph.
+  blocks: { blur: 0, streak: 0, turnSpeed: 0.03, boltEvery: 1.2 },
   graph: { fit: true, fitPadding: 16, scale: 1, scaleByWidth: false, centerX: 0.5, centerY: 0.5, anchorLeft: false, anchorBottom: false, bleed: false, parallax: 0, grid: 0, glow: 0, background: "transparent" },
 };
 
