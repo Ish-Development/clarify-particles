@@ -54,7 +54,8 @@ const STILL: Record<string, Record<string, unknown>> = {
   // big still of a turning shape came out soft. They start in true
   // isometric (three faces) and turn slowly, to pause at another angle
   // A held shape gets a bolt now and then too (boltEvery), not only after a morph.
-  blocks: { blur: 0, streak: 0, turnSpeed: 0.03, boltEvery: 3.5 },
+  // (rare and soft: lit up whole, a bright bolt reads as a flash)
+  blocks: { blur: 0, streak: 0, turnSpeed: 0.03, boltEvery: 9, boltGain: 0.45 },
   graph: { fit: true, fitPadding: 16, scale: 1, scaleByWidth: false, centerX: 0.5, centerY: 0.5, anchorLeft: false, anchorBottom: false, bleed: false, parallax: 0, grid: 0, glow: 0, background: "transparent" },
 };
 
@@ -183,7 +184,7 @@ const LINE_DIALS = {
   // the inside lines, and how bright the far side draws
   depth: { inner: x1(4), farSide: x1(3.3) },
   // rest: s between bolts (not a multiplier)
-  electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [3.5, 0.5, 15, 0.1] as [number, number, number, number] },
+  electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [9, 0.5, 30, 0.1] as [number, number, number, number] },
 };
 export const STYLE_DIALS = {
   // fewer, bigger, more solid dots read crisp as a still (crispDots);
