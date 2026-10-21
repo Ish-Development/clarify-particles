@@ -193,7 +193,9 @@ export const STYLE_DIALS = {
   network: { lines: { brightness: x1(3), width: x1(4, 0.25) }, nodes: { size: x1(4) } },
   blocks: LINE_DIALS,
   lines: LINE_DIALS,
-  drawing: { lines: { brightness: x1(3), width: x1(4, 0.25) }, dots: { brightness: x1(2) }, electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2) } },
+  // dots: all of them, then the inner and the outer half (by distance
+  // from the middle) on top
+  drawing: { lines: { brightness: x1(3), width: x1(4, 0.25) }, dots: { brightness: x1(2), inner: x1(3), outer: x1(3) }, electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2) } },
 } as const;
 type Dials = Record<string, Record<string, number>>;
 const cap = (n: number) => Math.min(1, n);

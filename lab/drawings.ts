@@ -8,7 +8,7 @@
 // as through the Integrations blocks), what it reaches flashes, and a small
 // ring of light spreads from where it lands (the rings' meetings, the
 // spider's footfalls); moving dots trail a glow.
-import { registerDrawing, type Drawing, type Pen } from "../src/runtime/glyph-scene";
+import { drawingMaker, registerDrawing, type Drawing, type Pen } from "../src/runtime/glyph-scene";
 
 const TAU = Math.PI * 2;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -69,7 +69,7 @@ function litLine(pen: Pen, pts: Pt[], base: number, head = -1, glow = 0) {
 
 // The electricity's look, set from the export lab's Drawing panel:
 // brightness, speed and afterglow, multipliers (1: as designed)
-export const LOOK = { gain: 1, speed: 1, fade: 1 };
+export const LOOK = { gain: 1, speed: 1, fade: 1, dotInner: 1, dotOuter: 1 };
 
 // The bolt: from a seed node it takes the quickest way to every node it can
 // reach (each line a little slower or quicker), so it branches; only the
@@ -942,3 +942,32 @@ registerDrawing("kagomeMesh", () => new Mesh(keep(kagome(22), inHex(175)), 2));
 registerDrawing("polarMesh", () => new Mesh(polar(9, 48, 22, 175), 1.8));
 registerDrawing("octagonMesh", () => new Mesh(keep(octagons(36), inCircle(170)), 2));
 registerDrawing("brickMesh", () => new Mesh(keep(bricks(18), inSquare(150)), 2));
+
+// Every drawing, the site's three too, with its dots split by distance from
+// the middle (the inner half of the radii drawn this frame, and the outer)
+// and each half's brightness set from the Drawing panel.
+function splitDots(make: () => Drawing): () => Drawing {
+  return () => {
+    const d = make();
+    const dots: [number, number, number, number][] = [];
+    const draw = d.draw.bind(d);
+    d.draw = (pen: Pen) => {
+      dots.length = 0;
+      draw({ line: pen.line.bind(pen), dot: (x, y, size, alpha) => void dots.push([x, y, size, alpha]) });
+      let lo = Infinity;
+      let hi = 0;
+      for (const [x, y] of dots) {
+        const r = Math.hypot(x, y);
+        lo = Math.min(lo, r);
+        hi = Math.max(hi, r);
+      }
+      const mid = (lo + hi) / 2;
+      for (const [x, y, size, alpha] of dots) pen.dot(x, y, size, Math.min(1, alpha * (Math.hypot(x, y) < mid ? LOOK.dotInner : LOOK.dotOuter)));
+    };
+    return d;
+  };
+}
+for (const kind of ["spider", "pendulum", "rings", ...DRAWING_KINDS.map(([k]) => k)]) {
+  const make = drawingMaker(kind);
+  if (make) registerDrawing(kind, splitDots(make));
+}

@@ -685,6 +685,8 @@ const DRAWINGS: Record<string, () => Drawing> = {
 export function registerDrawing(kind: string, make: () => Drawing) {
   DRAWINGS[kind] = make;
 }
+// the maker a kind has now (to wrap it from outside)
+export const drawingMaker = (kind: string): (() => Drawing) | undefined => DRAWINGS[kind];
 
 export class GlyphScene {
   readonly root = new Group();

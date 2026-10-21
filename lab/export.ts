@@ -144,8 +144,11 @@ function mountModel() {
   showPanel(m.style);
   const sv = styleValues();
   // the drawings' electricity is read live by drawings.ts
-  const e = m.style === "drawing" ? (sv as { electricity: { brightness: number; speed: number; afterglow: number } }).electricity : null;
-  Object.assign(LOOK, e ? { gain: e.brightness, speed: e.speed, fade: e.afterglow } : { gain: 1, speed: 1, fade: 1 });
+  const dv = m.style === "drawing" ? (sv as { electricity: { brightness: number; speed: number; afterglow: number }; dots: { inner: number; outer: number } }) : null;
+  Object.assign(
+    LOOK,
+    dv ? { gain: dv.electricity.brightness, speed: dv.electricity.speed, fade: dv.electricity.afterglow, dotInner: dv.dots.inner, dotOuter: dv.dots.outer } : { gain: 1, speed: 1, fade: 1, dotInner: 1, dotOuter: 1 },
+  );
   mount(effect, specFor(effect, m, styleOverrides(m, sv)), { root: effect });
 }
 
