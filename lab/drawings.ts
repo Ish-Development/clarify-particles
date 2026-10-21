@@ -602,6 +602,106 @@ class Converge implements Drawing {
   }
 }
 
+/* RINGS OF STROKES, in the pendulum's language: strokes between an inner
+ * and an outer ring, the middle empty, a dot at each end; a spark sweeps
+ * round now and then, lighting the strokes it passes. */
+// how lit a stroke at angle a is by a sweep (head at h, rad, going round)
+function swept(a: number, h: number, tail: number) {
+  const back = wrap(h - a);
+  return back < tail ? (1 - back / tail) ** 2 : 0;
+}
+const SWEEP = { every: 9, round: 2.4, tail: 1.6 };
+const sweepHead = (t: number) => {
+  const p = (t % SWEEP.every) / SWEEP.round;
+  return p <= 1 ? { h: -Math.PI / 2 + p * TAU, on: 1 } : { h: 0, on: 0 };
+};
+
+/* HALO: string art. Each stroke joins outer dot i to inner dot i + k, so
+ * together they wrap the hole in a twisted band; the twist breathes slowly. */
+const HALO = { n: 72, outer: 172, inner: 92, twist: 14, breathe: 6, period: 22 };
+class Halo implements Drawing {
+  readonly maxLines = HALO.n;
+  readonly maxDots = HALO.n * 2;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { n, outer, inner, twist, breathe, period } = HALO;
+    const k = twist + breathe * Math.sin((this.t * TAU) / period);
+    const { h, on } = sweepHead(this.t);
+    for (let i = 0; i < n; i++) {
+      const a = (i * TAU) / n;
+      const b = ((i + k) * TAU) / n;
+      const l = on * swept(a, h, SWEEP.tail);
+      pen.line(Math.cos(a) * outer, Math.sin(a) * outer, Math.cos(b) * inner, Math.sin(b) * inner, 0.9 + 1.6 * l);
+      pen.dot(Math.cos(a) * outer, Math.sin(a) * outer, 3.5 * (1 + 0.6 * l), 1);
+      pen.dot(Math.cos(b) * inner, Math.sin(b) * inner, 2.5, 1);
+    }
+  }
+}
+
+/* IRIS: a camera iris. Two families of strokes lean either way across the
+ * band between the rings, crossing into a lattice round the empty middle;
+ * the inner ring opens and closes slowly. */
+const IRIS = { n: 48, outer: 175, inner: [70, 110], lean: 0.55, period: 18 };
+class Iris implements Drawing {
+  readonly maxLines = IRIS.n * 2 + 2 * 96;
+  readonly maxDots = IRIS.n * 2;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { n, outer, lean, period } = IRIS;
+    const inner = IRIS.inner[0] + (IRIS.inner[1] - IRIS.inner[0]) * (0.5 + 0.5 * Math.sin((this.t * TAU) / period));
+    const { h, on } = sweepHead(this.t);
+    for (const r of [outer, inner]) for (let s = 0; s < 96; s++) {
+      const a0 = (s * TAU) / 96;
+      const a1 = ((s + 1) * TAU) / 96;
+      pen.line(Math.cos(a0) * r, Math.sin(a0) * r, Math.cos(a1) * r, Math.sin(a1) * r, r === outer ? 0.5 : 0.35);
+    }
+    for (let i = 0; i < n; i++) {
+      const a = (i * TAU) / n;
+      const l = on * swept(a, h, SWEEP.tail);
+      for (const dir of [1, -1]) {
+        const b = a + dir * lean;
+        pen.line(Math.cos(a) * outer, Math.sin(a) * outer, Math.cos(b) * inner, Math.sin(b) * inner, (dir > 0 ? 1 : 0.55) + 1.5 * l);
+      }
+      pen.dot(Math.cos(a) * outer, Math.sin(a) * outer, 3.5 * (1 + 0.6 * l), 1);
+      pen.dot(Math.cos(a) * inner, Math.sin(a) * inner, 2.5, 1);
+    }
+  }
+}
+
+/* DIAL: a gauge. Three rings of radial ticks round an empty middle, long
+ * ones every fifth, the inner rings turning slowly against each other. */
+const DIAL = { rings: [[120, 178, 0], [84, 112, 1 / 40], [60, 76, -1 / 28]] as [number, number, number][] };
+class Dial implements Drawing {
+  readonly maxLines = 120 + 90 + 60;
+  readonly maxDots = 120 + 90 + 60;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { h, on } = sweepHead(this.t);
+    DIAL.rings.forEach(([r0, r1, spin], k) => {
+      const n = [120, 90, 60][k];
+      const turn = spin * this.t * TAU;
+      for (let i = 0; i < n; i++) {
+        const a = turn + (i * TAU) / n;
+        const long = i % 5 === 0;
+        const ro = long ? r1 : r0 + (r1 - r0) * 0.55;
+        const l = on * swept(a, h, SWEEP.tail);
+        pen.line(Math.cos(a) * r0, Math.sin(a) * r0, Math.cos(a) * ro, Math.sin(a) * ro, (long ? 1 : 0.6) + 1.6 * l);
+        if (long) pen.dot(Math.cos(a) * ro, Math.sin(a) * ro, 3 * (1 + 0.6 * l), 1);
+        else pen.dot(Math.cos(a) * r0, Math.sin(a) * r0, 1.6, 0.6);
+      }
+    });
+  }
+}
+
 /* MESHES: a tiling (hexagons, triangles, squares, rhombi...) cut to a
  * shape, a dot on every corner. A bolt strikes a corner and crawls out
  * along the edges, branching, till it has run through the whole mesh, the
@@ -810,6 +910,9 @@ export const DRAWING_KINDS: [string, string][] = [
   ["signal", "Signal"],
   ["tree", "Tree"],
   ["converge", "Converge"],
+  ["halo", "Halo"],
+  ["iris", "Iris"],
+  ["dial", "Dial"],
   ["hex", "Hex mesh"],
   ["hexFine", "Hex mesh fine"],
   ["triMesh", "Triangle mesh"],
@@ -822,6 +925,9 @@ export const DRAWING_KINDS: [string, string][] = [
   ["brickMesh", "Brick mesh"],
 ];
 registerDrawing("orbit", () => new Orbit());
+registerDrawing("halo", () => new Halo());
+registerDrawing("iris", () => new Iris());
+registerDrawing("dial", () => new Dial());
 registerDrawing("routes", () => new Routes());
 registerDrawing("signal", () => new Signal());
 registerDrawing("tree", () => new Tree());
