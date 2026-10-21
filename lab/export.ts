@@ -180,6 +180,8 @@ function layout() {
   frame.style.height = `${o.h}px`;
   frame.style.background = o.background === "colour" ? o.colour : "transparent";
   effect.style.filter = o.mode === "light" ? "invert(1)" : "none";
+  // the page behind goes light too, so a transparent frame shows the model
+  document.body.classList.toggle("light", o.mode === "light");
   Object.assign(effect.style, {
     width: `${r.w}px`,
     height: `${r.h}px`,
