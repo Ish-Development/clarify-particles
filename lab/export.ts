@@ -15,7 +15,7 @@ import { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRo
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { LOOK } from "./drawings";
-import { MODELS, STYLES, STYLE_DIALS, modelByName, specFor, styleOverrides, type Style } from "./models";
+import { MODELS, STYLES, STYLE_DIALS, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { viewToSvg } from "./svg";
 
 const SIZES: Record<string, [number, number]> = {
@@ -51,19 +51,19 @@ const kit = createDialKit(
       size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "LinkedIn banner (4:1)" },
       w: [1584, 16, MAX, 1],
       h: [396, 16, MAX, 1],
-      scale: { type: "select", options: ["1", "2", "3", "4"], default: "2" },
+      // the PNG's pixels per frame px
+      scale: [2, 1, 4, 1],
       // light: the model inverted, dark lines on Bone 100
-      mode: { type: "select", options: ["dark", "light"], default: "dark" },
-      background: { type: "select", options: ["colour", "transparent"], default: "colour" },
+      light: false,
+      transparent: false,
       colour: { type: "color", default: "#060709" },
     },
-    // the model fits a square box, so it never stretches. size: that box
-    // as a share of the frame's shorter side; x/y: its centre from the
-    // frame's centre (drag the frame to move it)
+    // the model fits a square box, so it never stretches. size: that box,
+    // % of the frame's shorter side; position: its centre on the frame, the
+    // pad's edges the frame's (drag the frame to move it too)
     placement: {
-      size: [1, 0.1, 5, 0.01],
-      x: [0, -MAX, MAX, 1],
-      y: [0, -MAX, MAX, 1],
+      size: [100, 10, 500, 1],
+      position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
       centre: { type: "action", label: "Centre in frame" },
     },
     // a new take: new random choices (wirings, bolts), from 0 s
@@ -71,14 +71,15 @@ const kit = createDialKit(
     copySvg: { type: "action", label: "Copy SVG" },
     copy: { type: "action", label: "Copy PNG" },
   },
-  { persist: true, onAction: (a: string) => actions[a]?.() },
+  // (a new id: the dials changed units, old saved values would read wrong)
+  { id: "export-2", persist: true, onAction: (a: string) => actions[a]?.() },
 );
 
 type V = typeof kit.values;
 const v = (): V => kit.values;
 const out = () => v().output;
 const box = () => v().placement;
-const scale = () => Number(out().scale);
+const scale = () => out().scale;
 
 const frame = document.getElementById("frame")!;
 const effect = document.getElementById("effect")!;
@@ -127,7 +128,7 @@ let styleTimer = 0;
 function showPanel(style: Style) {
   if (stylePanel?.style === style) return;
   stylePanel?.kit.destroy();
-  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: `export-${style}`, persist: true });
+  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: `export-${style}-pct`, persist: true });
   stylePanel = { style, kit: k };
   // a dial rebuilds the model at the same moment, once the dial settles
   k.subscribe(() => {
@@ -146,7 +147,7 @@ function mountModel() {
   showPanel(m.style);
   const sv = styleValues();
   // the drawings' electricity is read live by drawings.ts
-  const dv = m.style === "drawing" ? (sv as { electricity: { brightness: number; speed: number; afterglow: number }; dots: { inner: number; outer: number } }) : null;
+  const dv = m.style === "drawing" ? (asMultipliers(sv) as { electricity: { brightness: number; speed: number; afterglow: number }; dots: { inner: number; outer: number } }) : null;
   Object.assign(
     LOOK,
     dv ? { gain: dv.electricity.brightness, speed: dv.electricity.speed, fade: dv.electricity.afterglow, dotInner: dv.dots.inner, dotOuter: dv.dots.outer } : { gain: 1, speed: 1, fade: 1, dotInner: 1, dotOuter: 1 },
@@ -161,27 +162,29 @@ function remount() {
 }
 
 // the default placement: the largest square that fits the frame, centred
-const centred = () => ({ size: 1, x: 0, y: 0 });
+const centred = () => ({ size: 100, position: { x: 0, y: 0 } });
 
 // the effect box on the frame, in frame px: a square, size × the frame's
 // shorter side, round its centre
 const rect = () => {
   const o = out();
   const b = box();
-  const w = Math.round(Math.min(o.w, o.h) * b.size);
-  return { w, h: w, left: o.w / 2 + b.x - w / 2, top: o.h / 2 + b.y - w / 2 };
+  const w = Math.round((Math.min(o.w, o.h) * b.size) / 100);
+  const p = b.position;
+  return { w, h: w, left: Math.round(((1 + p.x) * o.w) / 2 - w / 2), top: Math.round(((1 - p.y) * o.h) / 2 - w / 2) };
 };
 
 // lay the frame and effect box out from the dials, and fit the frame on screen
 function layout() {
   const o = out();
   const r = rect();
+  document.documentElement.style.setProperty("--frame-aspect", String(Math.min(3, Math.max(0.75, o.w / o.h))));
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
-  frame.style.background = o.background === "colour" ? o.colour : "transparent";
-  effect.style.filter = o.mode === "light" ? "invert(1)" : "none";
+  frame.style.background = o.transparent ? "transparent" : o.colour;
+  effect.style.filter = o.light ? "invert(1)" : "none";
   // the page behind goes light too, so a transparent frame shows the model
-  document.body.classList.toggle("light", o.mode === "light");
+  document.body.classList.toggle("light", o.light);
   Object.assign(effect.style, {
     width: `${r.w}px`,
     height: `${r.h}px`,
@@ -240,7 +243,7 @@ for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.on
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, mode: out().mode };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
@@ -351,12 +354,12 @@ kit.subscribe((nv) => {
   }
   const again = nv.model !== last.model || o.scale !== last.scale;
   // a new mode takes its own background (changed after, it stays)
-  if (!restoring && o.mode !== last.mode) {
-    last = { ...last, mode: o.mode };
-    kit.setValues({ output: { colour: o.mode === "light" ? "#f4f7fa" : "#060709" } });
+  if (!restoring && o.light !== last.light) {
+    last = { ...last, light: o.light };
+    kit.setValues({ output: { colour: o.light ? "#f4f7fa" : "#060709" } });
     return;
   }
-  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, mode: o.mode };
+  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: o.light };
   layout();
   if (again) remount();
   lightRail();
@@ -368,7 +371,8 @@ window.addEventListener("resize", layout);
 const snap = () => {
   const val = v();
   // the dials' own values only, not the action buttons
-  const plain = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x !== "object"));
+  // (and the position pad's {x, y})
+  const plain = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x !== "object" || (x !== null && "x" in x)));
   // and the model's own panel, with its style
   return JSON.stringify({ model: val.model, output: plain(val.output), placement: plain(val.placement), panel: stylePanel ? { style: stylePanel.style, values: stylePanel.kit.values } : null });
 };
@@ -511,12 +515,18 @@ stage.addEventListener("pointerup", () => (pan = null));
 let drag: { x: number; y: number; ex: number; ey: number; k: number } | null = null;
 frame.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
-  drag = { x: e.clientX, y: e.clientY, ex: box().x, ey: box().y, k: frame.getBoundingClientRect().width / out().w };
+  const p = box().position;
+  drag = { x: e.clientX, y: e.clientY, ex: p.x, ey: p.y, k: frame.getBoundingClientRect().width / out().w };
   frame.setPointerCapture(e.pointerId);
 });
 frame.addEventListener("pointermove", (e) => {
   if (!drag) return;
-  kit.setValues({ placement: { x: Math.round(drag.ex + (e.clientX - drag.x) / drag.k), y: Math.round(drag.ey + (e.clientY - drag.y) / drag.k) } });
+  // frame px to the pad's units (its edges the frame's)
+  const o = out();
+  const clamp1 = (n: number) => Math.max(-1, Math.min(1, n));
+  const x = clamp1(drag.ex + ((e.clientX - drag.x) / drag.k / o.w) * 2);
+  const y = clamp1(drag.ey - ((e.clientY - drag.y) / drag.k / o.h) * 2);
+  kit.setValues({ placement: { position: { x, y } } });
 });
 frame.addEventListener("pointerup", () => (drag = null));
 
@@ -531,12 +541,12 @@ function render(): Promise<Blob> {
   c.width = o.w * k;
   c.height = o.h * k;
   const ctx = c.getContext("2d")!;
-  if (o.background === "colour") {
+  if (!o.transparent) {
     ctx.fillStyle = o.colour;
     ctx.fillRect(0, 0, c.width, c.height);
   }
   const r = rect();
-  if (o.mode === "light") ctx.filter = "invert(1)";
+  if (o.light) ctx.filter = "invert(1)";
   ctx.drawImage(view.canvas, r.left * k, r.top * k, r.w * k, r.h * k);
   return new Promise((ok, fail) => c.toBlob((blob) => (blob ? ok(blob) : fail(new Error("toBlob failed"))), "image/png"));
 }
@@ -572,7 +582,7 @@ function svgText() {
   if (!view) return "";
   const o = out();
   const r = rect();
-  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.background === "colour" ? o.colour : null, invert: o.mode === "light" });
+  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : o.colour, invert: o.light });
 }
 function copySvg() {
   const svg = svgText();

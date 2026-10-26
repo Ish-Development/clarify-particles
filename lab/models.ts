@@ -186,9 +186,9 @@ export function crispDots(m: Model, d: { density: number; size: number; opacity:
 }
 
 // Each style's own panel in the export lab, shown only for its models: the
-// dials (multipliers on the model's own settings, 1: as it is, unless said)
-// and what they set on a model.
-const x1 = (max: number, min = 0): [number, number, number, number] => [1, min, max, 0.05];
+// dials, in % of the model's own settings (100: as it is, unless said), and
+// what they set on a model.
+const x1 = (max: number, min = 0): [number, number, number, number] => [100, min * 100, max * 100, 5];
 // (brightness tops out where the model's own opacity reaches 1: past it a
 // dial did nothing)
 const LINE_DIALS = {
@@ -196,13 +196,13 @@ const LINE_DIALS = {
   dots: { brightness: x1(1.1), size: x1(4) },
   // how bright the far side draws
   depth: { farSide: x1(3.3) },
-  // rest: s between bolts (not a multiplier)
-  electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [9, 0.5, 30, 0.1] as [number, number, number, number] },
+  // rest: s between bolts (not a %)
+  electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [9, 1, 30, 0.5] as [number, number, number, number] },
 };
 export const STYLE_DIALS = {
   // fewer, bigger, more solid dots read crisp as a still (crispDots);
-  // 1 / 1 / 0.25 is the site's look
-  dots: { density: [0.5, 0.1, 1, 0.05], size: [1.6, 0.5, 4, 0.05], opacity: [0.6, 0, 1, 0.05] },
+  // 100 / 100 / 25 is the site's look
+  dots: { density: [50, 10, 100, 5], size: [160, 50, 400, 5], opacity: [60, 0, 100, 5] },
   network: { lines: { brightness: x1(1.8), width: x1(4, 0.25) }, nodes: { size: x1(4) } },
   // the blocks have inside lines too (the line models don't)
   blocks: { ...LINE_DIALS, depth: { inner: x1(4), farSide: x1(3.3) } },
@@ -212,10 +212,17 @@ export const STYLE_DIALS = {
   drawing: { lines: { brightness: x1(3), width: x1(4, 0.25) }, dots: { brightness: x1(1.05), inner: x1(3), outer: x1(3) }, electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2) } },
 } as const;
 type Dials = Record<string, Record<string, number>>;
+// a panel's values as multipliers (the seconds stay seconds)
+export function asMultipliers<T>(values: T): T {
+  const walk = (o: unknown, key = ""): unknown =>
+    typeof o === "number" ? (key === "rest" ? o : o / 100) : o && typeof o === "object" ? Object.fromEntries(Object.entries(o).map(([k, x]) => [k, walk(x, k)])) : o;
+  return walk(values) as T;
+}
 const cap = (n: number) => Math.min(1, n);
 // what a style panel's values set on a model (the drawings' electricity is
 // set apart, in drawings.ts LOOK)
 export function styleOverrides(m: Model, values: unknown): Record<string, unknown> {
+  values = asMultipliers(values);
   const d = values as Dials;
   const p = PRESETS[m.preset];
   if (m.style === "dots") return crispDots(m, values as { density: number; size: number; opacity: number });

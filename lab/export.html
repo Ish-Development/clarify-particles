@@ -20,6 +20,8 @@
       .dialkit-panel[data-position="top-right"] .dialkit-panel-inner[data-collapsed="false"] { width: var(--panel) !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; border-width: 0 0 0 1px; padding: 16px 20px; }
       .dialkit-timeline { left: var(--rail) !important; right: var(--panel) !important; bottom: 0 !important; }
       .dialkit-timeline-dock { border-radius: 0 !important; border-width: 1px 0 0 !important; }
+      /* the position pad in the frame's shape (layout() sets it), within reason */
+      .dialkit-pad-surface { aspect-ratio: var(--frame-aspect, 1) !important; }
       /* light mode: the page behind the frame goes light too */
       body.light #stage { background: #e3e7ec; }
       body.light #frame { outline-color: #00000033; }
