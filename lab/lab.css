@@ -55,3 +55,7 @@ body .dialkit-root[data-theme] {
   --dial-backdrop-blur: 0px;
   font-family: var(--sans);
 }
+
+/* DialKit's extras the lab doesn't use: versions (the lab has ⌘Z and keeps
+   its dials), copying the values as code, hiding the timeline or the dock */
+.dialkit-panel-section-toolbar, .dialkit-preset-manager, .dialkit-toolbar-add[aria-label="Copy parameters"], .dialkit-panel-toolbar, .dialkit-timeline-chevron { display: none !important; }
