@@ -703,6 +703,227 @@ class Dial implements Drawing {
   }
 }
 
+/* STUDIES: geometric constructions, drawn like a page of a geometry book:
+ * crisp lines, dots where they mean something, calm, no electricity. A
+ * study draws itself in, holds, and starts again. */
+const ease = (p: number) => p * p * (3 - 2 * p);
+const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+// a polyline drawn in up to p (0..1 of its length)
+function drawIn(pen: Pen, pts: Pt[], p: number, alpha: number) {
+  if (p <= 0) return;
+  const len = lengthOf(pts);
+  let s = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const d = dist(pts[i - 1], pts[i]);
+    if (s >= p * len) break;
+    const e = Math.min(d, p * len - s);
+    const k = d > 0 ? e / d : 0;
+    pen.line(pts[i - 1][0], pts[i - 1][1], pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k, alpha);
+    s += d;
+  }
+}
+const circlePts = (c: Pt, r: number, n: number, a0 = 0, a1 = TAU): Pt[] => Array.from({ length: n + 1 }, (_, i) => [c[0] + Math.cos(a0 + ((a1 - a0) * i) / n) * r, c[1] + Math.sin(a0 + ((a1 - a0) * i) / n) * r]);
+// a heavier ring: three hairlines side by side
+function ring(pen: Pen, c: Pt, r: number, alpha: number) {
+  for (const d of [-1, 0, 1]) arc(pen, c[0], c[1], r + d, 96, () => alpha);
+}
+
+/* PROOF: Pythagoras on a dot grid. A 3-4-5 right triangle, a square on
+ * each side; the squares draw in one after another, the dots inside each
+ * swelling as it closes. */
+const PROOF = { g: 24, cycle: 14 };
+class Proof implements Drawing {
+  readonly maxLines = 3 + 3 * 4;
+  readonly maxDots = 14 * 15;
+  private t = 0;
+  // in grid units: the right angle at (0, 0), legs 4 left and 3 up
+  private readonly squares: Pt[][] = [
+    [[-4, 0], [0, 0], [0, -4], [-4, -4]],
+    [[0, 0], [3, 0], [3, 3], [0, 3]],
+    [[-4, 0], [0, 3], [-3, 7], [-7, 4]],
+  ];
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { g, cycle } = PROOF;
+    const k = this.t % cycle;
+    // the whole figure fades out at the end of its cycle
+    const fade = k > cycle - 1.5 ? clamp((cycle - k) / 1.5) : 1;
+    const P = ([x, y]: Pt): Pt => [(x + 1.5) * g, (y - 1.5) * g];
+    const inside = (sq: Pt[], [x, y]: Pt) =>
+      sq.every((a, i) => {
+        const b = sq[(i + 1) % 4];
+        return (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]) <= 1e-9;
+      }) || sq.every((a, i) => {
+        const b = sq[(i + 1) % 4];
+        return (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]) >= -1e-9;
+      });
+    const done = this.squares.map((_, i) => ease(clamp((k - 0.8 - i * 1.6) / 1.4)));
+    for (let x = -8; x <= 4; x++)
+      for (let y = -5; y <= 8; y++) {
+        let grow = 0;
+        this.squares.forEach((sq, i) => {
+          if (inside(sq, [x, y])) grow = Math.max(grow, done[i] >= 1 ? 1 : 0);
+        });
+        pen.dot(...P([x, y]), 2.6 + 1.6 * grow * fade, 0.75);
+      }
+    // the triangle, then each square drawn in
+    const tri: Pt[] = [[-4, 0], [0, 0], [0, 3], [-4, 0]];
+    drawIn(pen, tri.map(P), fade, 1.3);
+    this.squares.forEach((sq, i) => drawIn(pen, [...sq, sq[0]].map(P), done[i] * fade, 1.3));
+  }
+}
+
+/* TALLY: columns of dots, some marked with an asterisk beside them, like
+ * a punch card or a tally sheet; now and then one mark comes or goes. */
+const TALLY = { cols: 7, rows: 13, dx: 46, dy: 26, every: 1.6, fade: 0.6 };
+class Tally implements Drawing {
+  readonly maxLines = TALLY.cols * TALLY.rows * 3;
+  readonly maxDots = TALLY.cols * TALLY.rows;
+  private t = 0;
+  private readonly on: boolean[] = [];
+  private readonly since: number[] = [];
+  constructor() {
+    for (let i = 0; i < TALLY.cols * TALLY.rows; i++) {
+      this.on.push(Math.random() < 0.3);
+      this.since.push(Infinity);
+    }
+  }
+  step(dt: number) {
+    const before = this.t;
+    this.t += dt;
+    for (let i = 0; i < this.since.length; i++) this.since[i] += dt;
+    if (Math.floor(before / TALLY.every) !== Math.floor(this.t / TALLY.every)) {
+      const i = Math.floor(Math.random() * this.on.length);
+      this.on[i] = !this.on[i];
+      this.since[i] = 0;
+    }
+  }
+  draw(pen: Pen) {
+    const { cols, rows, dx, dy, fade } = TALLY;
+    for (let c = 0; c < cols; c++)
+      for (let r = 0; r < rows; r++) {
+        const i = c * rows + r;
+        const x = (c - (cols - 1) / 2) * dx;
+        const y = ((rows - 1) / 2 - r) * dy;
+        pen.dot(x, y, 3.4, 1);
+        const k = clamp(this.since[i] / fade);
+        const a = this.on[i] ? k : 1 - k;
+        if (a <= 0.01) continue;
+        // the asterisk, up and to the right (marks on the right edge sit to the left)
+        const side = c === 0 ? -1 : 1;
+        const [ax, ay] = [x + side * 13, y + 13];
+        for (let j = 0; j < 3; j++) {
+          const ang = Math.PI / 2 + (j * Math.PI) / 3;
+          pen.line(ax - Math.cos(ang) * 6.5, ay - Math.sin(ang) * 6.5, ax + Math.cos(ang) * 6.5, ay + Math.sin(ang) * 6.5, 2.2 * a);
+        }
+      }
+  }
+}
+
+/* CIRCLES: two circle studies side by side on one diameter: chords fanning
+ * from the top of the left circle and radii from its middle, a polar grid
+ * in the right one; the fans open and close slowly. */
+const CIRC = { r: 100, gap: 104, chords: 12, rings: 6, spokes: 36, breathe: 16 };
+class CircleStudy implements Drawing {
+  readonly maxLines = 2 * 97 + 3 + 2 * CIRC.chords + CIRC.rings * 97 + CIRC.spokes;
+  readonly maxDots = 4;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { r, gap, chords, rings, spokes, breathe } = CIRC;
+    const L: Pt = [-gap, 0];
+    const R: Pt = [gap, 0];
+    const b = 0.5 - 0.5 * Math.cos((this.t / breathe) * TAU);
+    arc(pen, L[0], L[1], r, 96, () => 1.3);
+    arc(pen, R[0], R[1], r, 96, () => 1.3);
+    pen.line(L[0] - r, 0, R[0] + r, 0, 1.8);
+    pen.line(L[0], -r, L[0], r, 1.3);
+    // chords from the top to the lower left arc, radii to the lower right
+    const top: Pt = [L[0], r];
+    for (let i = 1; i <= chords; i++) {
+      const a = Math.PI + (Math.PI / 2) * (i / (chords + 1)) * (0.55 + 0.45 * b);
+      pen.line(top[0], top[1], L[0] + Math.cos(a) * r, Math.sin(a) * r, 0.9);
+      const c = -Math.PI / 2 + (Math.PI / 2) * (i / (chords + 1)) * (0.55 + 0.45 * (1 - b));
+      pen.line(L[0], 0, L[0] + Math.cos(c) * r, Math.sin(c) * r, 0.9);
+    }
+    // the polar grid
+    for (let k = 1; k < rings; k++) arc(pen, R[0], R[1], (r * k) / rings, 96, () => 0.9);
+    for (let k = 0; k < spokes; k++) {
+      const a = (k * TAU) / spokes;
+      pen.line(R[0], 0, R[0] + Math.cos(a) * r, Math.sin(a) * r, 0.8);
+    }
+    pen.dot(L[0], 0, 3.5, 1);
+    pen.dot(top[0], top[1], 3.5, 1);
+    pen.dot(R[0], 0, 3.5, 1);
+  }
+}
+
+/* ROSETTE: twelve circles round a heavier ring, overlapping into a rosette;
+ * it turns very slowly, one circle at a time a little brighter. */
+const ROSE = { n: 12, r: 88, d: 70, hub: 46, turn: 90, every: 2.4 };
+class Rosette implements Drawing {
+  readonly maxLines = ROSE.n * 97 + 3 * 97;
+  readonly maxDots = 0;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { n, r, d, hub, turn, every } = ROSE;
+    const rot = (this.t / turn) * TAU;
+    const lit = Math.floor(this.t / every) % n;
+    const k = (this.t % every) / every;
+    for (let i = 0; i < n; i++) {
+      const a = rot + (i * TAU) / n;
+      const glow = i === lit ? Math.sin(Math.PI * k) : 0;
+      arc(pen, Math.cos(a) * d, Math.sin(a) * d, r, 96, () => 0.95 + 0.9 * glow);
+    }
+    ring(pen, [0, 0], hub, 1.6);
+  }
+}
+
+/* CONSTRUCTION: a compass construction: two circles through each other's
+ * middles, the line through the middles, and the perpendicular bisector
+ * through where they cross, with the two equilateral triangles; it draws
+ * itself step by step, holds, and starts again. */
+const CONS = { r: 110, cycle: 16 };
+class Construction implements Drawing {
+  readonly maxLines = 2 * 97 + 2 + 4 * 2 + 2;
+  readonly maxDots = 4;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { r, cycle } = CONS;
+    const k = this.t % cycle;
+    const fade = k > cycle - 1.5 ? clamp((cycle - k) / 1.5) : 1;
+    const A: Pt = [-r / 2, 0];
+    const B: Pt = [r / 2, 0];
+    const h = Math.sqrt(r * r - (r / 2) ** 2);
+    const U: Pt = [0, h];
+    const D: Pt = [0, -h];
+    const at = (start: number, dur = 1.6) => ease(clamp((k - start) / dur)) * fade;
+    drawIn(pen, [[-r * 1.6, 0], [r * 1.6, 0]], at(0.4, 1.2), 0.8);
+    drawIn(pen, circlePts(A, r, 96, 0, TAU), at(1.2, 2), 1.3);
+    drawIn(pen, circlePts(B, r, 96, Math.PI, Math.PI + TAU), at(2.6, 2), 1.3);
+    drawIn(pen, [[0, h * 1.45], [0, -h * 1.45]], at(4.4, 1.2), 0.8);
+    const tri = at(5.4, 1.4);
+    drawIn(pen, [A, U, B, D, A], tri, 1.3);
+    drawIn(pen, [A, B], tri, 1.3);
+    pen.dot(...A, 3.5, fade);
+    pen.dot(...B, 3.5, fade);
+    if (tri > 0.3) {
+      pen.dot(...U, 3.5, fade);
+      pen.dot(...D, 3.5, fade);
+    }
+  }
+}
+
 /* MESHES: a tiling (hexagons, triangles, squares, rhombi...) cut to a
  * shape, a dot on every corner. A bolt strikes a corner and crawls out
  * along the edges, branching, till it has run through the whole mesh, the
@@ -914,6 +1135,11 @@ export const DRAWING_KINDS: [string, string][] = [
   ["halo", "Halo"],
   ["iris", "Iris"],
   ["dial", "Dial"],
+  ["proof", "Proof"],
+  ["tally", "Tally"],
+  ["circleStudy", "Circle study"],
+  ["rosette", "Rosette"],
+  ["construction", "Construction"],
   ["hex", "Hex mesh"],
   ["hexFine", "Hex mesh fine"],
   ["triMesh", "Triangle mesh"],
@@ -929,6 +1155,11 @@ registerDrawing("orbit", () => new Orbit());
 registerDrawing("halo", () => new Halo());
 registerDrawing("iris", () => new Iris());
 registerDrawing("dial", () => new Dial());
+registerDrawing("proof", () => new Proof());
+registerDrawing("tally", () => new Tally());
+registerDrawing("circleStudy", () => new CircleStudy());
+registerDrawing("rosette", () => new Rosette());
+registerDrawing("construction", () => new Construction());
 registerDrawing("routes", () => new Routes());
 registerDrawing("signal", () => new Signal());
 registerDrawing("tree", () => new Tree());
