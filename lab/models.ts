@@ -150,7 +150,7 @@ const ORDER = [
   "Line icosahedron", "Line octahedron", "Line dodecahedron", "Line merkaba", "Line geodesic", "Line Sierpinski", "Line cube grid", "Line tesseract",
   "Line cube spiral", "Line octet truss", "Line twisted prism", "Line tunnel", "Line gem", "Line drum", "Line hex column", "Line twist", "Line tower", "Line pyramid", "Line layers", "Line contours", "Line well", "Line wave surface",
   "Line space frame", "Line bridge", "Line masts",
-  "Rings", "Orbit", "Pendulum", "Halo", "Iris", "Dial", "Converge", "Spider", "Routes", "Hex mesh", "Hex mesh fine", "Cube mesh", "Octagon mesh", "Brick mesh", "Kagome mesh", "Triangle mesh", "Square mesh", "Diamond mesh", "Polar mesh", "Tree", "Signal",
+  "Rings", "Orbit", "Pendulum", "Halo", "Iris", "Dial", "Converge", "Spider", "Routes", "Hex mesh", "Hex mesh fine", "Cube mesh", "Octagon mesh", "Brick mesh", "Kagome mesh", "Triangle mesh", "Square mesh", "Diamond mesh", "Polar mesh", "Tree", "Signal", "Pipeline", "Split", "Layer stack", "Bar chart", "Scatter", "Timeline",
 ];
 const styleRank = (m: Model) => STYLES.findIndex(([s]) => s === m.style);
 const rank = (m: Model) => (ORDER.includes(m.name) ? ORDER.indexOf(m.name) : ORDER.length);
