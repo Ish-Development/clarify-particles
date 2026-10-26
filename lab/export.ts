@@ -40,7 +40,7 @@ const SIZES: Record<string, [number, number]> = {
 };
 const MAX = 4000;
 
-createDialRoot({ position: "top-right" });
+createDialRoot({ position: "top-right", theme: "dark" });
 
 const kit = createDialKit(
   "Export",
@@ -212,6 +212,31 @@ const actions: Record<string, () => void> = {
   copySvg: () => copySvg(),
 };
 
+// the left rail: every model by style, as in the gallery, the open one lit;
+// its buttons are the panel's copy actions
+const list = document.getElementById("list")!;
+STYLES.forEach(([style, title], i) => {
+  const models = MODELS.filter((m) => m.style === style);
+  if (!models.length) return;
+  const g = document.createElement("div");
+  g.className = "group";
+  g.innerHTML = `<span class="eyebrow">${String(i + 1).padStart(2, "0")}</span><span></span>`;
+  g.lastElementChild!.textContent = title;
+  list.append(g);
+  for (const m of models) {
+    const a = document.createElement("a");
+    a.textContent = m.name;
+    a.dataset.model = m.name;
+    a.onclick = () => kit.setValues({ model: m.name });
+    list.append(a);
+  }
+});
+function lightRail() {
+  for (const a of list.querySelectorAll<HTMLElement>("a")) a.classList.toggle("on", a.dataset.model === v().model);
+  requestAnimationFrame(() => list.querySelector(".on")?.scrollIntoView({ block: "center" }));
+}
+for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
+
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
@@ -334,6 +359,7 @@ kit.subscribe((nv) => {
   last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, mode: o.mode };
   layout();
   if (again) remount();
+  lightRail();
   if (!restoring) record();
 }, false);
 window.addEventListener("resize", layout);
@@ -580,4 +606,5 @@ committed = snap();
 
 layout();
 remount();
+lightRail();
 (window as unknown as { lab: unknown }).lab = { kit, render, svgText, seek, setPlaying, take, timeline, panel: () => stylePanel?.kit };

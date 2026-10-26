@@ -1,0 +1,57 @@
+/* The lab pages in the brand guidelines' look (Clarify - Brandguidelines,
+   /graphics): Carbon surface, Bone ink, hairline rails, Geist. */
+:root {
+  --surface: #060709;
+  --raised: #0d0f12;
+  --line: #23262a;
+  --ink: #f8fbfd;
+  --muted: #8e949a;
+  --button: #dee2e8;
+  --rail: 288px;
+  --panel: 312px;
+  --sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, monospace;
+}
+html, body { margin: 0; background: var(--surface); color: var(--ink); font: 16px var(--sans); -webkit-font-smoothing: antialiased; }
+
+/* the left rail: the wordmark, a way back, the models, the actions */
+#rail { position: fixed; inset: 0 auto 0 0; width: var(--rail); box-sizing: border-box; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: var(--surface); z-index: 10; }
+#rail .brand { display: flex; align-items: center; justify-content: space-between; padding: 32px 24px 24px; }
+#rail .brand img { height: 24px; display: block; }
+.eyebrow { font: 12px var(--mono); letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
+#rail .back { margin: 0 24px 16px; }
+#rail .list { flex: 1; overflow-y: auto; padding: 8px 0 16px; scrollbar-width: none; }
+#rail .list a { display: block; padding: 4px 24px 4px 56px; color: var(--muted); text-decoration: none; font-size: 15px; cursor: pointer; }
+#rail .list a:hover, #rail .list a.on { color: var(--ink); }
+/* a style: numbered, as the guidelines' chapters */
+#rail .list .group { display: flex; gap: 12px; align-items: baseline; padding: 6px 24px; font-size: 16px; color: var(--ink); }
+#rail .list .group .eyebrow { width: 20px; flex-shrink: 0; }
+#rail .list a + .group { margin-top: 12px; }
+#rail .foot { display: flex; flex-direction: column; gap: 8px; padding: 16px 24px 24px; border-top: 1px solid var(--line); }
+
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; box-sizing: border-box; border-radius: 8px; font: 500 14px var(--sans); text-decoration: none; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+.btn:hover { border-color: #3a3e44; }
+.btn.primary { background: var(--button); border-color: var(--button); color: #030304; }
+.btn.primary:hover { background: var(--ink); }
+
+/* DialKit in the same tokens */
+body .dialkit-root[data-theme] {
+  --dial-glass-bg: var(--surface);
+  --dial-dropdown-bg: var(--raised);
+  --dial-border: var(--line);
+  --dial-border-hover: #3a3e44;
+  --dial-surface: rgba(248, 251, 253, 0.04);
+  --dial-surface-hover: rgba(248, 251, 253, 0.08);
+  --dial-surface-active: rgba(248, 251, 253, 0.1);
+  --dial-surface-subtle: rgba(248, 251, 253, 0.05);
+  --dial-text-root: var(--ink);
+  --dial-text-section: var(--muted);
+  --dial-text-label: var(--muted);
+  --dial-text-focus: var(--ink);
+  --dial-text-primary: var(--ink);
+  --dial-text-secondary: var(--muted);
+  --dial-text-tertiary: rgba(142, 148, 154, 0.6);
+  --dial-shadow: none;
+  --dial-backdrop-blur: 0px;
+  font-family: var(--sans);
+}

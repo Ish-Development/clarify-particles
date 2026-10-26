@@ -6,28 +6,45 @@
     <title>Models</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./lab.css" />
     <style>
-      html, body { margin: 0; background: #030304; color: #c7c7cc; font: 13px "Geist", system-ui, sans-serif; }
-      header { padding: 24px 24px 8px; }
-      h1 { margin: 0 0 4px; font-size: 18px; font-weight: 500; color: #f4f7fa; text-wrap: balance; }
-      header p { margin: 0; color: #8e8e93; text-wrap: pretty; }
-      #grid { padding: 0 24px 24px; }
-      #grid h2 { margin: 24px 0 12px; font: 11px "Geist Mono", ui-monospace, monospace; letter-spacing: 0.08em; text-transform: uppercase; color: #8e8e93; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-      a.tile { display: block; color: inherit; text-decoration: none; background: #060709; border: 1px solid #ffffff12; border-radius: 12px; overflow: hidden; }
-      a.tile:hover { border-color: #ffffff40; }
-      .art { position: relative; aspect-ratio: 1; }
-      .name { display: flex; justify-content: space-between; padding: 10px 12px; border-top: 1px solid #ffffff0d; }
-      .name em { font: 11px "Geist Mono", ui-monospace, monospace; font-style: normal; color: #6e6e73; }
-      .name em.new { color: #a4c9e9; }
+      main { margin-left: var(--rail); }
+      header { padding: 96px 80px 64px; border-bottom: 1px solid var(--line); }
+      h1 { margin: 16px 0 16px; font-size: 56px; font-weight: 500; letter-spacing: -0.018em; line-height: 1; text-wrap: balance; }
+      header p { margin: 0; max-width: 34em; font-size: 22px; line-height: 1.35; color: var(--muted); text-wrap: pretty; }
+      section { padding: 56px 80px; border-bottom: 1px solid var(--line); scroll-margin-top: 0; }
+      section h2 { margin: 0 0 32px; font-size: 28px; font-weight: 500; letter-spacing: -0.018em; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+      a.tile { display: block; color: inherit; text-decoration: none; }
+      .art { position: relative; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+      a.tile:hover .art { border-color: #3a3e44; }
+      .name { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 0; font-size: 15px; color: var(--muted); }
+      a.tile:hover .name span { color: var(--ink); }
+      .name em { font: 12px var(--mono); font-style: normal; text-transform: uppercase; letter-spacing: 0.02em; color: #5c6167; }
+      .name em.new { color: var(--muted); }
+      @media (max-width: 900px) {
+        #rail { display: none; }
+        main { margin-left: 0; }
+        header, section { padding-left: 16px; padding-right: 16px; }
+      }
     </style>
   </head>
   <body>
-    <header>
-      <h1>Clarify models</h1>
-      <p>Every model, held still, by style. Click one to open it in the export lab.</p>
-    </header>
-    <main id="grid"></main>
+    <nav id="rail">
+      <div class="brand"><img src="./clarify-logo.svg" alt="Clarify" /><span class="eyebrow">Export lab</span></div>
+      <div class="list" id="list"></div>
+      <div class="foot">
+        <a class="btn primary" href="./export.html">Open the export lab</a>
+      </div>
+    </nav>
+    <main>
+      <header>
+        <p class="eyebrow">Export lab · Clarify brand</p>
+        <h1>Models</h1>
+        <p>Every model, held still, by style. Open one to place it, pause it and copy it as a PNG or SVG.</p>
+      </header>
+      <div id="grid"></div>
+    </main>
     <script type="module" src="./models-gallery.ts"></script>
   </body>
 </html>
