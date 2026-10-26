@@ -924,6 +924,320 @@ class Construction implements Drawing {
   }
 }
 
+// a dashed line, drawn in up to p
+function dashedIn(pen: Pen, a: Pt, b: Pt, p: number, alpha: number, dash = 5, gap = 5) {
+  const len = dist(a, b) * clamp(p);
+  const full = dist(a, b);
+  for (let s = 0; s < len; s += dash + gap) {
+    const e = Math.min(len, s + dash);
+    pen.line(a[0] + ((b[0] - a[0]) * s) / full, a[1] + ((b[1] - a[1]) * s) / full, a[0] + ((b[0] - a[0]) * e) / full, a[1] + ((b[1] - a[1]) * e) / full, alpha);
+  }
+}
+// a study's clock: k s into its cycle, at(start, dur) eased 0..1, the
+// whole fading out at the end of the cycle
+function cycleOf(t: number, cycle: number) {
+  const k = t % cycle;
+  const fade = k > cycle - 1.5 ? clamp((cycle - k) / 1.5) : 1;
+  return { k, fade, at: (start: number, dur = 1.5) => ease(clamp((k - start) / dur)) * fade };
+}
+
+/* HEXAGON: the compass hexagon. A circle; six arcs of the same radius
+ * stepped round it, each from where the last landed, making the petals;
+ * the hexagon through the six points, then the two triangles of the star. */
+const HEXA = { r: 120, cycle: 18 };
+class Hexagon implements Drawing {
+  readonly maxLines = 97 + 6 * 33 + 6 + 6;
+  readonly maxDots = 7;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { r } = HEXA;
+    const { at, fade } = cycleOf(this.t, HEXA.cycle);
+    const P = Array.from({ length: 6 }, (_, k): Pt => [Math.cos(Math.PI / 2 + (k * TAU) / 6) * r, Math.sin(Math.PI / 2 + (k * TAU) / 6) * r]);
+    drawIn(pen, circlePts([0, 0], r, 96, Math.PI / 2, Math.PI / 2 + TAU), at(0.4, 1.8), 1.3);
+    P.forEach((c, k) => {
+      // the petal: the arc round c through the middle, between its neighbours
+      const a = Math.PI / 2 + (k * TAU) / 6 + Math.PI;
+      drawIn(pen, circlePts(c, r, 32, a - Math.PI / 3, a + Math.PI / 3), at(2.4 + k * 0.55, 0.8), 0.95);
+    });
+    drawIn(pen, [...P, P[0]], at(6.2, 1.6), 1.3);
+    drawIn(pen, [P[0], P[2], P[4], P[0]], at(8, 1.2), 0.9);
+    drawIn(pen, [P[1], P[3], P[5], P[1]], at(8.8, 1.2), 0.9);
+    pen.dot(0, 0, 3.5, fade);
+    P.forEach((p, k) => at(2.4 + k * 0.55, 0.1) > 0 && pen.dot(...p, 3.5, fade));
+  }
+}
+
+/* GOLDEN: the Fibonacci squares, 1, 1, 2, 3, 5, 8, laid round each other,
+ * then the golden spiral drawn through them, a quarter circle in each. */
+const GOLD = { fib: [1, 1, 2, 3, 5, 8], u: 24, cycle: 16 };
+class Golden implements Drawing {
+  readonly maxLines = 6 * 4 + 6 * 24;
+  readonly maxDots = 2;
+  private t = 0;
+  private readonly squares: Pt[][] = [];
+  private readonly spiral: Pt[] = [];
+  constructor() {
+    const { fib, u } = GOLD;
+    let [x0, y0, x1, y1] = [0, 0, 1, 1];
+    const sq = (x: number, y: number, s: number): Pt[] => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]];
+    const raw: Pt[][] = [sq(0, 0, 1)];
+    fib.slice(1).forEach((s, i) => {
+      const d = i % 4;
+      if (d === 0) (raw.push(sq(x1, y0, s)), (x1 += s));
+      else if (d === 1) (raw.push(sq(x0, y1, s)), (y1 += s));
+      else if (d === 2) (raw.push(sq(x0 - s, y0, s)), (x0 -= s));
+      else (raw.push(sq(x0, y0 - s, s)), (y0 -= s));
+    });
+    const cx = (x0 + x1) / 2;
+    const cy = (y0 + y1) / 2;
+    for (const q of raw) this.squares.push(q.map(([x, y]): Pt => [(x - cx) * u, (y - cy) * u]));
+    // The spiral: a quarter circle in each square, round one of the two
+    // corners it shares with the squares before (the first: any corner),
+    // each starting where the last ended. Found by trying every choice.
+    const near = (a: Pt, b: Pt) => dist(a, b) < 1e-6;
+    const sqs = this.squares;
+    const shared = (i: number) => (i === 0 ? [0, 1, 2, 3] : [0, 1, 2, 3].filter((c) => sqs.slice(0, i).some((p) => p.some((q) => near(q, sqs[i][c])))));
+    const go = (i: number, end: Pt | null, out: Pt[]): Pt[] | null => {
+      if (i === sqs.length) return out;
+      const q = sqs[i];
+      const s = dist(q[0], q[1]);
+      for (const c of shared(i))
+        for (const [a, b] of [[q[(c + 1) % 4], q[(c + 3) % 4]], [q[(c + 3) % 4], q[(c + 1) % 4]]]) {
+          if (end && !near(a, end)) continue;
+          const a0 = Math.atan2(a[1] - q[c][1], a[0] - q[c][0]);
+          let a1 = Math.atan2(b[1] - q[c][1], b[0] - q[c][0]);
+          if (a1 - a0 > Math.PI) a1 -= TAU;
+          if (a0 - a1 > Math.PI) a1 += TAU;
+          const r = go(i + 1, b, [...out, ...circlePts(q[c], s, 24, a0, a1).slice(out.length ? 1 : 0)]);
+          if (r) return r;
+        }
+      return null;
+    };
+    this.spiral.push(...(go(0, null, []) ?? []));
+  }
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { at, fade } = cycleOf(this.t, GOLD.cycle);
+    this.squares.forEach((q, i) => drawIn(pen, [...q, q[0]], at(0.4 + i * 0.7, 0.8), i === this.squares.length - 1 ? 1.3 : 1));
+    drawIn(pen, this.spiral, at(5, 3), 1.6);
+    if (this.spiral.length && at(5, 0.1) > 0) pen.dot(...this.spiral[0], 3.5, fade);
+    if (this.spiral.length && at(8, 0.1) > 0) pen.dot(...this.spiral[this.spiral.length - 1], 3.5, fade);
+  }
+}
+
+/* PERSPECTIVE: a cube in two-point perspective: the horizon, two vanishing
+ * points, the construction lines to them dashed, the cube's edges drawn
+ * over them; the hidden edges dashed. */
+const PERSP = { horizon: 95, vp: 195, cycle: 16 };
+class Perspective implements Drawing {
+  readonly maxLines = 900;
+  readonly maxDots = 3;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { horizon, vp } = PERSP;
+    const { at, fade } = cycleOf(this.t, PERSP.cycle);
+    const V1: Pt = [-vp, horizon];
+    const V2: Pt = [vp, horizon];
+    const Ft: Pt = [5, 40];
+    const Fb: Pt = [5, -70];
+    // a point on the line from p toward v, at x
+    const onX = (p: Pt, v: Pt, x: number): Pt => [x, p[1] + ((v[1] - p[1]) * (x - p[0])) / (v[0] - p[0])];
+    const Lt = onX(Ft, V1, -82);
+    const Lb = onX(Fb, V1, -82);
+    const Rt = onX(Ft, V2, 92);
+    const Rb = onX(Fb, V2, 92);
+    // the back corner: where the lines from Lt to V2 and from Rt to V1 cross
+    const cross = (a: Pt, b: Pt, c: Pt, d: Pt): Pt => {
+      const den = (a[0] - b[0]) * (c[1] - d[1]) - (a[1] - b[1]) * (c[0] - d[0]);
+      const u = ((a[0] - c[0]) * (c[1] - d[1]) - (a[1] - c[1]) * (c[0] - d[0])) / den;
+      return [a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])];
+    };
+    const Bt = cross(Lt, V2, Rt, V1);
+    const Bb = cross(Lb, V2, Rb, V1);
+    drawIn(pen, [[-205, horizon], [205, horizon]], at(0.3, 1.2), 0.9);
+    const guide = at(1.4, 1.6);
+    for (const [p, v] of [[Ft, V1], [Ft, V2], [Fb, V1], [Fb, V2], [Lt, V2], [Rt, V1]] as [Pt, Pt][]) dashedIn(pen, p, v, guide, 0.45);
+    const edges = at(3.2, 2);
+    drawIn(pen, [Fb, Ft], edges, 1.4);
+    drawIn(pen, [Lb, Lt, Ft, Rt, Rb, Fb, Lb], edges, 1.4);
+    drawIn(pen, [Lt, Bt, Rt], at(4.4, 1.2), 1.4);
+    const hidden = at(5.4, 1.2);
+    for (const [a, b] of [[Lb, Bb], [Rb, Bb], [Bt, Bb]] as [Pt, Pt][]) dashedIn(pen, a, b, hidden, 0.8, 4, 4);
+    pen.dot(...V1, 3.5, fade);
+    pen.dot(...V2, 3.5, fade);
+  }
+}
+
+/* TANGENTS: a circle and a point outside it, the two tangents from the
+ * point, the radii to where they touch with their right angles, the line
+ * to the middle dashed; the point drifts slowly and it all follows. */
+const TANG = { c: [55, -10] as Pt, r: 85, drift: 30 };
+class Tangents implements Drawing {
+  readonly maxLines = 600;
+  readonly maxDots = 4;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { c, r, drift } = TANG;
+    const w = (this.t / drift) * TAU;
+    const P: Pt = [-150 + 12 * Math.sin(w), 20 + 110 * Math.sin(w * 0.5 + 0.6)];
+    const d = dist(P, c);
+    const base = Math.atan2(P[1] - c[1], P[0] - c[0]);
+    const b = Math.acos(r / d);
+    arc(pen, c[0], c[1], r, 96, () => 1.3);
+    dashedIn(pen, P, c, 1, 0.6);
+    for (const s of [-1, 1]) {
+      const T: Pt = [c[0] + Math.cos(base + s * b) * r, c[1] + Math.sin(base + s * b) * r];
+      // the tangent, carried on past where it touches
+      const ext: Pt = [T[0] + (T[0] - P[0]) * 0.35, T[1] + (T[1] - P[1]) * 0.35];
+      pen.line(P[0], P[1], ext[0], ext[1], 1.3);
+      pen.line(c[0], c[1], T[0], T[1], 0.9);
+      // the right angle at T
+      const u = [(c[0] - T[0]) / r, (c[1] - T[1]) / r];
+      const v = [(P[0] - T[0]) / dist(P, T), (P[1] - T[1]) / dist(P, T)];
+      const m = 10;
+      const a: Pt = [T[0] + u[0] * m, T[1] + u[1] * m];
+      const q: Pt = [T[0] + (u[0] + v[0]) * m, T[1] + (u[1] + v[1]) * m];
+      const e: Pt = [T[0] + v[0] * m, T[1] + v[1] * m];
+      pen.line(a[0], a[1], q[0], q[1], 0.9);
+      pen.line(q[0], q[1], e[0], e[1], 0.9);
+      pen.dot(...T, 3.2, 1);
+    }
+    pen.dot(...P, 4, 1);
+    pen.dot(...c, 3.2, 1);
+  }
+}
+
+/* SINE: a point going round a circle, its height carried across by a
+ * dashed line onto the sine wave it traces beside the circle; the radius
+ * and its angle drawn in. */
+const SINE = { c: [-125, 0] as Pt, r: 62, x0: -40, x1: 195, period: 9 };
+class Sine implements Drawing {
+  readonly maxLines = 600;
+  readonly maxDots = 3;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { c, r, x0, x1, period } = SINE;
+    const th = (this.t / period) * TAU;
+    arc(pen, c[0], c[1], r, 96, () => 1.3);
+    pen.line(c[0] - r - 12, 0, x1, 0, 0.9);
+    pen.line(c[0], -r - 12, c[0], r + 12, 0.6);
+    pen.line(x0, -r - 12, x0, r + 12, 0.6);
+    const P: Pt = [c[0] + Math.cos(th) * r, Math.sin(th) * r];
+    pen.line(c[0], 0, P[0], P[1], 1.2);
+    arc(pen, c[0], 0, 18, 16, () => 0.9, 0, ((th % TAU) + TAU) % TAU);
+    dashedIn(pen, P, [x0, P[1]], 1, 0.6);
+    // the wave: the newest height at x0, older ones further right
+    const n = 120;
+    const span = TAU * 1.5;
+    for (let i = 0; i < n; i++) {
+      const xa = x0 + ((x1 - x0) * i) / n;
+      const xb = x0 + ((x1 - x0) * (i + 1)) / n;
+      pen.line(xa, Math.sin(th - (span * i) / n) * r, xb, Math.sin(th - (span * (i + 1)) / n) * r, 1.3);
+    }
+    pen.dot(...P, 4, 1);
+    pen.dot(x0, P[1], 4, 1);
+    pen.dot(c[0], 0, 3, 1);
+  }
+}
+
+/* INCIRCLE: a triangle, its three angle bisectors meeting at the
+ * incentre, the circle inside touching all three sides, small arcs
+ * marking the angles; drawn step by step. */
+const INC = { A: [-160, -105] as Pt, B: [165, -105] as Pt, C: [35, 135] as Pt, cycle: 16 };
+class Incircle implements Drawing {
+  readonly maxLines = 600;
+  readonly maxDots = 7;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { A, B, C } = INC;
+    const { at, fade } = cycleOf(this.t, INC.cycle);
+    const a = dist(B, C);
+    const b = dist(A, C);
+    const c = dist(A, B);
+    const p = a + b + c;
+    const I: Pt = [(a * A[0] + b * B[0] + c * C[0]) / p, (a * A[1] + b * B[1] + c * C[1]) / p];
+    const s = p / 2;
+    const r = Math.sqrt(((s - a) * (s - b) * (s - c)) / s);
+    drawIn(pen, [A, B, C, A], at(0.3, 2), 1.4);
+    // the angle arcs, then the bisectors from each corner through I to the far side
+    const corners: [Pt, Pt, Pt][] = [[A, B, C], [B, C, A], [C, A, B]];
+    corners.forEach(([v, n1, n2], i) => {
+      const a1 = Math.atan2(n1[1] - v[1], n1[0] - v[0]);
+      let a2 = Math.atan2(n2[1] - v[1], n2[0] - v[0]);
+      if (a2 - a1 > Math.PI) a2 -= TAU;
+      if (a1 - a2 > Math.PI) a2 += TAU;
+      drawIn(pen, circlePts(v, 24, 16, a1, a2), at(2.4 + i * 0.3, 0.6), 1);
+      // where the bisector meets the far side
+      const k = dist(v, n1) / (dist(v, n1) + dist(v, n2));
+      const F: Pt = [n1[0] + (n2[0] - n1[0]) * k, n1[1] + (n2[1] - n1[1]) * k];
+      dashedIn(pen, v, F, at(3.4 + i * 0.4, 1.2), 0.7);
+    });
+    drawIn(pen, circlePts(I, r, 96, -Math.PI / 2, -Math.PI / 2 + TAU), at(5.4, 1.8), 1.3);
+    // the touching points: I dropped square onto each side
+    if (at(7.2, 0.4) > 0)
+      for (const [u, v] of [[A, B], [B, C], [C, A]] as [Pt, Pt][]) {
+        const L = dist(u, v);
+        const k = ((I[0] - u[0]) * (v[0] - u[0]) + (I[1] - u[1]) * (v[1] - u[1])) / (L * L);
+        pen.dot(u[0] + (v[0] - u[0]) * k, u[1] + (v[1] - u[1]) * k, 3, at(7.2, 0.4));
+      }
+    for (const v of [A, B, C]) pen.dot(...v, 3.5, fade);
+    if (at(5.2, 0.1) > 0) pen.dot(...I, 3.5, fade);
+  }
+}
+
+/* HINGE: circles hinged at one point on the left, each turned a different
+ * way about the upright through it, so they read as ellipses of every
+ * width; some solid, some dashed, a dot riding on two. They turn slowly,
+ * like pages. */
+// turns: rad about the upright, all under a quarter turn so each opens to the right
+const HINGE = { r: 150, turns: [0.12, 0.42, 0.7, 0.95, 1.18, 1.38], dashed: [false, true, false, true, false, true], period: 40 };
+class Hinge implements Drawing {
+  readonly maxLines = 6 * 200;
+  readonly maxDots = 2;
+  private t = 0;
+  step(dt: number) {
+    this.t += dt;
+  }
+  draw(pen: Pen) {
+    const { r, turns, dashed, period } = HINGE;
+    const base = Math.sin((this.t / period) * TAU) * 0.1;
+    // a circle through (-r, 0) touching the upright there, turned by th about it
+    const at = (th: number, a: number): Pt => [-r + (Math.cos(a) + 1) * r * Math.cos(th) * 0.85, Math.sin(a) * r];
+    turns.forEach((tt, k) => {
+      const th = tt + base;
+      const n = 96;
+      for (let i = 0; i < n; i++) {
+        if (dashed[k] && i % 2) continue;
+        const [x0, y0] = at(th, (i * TAU) / n);
+        const [x1, y1] = at(th, ((i + 1) * TAU) / n);
+        pen.line(x0 + 50, y0, x1 + 50, y1, dashed[k] ? 1.1 : 1.3);
+      }
+    });
+    // the two riders, on dashed circles, going round slowly
+    for (const [k, sp, ph] of [[1, 0.05, 0.4], [5, -0.035, 2.2]] as const) {
+      const [x, y] = at(turns[k] + base, ph + this.t * sp * TAU);
+      pen.dot(x + 50, y, 7, 1);
+    }
+  }
+}
+
 /* MESHES: a tiling (hexagons, triangles, squares, rhombi...) cut to a
  * shape, a dot on every corner. A bolt strikes a corner and crawls out
  * along the edges, branching, till it has run through the whole mesh, the
@@ -1140,6 +1454,13 @@ export const DRAWING_KINDS: [string, string][] = [
   ["circleStudy", "Circle study"],
   ["rosette", "Rosette"],
   ["construction", "Construction"],
+  ["hexagon", "Hexagon"],
+  ["golden", "Golden spiral"],
+  ["perspective", "Perspective"],
+  ["tangents", "Tangents"],
+  ["sine", "Sine"],
+  ["incircle", "Incircle"],
+  ["hinge", "Hinge"],
   ["hex", "Hex mesh"],
   ["hexFine", "Hex mesh fine"],
   ["triMesh", "Triangle mesh"],
@@ -1160,6 +1481,13 @@ registerDrawing("tally", () => new Tally());
 registerDrawing("circleStudy", () => new CircleStudy());
 registerDrawing("rosette", () => new Rosette());
 registerDrawing("construction", () => new Construction());
+registerDrawing("hexagon", () => new Hexagon());
+registerDrawing("golden", () => new Golden());
+registerDrawing("perspective", () => new Perspective());
+registerDrawing("tangents", () => new Tangents());
+registerDrawing("sine", () => new Sine());
+registerDrawing("incircle", () => new Incircle());
+registerDrawing("hinge", () => new Hinge());
 registerDrawing("routes", () => new Routes());
 registerDrawing("signal", () => new Signal());
 registerDrawing("tree", () => new Tree());
