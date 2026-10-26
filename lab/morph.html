@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Morph lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./lab.css" />
+    <style>
+      html, body { height: 100%; overflow: hidden; }
+      /* as the export lab: the rail left, the panel right, the timeline dock below */
+      #stage { position: absolute; inset: 0 var(--panel) var(--dock, 132px) var(--rail); overflow: hidden; }
+      #frame { position: absolute; left: 50%; top: 50%; overflow: hidden; outline: 1px dashed #ffffff33; cursor: grab; }
+      #frame:active { cursor: grabbing; }
+      #effect { position: absolute; }
+      #hud { position: fixed; left: calc(var(--rail) + 24px); bottom: calc(var(--dock, 132px) + 16px); pointer-events: none; font: 12px var(--mono); color: var(--muted); }
+      #empty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 8px; color: var(--muted); font-size: 15px; pointer-events: none; }
+      #empty strong { color: var(--ink); font-weight: 500; font-size: 22px; }
+      .dialkit-panel[data-position="top-right"] { top: 0 !important; right: 0 !important; max-height: 100vh !important; }
+      .dialkit-panel[data-position="top-right"] .dialkit-panel-inner[data-collapsed="false"] { width: var(--panel) !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; border-width: 0 0 0 1px; padding: 16px 20px; }
+      .dialkit-timeline { left: var(--rail) !important; right: var(--panel) !important; bottom: 0 !important; }
+      .dialkit-timeline-dock { border-radius: 0 !important; border-width: 1px 0 0 !important; }
+      .dialkit-pad-surface { aspect-ratio: var(--frame-aspect, 1) !important; }
+      body.light #stage { background: #e3e7ec; }
+      body.light #frame { outline-color: #00000033; }
+      body.light #hud { color: #575b5f; }
+      /* the sequence: the models in play, in time order */
+      #rail .seq { padding: 0 24px 12px; border-bottom: 1px solid var(--line); }
+      #rail .seq .eyebrow { display: block; margin-bottom: 8px; }
+      #rail .seq ol { margin: 0; padding: 0; list-style: none; counter-reset: n; }
+      #rail .seq li { display: flex; align-items: center; gap: 12px; height: 32px; counter-increment: n; font-size: 15px; }
+      #rail .seq li::before { content: counter(n, decimal-leading-zero); width: 20px; font: 12px var(--mono); color: var(--muted); }
+      #rail .seq li span { flex: 1; }
+      #rail .seq li button { border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 4px; }
+      #rail .seq li button:hover { color: var(--ink); }
+      #rail .seq p { margin: 0; font-size: 14px; color: var(--muted); text-wrap: pretty; }
+      #rail .list a::after { content: "+"; float: right; color: var(--muted); opacity: 0; }
+      #rail .list a:hover::after { opacity: 1; }
+      #rail .list a.off { opacity: 0.35; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <nav id="rail">
+      <div class="brand"><img src="./clarify-logo.svg" alt="Clarify" /><span class="eyebrow">Morph lab</span></div>
+      <div class="nav"><a class="btn" href="./models.html">← Models</a><a class="btn" href="./export.html">Export lab</a></div>
+      <div class="seq">
+        <span class="eyebrow">Sequence</span>
+        <ol id="seq"></ol>
+        <p id="seq-note"></p>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="foot">
+        <button class="btn primary" data-act="record">Record video</button>
+        <button class="btn" data-act="copy">Copy PNG</button>
+      </div>
+    </nav>
+    <div id="stage">
+      <div id="frame"><div id="effect"></div></div>
+      <div id="empty"><strong>Add two models to morph</strong>Pick them in the rail, in the order they play.</div>
+    </div>
+    <div id="hud"></div>
+    <script type="module" src="./morph.ts"></script>
+  </body>
+</html>

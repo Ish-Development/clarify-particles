@@ -19,7 +19,7 @@ html, body { margin: 0; background: var(--surface); color: var(--ink); font: 16p
 #rail .brand { display: flex; align-items: center; justify-content: space-between; padding: 32px 24px 24px; }
 #rail .brand img { height: 24px; display: block; }
 .eyebrow { font: 12px var(--mono); letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); }
-#rail .back { margin: 0 24px 16px; }
+#rail .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 24px 16px; }
 #rail .list { flex: 1; overflow-y: auto; padding: 8px 0 16px; scrollbar-width: none; }
 #rail .list a { display: block; padding: 4px 24px 4px 56px; color: var(--muted); text-decoration: none; font-size: 15px; cursor: pointer; }
 #rail .list a:hover, #rail .list a.on { color: var(--ink); }

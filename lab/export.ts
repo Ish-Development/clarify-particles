@@ -16,28 +16,9 @@ import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { LOOK } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
+import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
-const SIZES: Record<string, [number, number]> = {
-  "LinkedIn banner (4:1)": [1584, 396],
-  "LinkedIn company cover": [1128, 191],
-  "LinkedIn post (1:1)": [1200, 1200],
-  "Link preview (1.91:1)": [1200, 627],
-  "X header (3:1)": [1500, 500],
-  "1:1": [1080, 1080],
-  "4:5": [1080, 1350],
-  "3:4": [1080, 1440],
-  "2:3": [1080, 1620],
-  "9:16": [1080, 1920],
-  "5:4": [1350, 1080],
-  "4:3": [1440, 1080],
-  "3:2": [1620, 1080],
-  "16:9": [1920, 1080],
-  "2:1": [2000, 1000],
-  "21:9": [2520, 1080],
-  "A4 landscape": [3508, 2480],
-  "A4 portrait": [2480, 3508],
-};
 const MAX = 4000;
 
 createDialRoot({ position: "top-right", theme: "dark" });
