@@ -131,10 +131,19 @@ const HIDDEN = new Set(["Constellation", "Clusters", "Dot dome", "Dot planet", "
   "Line wheel", "Line gear", "Line knot", "Line nested globes", "Line spiral sphere", "Line sunflower", "Line vortex", "Line geodesic dome",
   "Line tower", "Line space frame", "Line bridge",
   "Block skyline", "Block wave", "Block checker", "Block stack", "Block modules", "Block bridge", "Block ring", "Block arch",
-  "Network globe sparse", "Block frame", "Block walls", "Block corner", "Block stairs", "Line gem",
+  "Network globe", "Network globe sparse", "Network globe square", "Block frame", "Block walls", "Block corner", "Block stairs", "Line gem",
   "Kagome mesh", "Triangle mesh", "Diamond mesh", "Polar mesh", "Hex mesh fine", "Brick mesh",
   "Line saddle", "Line Möbius", "Line torus knot"]);
 for (let i = MODELS.length - 1; i >= 0; i--) if (HIDDEN.has(MODELS[i].name)) MODELS.splice(i, 1);
+
+// the networks' nodes, smaller than on the site: big dots read heavy in a
+// still. The fine globe is already set small.
+const NODES = 0.6;
+for (const m of MODELS) {
+  if (m.style !== "network" || m.name === "Network globe fine") continue;
+  const c = { ...graphDefaults, ...PRESETS[m.preset].config, ...m.config } as unknown as Record<string, number>;
+  m.config = { ...m.config, sizeMin: c.sizeMin * NODES, sizeMax: c.sizeMax * NODES };
+}
 
 // within a style, shape families together: round, then spirals and
 // bursts, then rings and knots, then solids
