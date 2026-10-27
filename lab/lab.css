@@ -33,6 +33,7 @@ html, body { margin: 0; background: var(--surface); color: var(--ink); font: 16p
 .btn:hover { border-color: #3a3e44; }
 .btn.primary { background: var(--button); border-color: var(--button); color: #030304; }
 .btn.primary:hover { background: var(--ink); }
+.btn.off { opacity: 0.35; cursor: not-allowed; }
 
 /* DialKit in the same tokens */
 body .dialkit-root[data-theme] {

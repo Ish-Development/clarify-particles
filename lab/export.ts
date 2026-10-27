@@ -223,8 +223,15 @@ STYLES.forEach(([style, title], i) => {
     list.append(a);
   }
 });
+// the morph lab takes dots, blocks and lines: from a network or a flat
+// drawing there's nothing to take there
+const morphLink = document.querySelector<HTMLAnchorElement>('#rail .nav a[href="./morph.html"]')!;
+morphLink.addEventListener("click", (e) => morphLink.classList.contains("off") && e.preventDefault());
 function lightRail() {
   for (const a of list.querySelectorAll<HTMLElement>("a")) a.classList.toggle("on", a.dataset.model === v().model);
+  const morphs = ["dots", "blocks", "lines"].includes(modelByName(v().model).style);
+  morphLink.classList.toggle("off", !morphs);
+  morphLink.title = morphs ? "" : "Networks and flat drawings don't morph";
   requestAnimationFrame(() => list.querySelector(".on")?.scrollIntoView({ block: "center" }));
 }
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
