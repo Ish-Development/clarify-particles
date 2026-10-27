@@ -54,15 +54,8 @@ export function inkOf(style: string, name: string, light: boolean): Record<strin
 // the ground's colour (a name saved before the swatches: Carbon 900)
 export const groundOf = (o: { background: string }) => GROUNDS[o.background] ?? GROUNDS["Carbon 900"];
 
-// The Output panel's ground and Light kept in step: a swatch picked sets
-// Light (on for a light ground); Light switched picks Bone 50 or Carbon 900.
-// What to set, if anything
-type Ground = { background: string; light: boolean };
-export function groundStep(now: Ground, before: Ground): Partial<Ground> | null {
-  if (now.background !== before.background && GROUNDS[now.background] && isLight(GROUNDS[now.background]) !== now.light) return { light: isLight(GROUNDS[now.background]) };
-  if (now.light !== before.light && isLight(groundOf(now)) !== now.light) return { background: now.light ? "Bone 50" : "Carbon 900" };
-  return null;
-}
+// a light ground: the model drawn dark on it
+export const lightOf = (o: { background: string }) => isLight(groundOf(o));
 
 // A swatch beside every brand colour in the panel's dropdowns (the value
 // shown, and each option in the list), drawn by lab.css from --swatch

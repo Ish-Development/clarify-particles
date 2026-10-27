@@ -19,7 +19,7 @@ import { LOOK, LOOP, LOOP_UNITS } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
-import { GROUNDS, INKS, groundOf, groundStep, inkOf } from "./brand";
+import { GROUNDS, INKS, groundOf, inkOf, lightOf } from "./brand";
 import { SIZES } from "./sizes";
 import { shiftSnap } from "./snap";
 import { viewToSvg } from "./svg";
@@ -40,10 +40,9 @@ const PANEL = {
     // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
     // 1920 × 1080)
     video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-    // the ground: a brand swatch (lab/brand.ts); light: a light ground, the
-    // model drawn dark on it
+    // the ground: a brand swatch (lab/brand.ts); on a light one the model is
+    // drawn dark
     background: { type: "select", options: Object.keys(GROUNDS), default: "Carbon 900" },
-    light: false,
     transparent: false,
     // the model's colour: Auto, the site's own; else a brand colour
     modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
@@ -167,7 +166,7 @@ function mountModel() {
 // gathering in from a scatter, which the loop's start faded over)
 function modelSpec(el: HTMLElement) {
   const m = modelByName(v().model);
-  return specFor(el, m, { ...styleOverrides(m, styleValues()), ...(m.style === "dots" ? { gather: false } : {}), ...inkOf(m.style, out().modelColour, out().light) });
+  return specFor(el, m, { ...styleOverrides(m, styleValues()), ...(m.style === "dots" ? { gather: false } : {}), ...inkOf(m.style, out().modelColour, lightOf(out())) });
 }
 
 // a new model (or size, or dots) at the same moment
@@ -199,9 +198,9 @@ function layout() {
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
   frame.style.background = o.transparent ? "transparent" : groundOf(o);
-  effect.style.filter = effectB.style.filter = o.light ? "invert(1)" : "none";
+  effect.style.filter = effectB.style.filter = lightOf(o) ? "invert(1)" : "none";
   // the page behind goes light too, so a transparent frame shows the model
-  document.body.classList.toggle("light", o.light);
+  document.body.classList.toggle("light", lightOf(o));
   for (const el of [effect, effectB])
     Object.assign(el.style, {
       width: `${r.w}px`,
@@ -273,8 +272,7 @@ for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.on
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, ink: out().modelColour, loop: JSON.stringify({ length: v().loop.length, blend: v().loop.blend }) };
-let ground = { background: out().background, light: out().light };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: lightOf(out()), ink: out().modelColour, loop: JSON.stringify({ length: v().loop.length, blend: v().loop.blend }) };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
@@ -565,15 +563,7 @@ kit.subscribe((nv) => {
     return;
   }
   // (a model colour, or a light ground with one: the model made again in it)
-  const again = nv.model !== last.model || o.scale !== last.scale || o.modelColour !== last.ink || (o.modelColour !== "Auto" && o.light !== last.light);
-  // a new mode takes its own background (changed after, it stays)
-  // the ground kept in step (a swatch, its colour, Light)
-  const step = restoring ? null : groundStep(o, ground);
-  ground = { background: o.background, light: o.light };
-  if (step) {
-    kit.setValues({ output: step });
-    return;
-  }
+  const again = nv.model !== last.model || o.scale !== last.scale || o.modelColour !== last.ink || (o.modelColour !== "Auto" && lightOf(o) !== last.light);
   // the loop: the timeline its length, the copy ahead taken again
   const loop = JSON.stringify({ length: nv.loop.length, blend: nv.loop.blend });
   if (loop !== last.loop) {
@@ -583,7 +573,7 @@ kit.subscribe((nv) => {
     timeline.updateConfig(timelineConfig(duration()) as never);
     requestSeek(Math.min(playT, duration()));
   }
-  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: o.light, ink: o.modelColour, loop };
+  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: lightOf(o), ink: o.modelColour, loop };
   layout();
   if (again) remount();
   lightRail();
@@ -787,7 +777,7 @@ function compose(c: HTMLCanvasElement, k: number, opaque = false) {
     m.drawImage(vb.canvas, 0, 0, mixed.width, mixed.height);
     art = mixed;
   }
-  if (o.light) ctx.filter = "invert(1)";
+  if (lightOf(o)) ctx.filter = "invert(1)";
   ctx.drawImage(art, r.left * k, r.top * k, r.w * k, r.h * k);
   ctx.filter = "none";
   return true;
@@ -889,7 +879,7 @@ function svgText() {
   if (!view) return "";
   const o = out();
   const r = rect();
-  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : groundOf(o), invert: o.light });
+  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : groundOf(o), invert: lightOf(o) });
 }
 function copySvg() {
   const svg = svgText();

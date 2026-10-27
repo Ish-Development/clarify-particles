@@ -14,7 +14,7 @@ import { getView, mount, setExportScale, setPaused, unmount } from "../src/runti
 import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
-import { GROUNDS, INKS, groundOf, groundStep, inkOf } from "./brand";
+import { GROUNDS, INKS, groundOf, inkOf, lightOf } from "./brand";
 import { SIZES } from "./sizes";
 import { shiftSnap } from "./snap";
 import { viewToSvg } from "./svg";
@@ -93,10 +93,9 @@ const PANEL = {
     // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
     // 1920 × 1080)
     video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-    // the ground: a brand swatch (lab/brand.ts); light: a light ground, the
-    // model drawn dark on it
+    // the ground: a brand swatch (lab/brand.ts); on a light one the model is
+    // drawn dark
     background: { type: "select", options: Object.keys(GROUNDS), default: "Carbon 900" },
-    light: false,
     transparent: false,
     // the model's colour: Auto, the site's own; else a brand colour
     modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
@@ -163,8 +162,8 @@ function layout() {
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
   frame.style.background = o.transparent ? "transparent" : groundOf(o);
-  effect.style.filter = o.light ? "invert(1)" : "none";
-  document.body.classList.toggle("light", o.light);
+  effect.style.filter = lightOf(o) ? "invert(1)" : "none";
+  document.body.classList.toggle("light", lightOf(o));
   Object.assign(effect.style, { width: `${r.w}px`, height: `${r.h}px`, left: `${r.left}px`, top: `${r.top}px` });
   const st = stage.getBoundingClientRect();
   const fit = Math.min(1, (st.width - 48) / o.w, (st.height - 48) / o.h);
@@ -257,7 +256,7 @@ function mountTake() {
   setExportScale(videoK || out().scale);
   const first = modelByName(cs[0].name);
   const shapes = cs.map((c) => shapeOf(modelByName(c.name)));
-  const look = { ...styleOverrides(first, stylePanel?.kit.values), ...inkOf(first.style, out().modelColour, out().light) };
+  const look = { ...styleOverrides(first, stylePanel?.kit.values), ...inkOf(first.style, out().modelColour, lightOf(out())) };
   // more than one: it opens on the last model, morphing into the first as
   // clip 1 starts (as each clip morphs in at its start), so played round it
   // never cuts
@@ -997,8 +996,7 @@ const actions: Record<string, () => void> = {
 };
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
 
-let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale, morph: v().timing.morph, ink: out().modelColour };
-let ground = { background: out().background, light: out().light };
+let last = { size: out().size, w: out().w, h: out().h, light: lightOf(out()), scale: out().scale, morph: v().timing.morph, ink: out().modelColour };
 kit.subscribe((nv) => {
   const o = nv.output;
   if (!restoring && o.size !== last.size && SIZES[o.size]) {
@@ -1012,20 +1010,13 @@ kit.subscribe((nv) => {
     kit.setValues({ output: { size: "Custom" } });
     return;
   }
-  // the ground kept in step (a swatch, its colour, Light)
-  const step = restoring ? null : groundStep(o, ground);
-  ground = { background: o.background, light: o.light };
-  if (step) {
-    kit.setValues({ output: step });
-    return;
-  }
   // the Length dial dragged: every clip scaled to it
   if (!restoring && !evening && timeline && Math.abs(nv.timing.length - clipsEnd()) > 0.05) honest(nv.timing.length);
   // Morph: another ending (and the dock's length)
   // (a model colour, or a light ground with one: the model made again in it)
-  const rescale = o.scale !== last.scale || nv.timing.morph !== last.morph || o.modelColour !== last.ink || (o.modelColour !== "Auto" && o.light !== last.light);
+  const rescale = o.scale !== last.scale || nv.timing.morph !== last.morph || o.modelColour !== last.ink || (o.modelColour !== "Auto" && lightOf(o) !== last.light);
   if (nv.timing.morph !== last.morph) honest();
-  last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale, morph: nv.timing.morph, ink: o.modelColour };
+  last = { size: o.size, w: o.w, h: o.h, light: lightOf(o), scale: o.scale, morph: nv.timing.morph, ink: o.modelColour };
   layout();
   if (rescale) invalidate();
   record();
@@ -1174,7 +1165,7 @@ function compose(c: HTMLCanvasElement, k: number, opaque: boolean) {
   }
   if (!view) return;
   const r = rect();
-  if (o.light) ctx.filter = "invert(1)";
+  if (lightOf(o)) ctx.filter = "invert(1)";
   ctx.drawImage(view.canvas, r.left * k, r.top * k, r.w * k, r.h * k);
 }
 const fileName = (ext: string) => `clarify-morph-${seq.map((n) => n.toLowerCase().replace(/\s+/g, "-")).join("-to-")}-${out().w}x${out().h}.${ext}`;
@@ -1206,7 +1197,7 @@ function svgText() {
   if (!view) return "";
   const o = out();
   const r = rect();
-  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : groundOf(o), invert: o.light });
+  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : groundOf(o), invert: lightOf(o) });
 }
 function copySvg() {
   const svg = svgText();
