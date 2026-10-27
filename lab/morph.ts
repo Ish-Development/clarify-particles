@@ -5,9 +5,10 @@
 // shape to the next) and the blocks and lines (the Integrations scene's
 // shapes, in turn). Played and scrubbed as the export lab plays a model: a
 // fixed step at a time from 0 s, its random choices seeded. Copy a frame as a
-// PNG or SVG, or record the whole timeline as a video.
+// PNG or SVG, or record the whole timeline as a video. ⌘Z / ⇧⌘Z undo and redo
+// it all: the sequence, the clips' timing and the dials.
 // Not part of the build; with the lab's dev server open /lab/morph.html.
-import { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
+import { DialStore, createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { MODELS, STYLES, STYLE_DIALS, modelByName, specFor, styleOverrides, type Model } from "./models";
@@ -113,6 +114,7 @@ function showPanel(f: Family | null) {
   k.subscribe(() => {
     clearTimeout(styleTimer);
     styleTimer = window.setTimeout(() => invalidate(), 150);
+    record();
   }, false);
 }
 
@@ -305,6 +307,7 @@ function buildTimeline() {
     if (JSON.stringify(clips()) !== take.clips) {
       renderRail();
       invalidate();
+      record();
     } else if (Math.abs(tv.time - playT) > 1e-6) requestSeek(tv.time);
   }, false);
   take.valid = false;
@@ -326,6 +329,7 @@ function setSeq(next: string[]) {
   seq = next;
   store.set(SEQ_KEY, JSON.stringify(seq));
   buildTimeline();
+  record();
 }
 function renderRail() {
   seqList.textContent = "";
@@ -377,6 +381,7 @@ const actions: Record<string, () => void> = {
     spacing += 1;
     store.set("clarify-morph-lab-spacing", String(spacing));
     buildTimeline();
+    record();
   },
   take: () => {
     take.seed = (take.seed * 9301 + 49297) % 233280;
@@ -384,25 +389,25 @@ const actions: Record<string, () => void> = {
   },
   copy: () => copyPng(),
   copySvg: () => copySvg(),
-  record: () => record(),
+  record: () => recordVideo(),
 };
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
 
 let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale };
 kit.subscribe((nv) => {
   const o = nv.output;
-  if (o.size !== last.size && SIZES[o.size]) {
+  if (!restoring && o.size !== last.size && SIZES[o.size]) {
     const [w, h] = SIZES[o.size];
     last = { ...last, size: o.size, w, h };
     kit.setValues({ output: { w, h } });
     return;
   }
-  if ((o.w !== last.w || o.h !== last.h) && SIZES[o.size] && (SIZES[o.size][0] !== o.w || SIZES[o.size][1] !== o.h)) {
+  if (!restoring && (o.w !== last.w || o.h !== last.h) && SIZES[o.size] && (SIZES[o.size][0] !== o.w || SIZES[o.size][1] !== o.h)) {
     last = { ...last, size: "Custom", w: o.w, h: o.h };
     kit.setValues({ output: { size: "Custom" } });
     return;
   }
-  if (o.light !== last.light) {
+  if (!restoring && o.light !== last.light) {
     last = { ...last, light: o.light };
     kit.setValues({ output: { colour: o.light ? "#f4f7fa" : "#060709" } });
     return;
@@ -411,8 +416,87 @@ kit.subscribe((nv) => {
   last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale };
   layout();
   if (rescale) invalidate();
+  record();
 }, false);
 window.addEventListener("resize", layout);
+
+// --- undo / redo: a step per settled change (a drag is one step). A step
+// holds the sequence, how its clips are timed and every dial ---
+type Snap = { seq: string[]; spacing: number; clips: Record<string, { at: number; duration: number }>; main: unknown; look: unknown };
+const plain = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x !== "object" || (x !== null && "x" in x)));
+function snap(): string {
+  const tv = (timeline?.values ?? {}) as unknown as Record<string, { at: number; duration: number }>;
+  const val = v();
+  const s: Snap = {
+    seq,
+    spacing,
+    clips: Object.fromEntries(keys().map((k) => [k, { at: tv[k]?.at ?? 0, duration: tv[k]?.duration ?? 0 }])),
+    main: { output: plain(val.output), placement: plain(val.placement), timing: plain(val.timing) },
+    look: stylePanel?.kit.values ?? null,
+  };
+  return JSON.stringify(s);
+}
+const undos: string[] = [];
+let redos: string[] = [];
+let committed = "";
+let restoring = false;
+let commitTimer = 0;
+function commit() {
+  clearTimeout(commitTimer);
+  commitTimer = 0;
+  const now = snap();
+  if (now === committed) return;
+  undos.push(committed);
+  if (undos.length > 200) undos.shift();
+  redos = [];
+  committed = now;
+}
+function record() {
+  if (restoring || !committed) return;
+  clearTimeout(commitTimer);
+  commitTimer = window.setTimeout(commit, 300);
+}
+function travel(from: string[], to: string[]) {
+  if (commitTimer) commit();
+  const s = from.pop();
+  if (!s) return;
+  to.push(committed);
+  committed = s;
+  restoring = true;
+  const p = JSON.parse(s) as Snap;
+  // another sequence (or spacing): its timeline first
+  if (JSON.stringify(p.seq) !== JSON.stringify(seq) || p.spacing !== spacing) {
+    seq = p.seq;
+    spacing = p.spacing;
+    store.set(SEQ_KEY, JSON.stringify(seq));
+    store.set("clarify-morph-lab-spacing", String(spacing));
+    buildTimeline();
+  }
+  if (timeline) for (const [k, c] of Object.entries(p.clips)) {
+    DialStore.updateValue(timeline.id, `${k}.at`, c.at);
+    DialStore.updateValue(timeline.id, `${k}.duration`, c.duration);
+  }
+  kit.setValues(p.main as never);
+  if (p.look && stylePanel) stylePanel.kit.setValues(p.look as never);
+  renderRail();
+  invalidate();
+  // the panels answer a moment later: let them, then listen again
+  setTimeout(() => {
+    restoring = false;
+    committed = snap();
+  }, 50);
+}
+window.addEventListener("keydown", (e) => {
+  if (typing(e.target) || recording) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+    e.preventDefault();
+    if (e.shiftKey) travel(redos, undos);
+    else travel(undos, redos);
+  } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+    e.preventDefault();
+    travel(redos, undos);
+  }
+});
 
 // drag the frame to move the model
 let drag: { x: number; y: number; ex: number; ey: number; k: number } | null = null;
@@ -512,7 +596,7 @@ function copySvg() {
 // each frame and hands it to the recorder in time (MP4 where the browser
 // records it, else WebM). Always on the background colour.
 let recording = false;
-async function record() {
+async function recordVideo() {
   if (recording || !timeline || !plan) return;
   recording = true;
   const wasPlaying = playing;
@@ -569,4 +653,5 @@ async function record() {
 }
 
 buildTimeline();
-(window as unknown as { lab: unknown }).lab = { kit, seek, clips, timeline: () => timeline, setSeq, record, copySvg: svgText };
+committed = snap();
+(window as unknown as { lab: unknown }).lab = { kit, seek, clips, timeline: () => timeline, setSeq, record: recordVideo, copySvg: svgText, undo: () => travel(undos, redos), redo: () => travel(redos, undos) };
