@@ -12,6 +12,8 @@ import { DialStore, TimelineStore, createDialKit, createDialRoot, createDialTime
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
+import { progressButton } from "./progress";
+import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
@@ -79,6 +81,9 @@ const kit = createDialKit(
       h: [1080, 16, MAX, 1],
       // pixels per frame px (a video stops at 4K wide)
       scale: [1, 1, 4, 1],
+      // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
+      // 1920 × 1080)
+      video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
       light: false,
       transparent: false,
       colour: { type: "color", default: "#060709" },
@@ -157,6 +162,8 @@ const DT = 1 / 60;
 // (base: played round, the take carries on into its next pass, `base` s in,
 // rather than being built again, which held the first frame up a moment)
 const take = { seed: 1, valid: false, t: 0, rng: 1, clips: "", primed: false, base: 0 };
+// while a video is made, the scale the model draws at (0: the panel's)
+let videoK = 0;
 const realRandom = Math.random;
 function seed(on: boolean) {
   Math.random = on
@@ -201,7 +208,9 @@ function clips(): Clip[] {
 // (clocks: the scene's turn and spin at 0 s, and where they were when the
 // loop's morph back began)
 type Clocks = Record<string, number>;
-let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; base: Clocks | null; wind: Clocks | null; wound: Clocks | null; alpha?: Float32Array } | null = null;
+let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; base: Clocks | null; wind: Clocks | null; wound: Clocks | null; alpha?: Float32Array; boltEvery?: number; boltGain?: number; pass?: number } | null = null;
+// s over which the bolts dim out before the end
+const END_CALM = 0.8;
 // While the take starts again (scrubbed back, or round from the end), its
 // last frame stays up until the new one has painted: the scene loads a frame
 // or two after mounting, and the gap read as a flicker
@@ -227,7 +236,7 @@ function mountTake() {
   const f = family();
   const cs = clips();
   if (!f || !cs.length) return showFrame();
-  setExportScale(out().scale);
+  setExportScale(videoK || out().scale);
   const first = modelByName(cs[0].name);
   const shapes = cs.map((c) => shapeOf(modelByName(c.name)));
   const look = styleOverrides(first, stylePanel?.kit.values);
@@ -274,8 +283,24 @@ function drive(view: ReturnType<typeof getView>, tt: number) {
   // the blocks scene morphs to its next shape once its hold is up: the lab
   // ends the hold when the next clip starts (lab only: it reads whether the
   // scene is mid-morph; counted by the morphs the lab started)
-  const b = (view as unknown as { blocks: { morphing: boolean; boltClock: number; boltIn: Float32Array } | null }).blocks;
+  const b = (view as unknown as { blocks: { morphing: boolean; boltClock: number; boltIn: Float32Array; boltOut: Float32Array; hit: Float32Array; boltLast: number } | null }).blocks;
   if (!b) return;
+  // calm at the end too: played round, the end is 0 s, where no bolt is on.
+  // No bolt starts between morphs that couldn't fade before the end (its
+  // run, a little more, and its glow gone: 4 × its fade); the one a morph
+  // lands with is dimmed out over the last moment
+  plan.boltEvery ??= Number(cfg.boltEvery) || 0;
+  plan.boltGain ??= Number(cfg.boltGain) || 0;
+  const life = Math.max(1.5, b.boltLast) * 1.2 + 4 * (Number(cfg.boltFade) || 0.5);
+  cfg.boltEvery = T - t < life ? 0 : plan.boltEvery;
+  cfg.boltGain = plan.boltGain * smooth(Math.max(0, Math.min(1, (T - t - DT) / END_CALM)));
+  // and come round, calm as at 0 s: no bolt on, none on its way
+  if (b.boltClock !== -Infinity && pass !== (plan.pass ?? 0)) {
+    b.hit.fill(Infinity);
+    b.boltOut.fill(Infinity);
+    b.boltClock = -Infinity;
+  }
+  plan.pass = pass;
   // calm at 0 s: its first bolt after the usual rest, not at once (that
   // flashed each time the loop came round); its lines told no bolt is on
   // its way yet, or the clock would light them
@@ -1173,62 +1198,68 @@ function copySvg() {
 // so it takes as long as the timeline (MP4 where the browser records it, else
 // WebM). Always on the background colour.
 let recording = false;
+const videoButton = progressButton(document.querySelector<HTMLElement>('#rail [data-act="record"]')!);
 async function recordVideo() {
-  if (recording || !timeline || !plan) return;
+  if (recording) return videoButton.stop();
+  if (!timeline || !plan) return;
   recording = true;
+  videoButton.start();
   const wasPlaying = playing;
   timeline.pause();
   const o = out();
-  // at most 4K wide, and even sides for the encoder
-  const k = Math.min(o.scale, 3840 / Math.max(o.w, o.h));
+  // the frame fitted in the size picked, even sides for the encoder; the
+  // model drawn at that scale for it
+  const k = videoScale(o.w, o.h, o.video as VideoSize);
   const c = document.createElement("canvas");
   c.width = Math.round((o.w * k) / 2) * 2;
   c.height = Math.round((o.h * k) / 2) * 2;
-  const types = ["video/mp4;codecs=avc1.640033", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
-  const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
-  const stream = c.captureStream(0);
-  const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
-  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 24_000_000 });
-  const chunks: Blob[] = [];
-  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  const done = new Promise<void>((r) => (rec.onstop = () => r()));
-  // a fresh take (a carried-on one doesn't open as the video must)
-  take.valid = false;
-  await seek(0);
-  const view = getView(effect);
-  rec.start();
   const dur = duration();
-  const frames = Math.round(dur / DT);
-  const t0 = performance.now();
-  seed(true);
+  const back = playT;
+  let blob: Blob | null = null;
   try {
+    videoK = k;
+    // a fresh take (a carried-on one doesn't open as the video must)
+    take.valid = false;
+    await seek(0);
+    const view = getView(effect);
     // (not the frame at the end: played round, that's frame 0's)
-    for (let i = 0; i < frames; i++) {
-      if (i > 0 && view) {
-        drive(view, take.t);
-        view.step(DT);
-        take.t += DT;
-        view.paint();
-      }
-      compose(c, k, true);
-      track.requestFrame?.();
-      if (i % 30 === 0) hud.textContent = `exporting video ${Math.round((i / frames) * 100)}% · it plays through once, ${Math.ceil(dur - i * DT)} s left`;
-      // in time: the recorder stamps frames as they come
-      const due = t0 + (i + 1) * DT * 1000;
-      seed(false);
-      await new Promise((r) => setTimeout(r, Math.max(0, due - performance.now())));
-      seed(true);
-    }
+    blob = await encodeVideo(
+      c,
+      Math.round(dur / DT),
+      60,
+      (i) => {
+        if (i > 0 && view) {
+          seed(true);
+          try {
+            drive(view, take.t);
+            view.step(DT);
+            take.t += DT;
+          } finally {
+            seed(false);
+          }
+          view.paint();
+        }
+        compose(c, k, true);
+      },
+      (p, left) => videoButton.set(p, left),
+      () => videoButton.stopped,
+    );
+  } catch (e) {
+    console.error(e);
+    videoButton.end("Couldn't export, see console");
   } finally {
-    seed(false);
+    videoK = 0;
+    recording = false;
+    // back at the scale the preview draws at
+    take.valid = false;
+    playT = back;
   }
-  rec.stop();
-  await done;
-  playT = take.t;
-  download(new Blob(chunks, { type: mimeType || "video/webm" }), fileName(mimeType.includes("mp4") ? "mp4" : "webm"));
-  recording = false;
-  flash(`video exported to your downloads (${dur.toFixed(1)} s, ${c.width} × ${c.height})`);
+  if (blob) {
+    download(blob, fileName("mp4").replace(/\d+x\d+\.mp4$/, `${c.width}x${c.height}.mp4`));
+    videoButton.end(`Saved ${o.video} to Downloads ✓`);
+  } else if (videoButton.stopped) videoButton.end("Stopped, nothing saved");
   timeline.seek(playT);
+  await seek(playT);
   if (wasPlaying) timeline.play();
 }
 

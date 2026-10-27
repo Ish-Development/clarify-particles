@@ -16,6 +16,8 @@ import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { LOOK } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
+import { progressButton } from "./progress";
+import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
@@ -34,6 +36,9 @@ const kit = createDialKit(
       h: [396, 16, MAX, 1],
       // the PNG's pixels per frame px
       scale: [2, 1, 4, 1],
+      // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
+      // 1920 × 1080)
+      video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
       // light: the model inverted, dark lines on Bone 100
       light: false,
       transparent: false,
@@ -65,6 +70,10 @@ const v = (): V => kit.values;
 const out = () => v().output;
 const box = () => v().placement;
 const scale = () => out().scale;
+// a video being made (exportVideo), and the scale the model draws at for it
+// (0: the panel's)
+let exporting = false;
+let videoK = 0;
 
 const frame = document.getElementById("frame")!;
 const effect = document.getElementById("effect")!;
@@ -129,7 +138,7 @@ function mountModel() {
   holdFrame();
   unmount(effect);
   takeB.valid = false;
-  setExportScale(scale());
+  setExportScale(videoK || scale());
   const m = modelByName(v().model);
   showPanel(m.style);
   const sv = styleValues();
@@ -359,6 +368,8 @@ async function seek(T: number) {
 // a dragged playhead asks many times a frame: seek once, to the latest
 let seekTo = -1;
 function requestSeek(T: number) {
+  // (a video being made has the model to itself)
+  if (exporting) return;
   if (seekTo < 0) requestAnimationFrame(() => {
     const t = seekTo;
     seekTo = -1;
@@ -633,51 +644,56 @@ function render(): Promise<Blob> {
 }
 
 // Export video: the whole timeline from 0 s (the loop: its length, the last
-// frame before it comes round), 60 fps, as a file. Each frame is stepped and
-// drawn, and handed to the browser's recorder in time, so it takes as long
-// as the timeline (MP4 where the browser records it, else WebM).
-let exporting = false;
+// frame before it comes round), 60 fps, as an MP4 at the size picked. The
+// model is drawn at the video's own scale for it (and back after).
+const videoButton = progressButton(document.querySelector<HTMLElement>('#rail [data-act="video"]')!);
 async function exportVideo() {
-  if (exporting) return;
+  if (exporting) return videoButton.stop();
   exporting = true;
+  videoButton.start();
   const wasPlaying = playing;
   timeline.pause();
   const o = out();
-  const k = Math.min(scale(), 3840 / Math.max(o.w, o.h));
+  const k = videoScale(o.w, o.h, o.video as VideoSize);
   const c = document.createElement("canvas");
   c.width = Math.round((o.w * k) / 2) * 2;
   c.height = Math.round((o.h * k) / 2) * 2;
-  const types = ["video/mp4;codecs=avc1.640033", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
-  const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
-  const stream = c.captureStream(0);
-  const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
-  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 24_000_000 });
-  const chunks: Blob[] = [];
-  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  const done = new Promise<void>((r) => (rec.onstop = () => r()));
   const d = duration();
-  const frames = Math.round(d / SCRUB_DT);
-  await seek(0);
-  rec.start();
-  const t0 = performance.now();
-  for (let i = 0; i < frames; i++) {
-    if (i > 0) await seek(i * SCRUB_DT);
-    compose(c, k, true);
-    track.requestFrame?.();
-    if (i % 30 === 0) hud.textContent = `exporting video ${Math.round((i / frames) * 100)}% · it plays through once, ${Math.ceil(d - i * SCRUB_DT)} s left`;
-    const due = t0 + (i + 1) * SCRUB_DT * 1000;
-    await new Promise((r) => setTimeout(r, Math.max(0, due - performance.now())));
+  const back = playT;
+  let blob: Blob | null = null;
+  try {
+    videoK = k;
+    take.valid = false;
+    takeB.valid = false;
+    await seek(0);
+    blob = await encodeVideo(
+      c,
+      Math.round(d / SCRUB_DT),
+      60,
+      async (i) => {
+        if (i > 0) await seek(i * SCRUB_DT);
+        compose(c, k, true);
+      },
+      (p, left) => videoButton.set(p, left),
+      () => videoButton.stopped,
+    );
+  } catch (e) {
+    console.error(e);
+    videoButton.end("Couldn't export, see console");
+  } finally {
+    videoK = 0;
+    exporting = false;
+    playT = back;
+    remount();
   }
-  rec.stop();
-  await done;
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(chunks, { type: mimeType || "video/webm" }));
-  a.download = `clarify-${v().model.toLowerCase().replace(/\s+/g, "-")}-loop-${o.w}x${o.h}.${mimeType.includes("mp4") ? "mp4" : "webm"}`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  exporting = false;
-  hud.textContent = `video exported to your downloads (${d.toFixed(1)} s, ${c.width} × ${c.height})`;
-  setTimeout(layout, 3000);
+  if (blob) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `clarify-${v().model.toLowerCase().replace(/\s+/g, "-")}-loop-${c.width}x${c.height}.mp4`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    videoButton.end(`Saved ${o.video} to Downloads ✓`);
+  } else if (videoButton.stopped) videoButton.end("Stopped, nothing saved");
   timeline.seek(playT);
   if (wasPlaying) timeline.play();
 }

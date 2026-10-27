@@ -66,3 +66,10 @@ body { user-select: none; -webkit-user-select: none; }
 input, textarea, [contenteditable] { user-select: text; -webkit-user-select: text; }
 .dialkit-timeline-popover-header { cursor: grab; }
 .dialkit-timeline-popover-header:active { cursor: grabbing; }
+
+/* a long job on its button: the fill is how far it's got */
+.btn.busy { position: relative; overflow: hidden; border-color: #3a3e44; font-variant-numeric: tabular-nums; }
+.btn.busy::before { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--p, 0) * 100%); background: rgba(248, 251, 253, 0.14); transition: width 0.25s linear; }
+.btn.busy span { position: relative; }
+.btn.busy:hover span { opacity: 0.6; }
+.btn.done { border-color: #3a3e44; color: var(--ink); }
