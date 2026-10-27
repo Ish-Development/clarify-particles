@@ -14,6 +14,9 @@
       #frame { position: absolute; left: 50%; top: 50%; overflow: hidden; outline: 1px dashed #ffffff33; cursor: grab; }
       #frame:active { cursor: grabbing; }
       #effect { position: absolute; }
+      /* the loop's copy ahead, added over the model as it fades in */
+      #effectB { position: absolute; pointer-events: none; mix-blend-mode: plus-lighter; }
+      body.light #effectB { mix-blend-mode: multiply; }
       #hud { position: fixed; left: calc(var(--rail) + 24px); bottom: 148px; pointer-events: none; font: 12px var(--mono); color: var(--muted); }
       /* DialKit's panel as the right rail, its timeline dock along the bottom between the rails */
       .dialkit-panel[data-position="top-right"] { top: 0 !important; right: 0 !important; max-height: 100vh !important; }
@@ -36,10 +39,11 @@
       <div class="foot">
         <button class="btn primary" data-act="copy">Copy PNG</button>
         <button class="btn" data-act="copySvg">Copy SVG</button>
+        <button class="btn" data-act="video">Export video</button>
       </div>
     </nav>
     <div id="stage">
-      <div id="frame"><div id="effect"></div></div>
+      <div id="frame"><div id="effect"></div><div id="effectB"></div></div>
     </div>
     <div id="hud"></div>
     <script type="module" src="./export.ts"></script>

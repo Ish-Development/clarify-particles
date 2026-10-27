@@ -47,10 +47,14 @@ const kit = createDialKit(
       position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
       centre: { type: "action", label: "Centre in frame" },
     },
+    // a perfect loop: the timeline `length` s long, its last `blend` s
+    // fading into its start, so played round (or as a video) it never jumps
+    loop: { on: false, length: [10, 2, 30, 0.5], blend: [1.5, 0.2, 5, 0.1] },
     // a new take: new random choices (wirings, bolts), from 0 s
     take: { type: "action", label: "New take" },
     copySvg: { type: "action", label: "Copy SVG" },
     copy: { type: "action", label: "Copy PNG" },
+    video: { type: "action", label: "Export video" },
   },
   // (a new id: the dials changed units, old saved values would read wrong)
   { id: "export-2", persist: true, onAction: (a: string) => actions[a]?.() },
@@ -124,6 +128,7 @@ const styleValues = () => stylePanel?.kit.values as unknown;
 function mountModel() {
   holdFrame();
   unmount(effect);
+  takeB.valid = false;
   setExportScale(scale());
   const m = modelByName(v().model);
   showPanel(m.style);
@@ -164,15 +169,16 @@ function layout() {
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
   frame.style.background = o.transparent ? "transparent" : o.colour;
-  effect.style.filter = o.light ? "invert(1)" : "none";
+  effect.style.filter = effectB.style.filter = o.light ? "invert(1)" : "none";
   // the page behind goes light too, so a transparent frame shows the model
   document.body.classList.toggle("light", o.light);
-  Object.assign(effect.style, {
-    width: `${r.w}px`,
-    height: `${r.h}px`,
-    left: `${r.left}px`,
-    top: `${r.top}px`,
-  });
+  for (const el of [effect, effectB])
+    Object.assign(el.style, {
+      width: `${r.w}px`,
+      height: `${r.h}px`,
+      left: `${r.left}px`,
+      top: `${r.top}px`,
+    });
   const st = stage.getBoundingClientRect();
   const fit = Math.min(1, (st.width - 48) / o.w, (st.height - 48) / o.h) * view.zoom;
   frame.style.transform = `translate(calc(-50% + ${view.x}px), calc(-50% + ${view.y}px)) scale(${fit})`;
@@ -195,6 +201,7 @@ const actions: Record<string, () => void> = {
   },
   copy: () => copyPng(),
   copySvg: () => copySvg(),
+  video: () => exportVideo(),
 };
 
 // the left rail: every model by style, as in the gallery, the open one lit;
@@ -225,25 +232,28 @@ for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.on
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, loop: JSON.stringify(v().loop) };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
 // within a take, played or scrubbed to; forward only steps the difference,
 // back starts again from 0. ---
 setPaused(true);
-const DURATION = 30;
+// the timeline's length: 30 s, or the loop's
+const duration = () => (v().loop.on ? v().loop.length : 30);
 const take = { seed: 1, valid: false, t: 0, rng: 1 };
 let playing = true;
 const SCRUB_DT = 1 / 60;
 // the seeded generator stays in for the whole seek: a lazily loaded scene
 // makes its random choices when it arrives, a frame or two after mounting
 const realRandom = Math.random;
+// (the generator's state: the take's, or the loop's second copy's)
+let rngOf: { rng: number } = take;
 function seed(on: boolean) {
   Math.random = on
     ? () => {
         // mulberry32
-        let x = (take.rng = (take.rng + 0x6d2b79f5) | 0);
+        let x = (rngOf.rng = (rngOf.rng + 0x6d2b79f5) | 0);
         x = Math.imul(x ^ (x >>> 15), x | 1);
         x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
         return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
@@ -251,21 +261,68 @@ function seed(on: boolean) {
     : realRandom;
 }
 // the blocks and drawings load their scene a moment after mounting
-async function sceneReady() {
+async function sceneReady(el = effect) {
   for (let i = 0; i < 120; i++) {
-    const view = getView(effect);
+    const view = getView(el);
     if (view && view.scene.children.some((c) => c.children.length > 0 || (c as { isMesh?: boolean }).isMesh || (c as { isPoints?: boolean }).isPoints)) return view;
     await new Promise((r) => requestAnimationFrame(r));
   }
-  return getView(effect);
+  return getView(el);
 }
+
+// --- the perfect loop: a second copy of the model (the same take, so the
+// same moments) runs `length` s ahead; over the loop's first `blend` s the
+// preview fades from it into the model, so the end (length) and the start
+// (0) are the same frame ---
+const effectB = document.getElementById("effectB")!;
+const takeB = { valid: false, t: 0, rng: 1 };
+// how much of the model shows (1) against its copy ahead (0)
+let blendW = 1;
+function mix(w: number) {
+  blendW = w;
+  effect.style.opacity = String(w);
+  effectB.style.opacity = String(1 - w);
+  // (hidden, not removed: a removed view shrinks its canvas to 1 px)
+  effectB.style.visibility = w >= 1 ? "hidden" : "visible";
+}
+function dropLoop() {
+  takeB.valid = false;
+  unmount(effectB);
+  mix(1);
+}
+async function seekLoop(T: number, gen: number) {
+  const { on, length: L, blend } = v().loop;
+  const F = Math.min(blend, L / 2);
+  if (!on || T >= F) return mix(1);
+  rngOf = takeB;
+  if (!takeB.valid || T + L < takeB.t - 1e-6) {
+    takeB.rng = take.seed;
+    takeB.t = 0;
+    unmount(effectB);
+    const m = modelByName(v().model);
+    mount(effectB, specFor(effectB, m, styleOverrides(m, styleValues())), { root: effectB });
+    takeB.valid = true;
+  }
+  const vb = await sceneReady(effectB);
+  if (!vb || gen !== seekGen) return;
+  while (takeB.t + SCRUB_DT <= T + L + 1e-6) {
+    vb.step(SCRUB_DT);
+    takeB.t += SCRUB_DT;
+  }
+  vb.paint();
+  vb.canvas.style.transition = "none";
+  vb.canvas.style.opacity = "1";
+  mix(T / F);
+}
+
 let seekGen = 0;
 // the playhead: where the timeline is (the model steps to catch it up, a
 // whole step at a time)
 let playT = 0;
 async function seek(T: number) {
   const gen = ++seekGen;
-  T = playT = Math.max(0, Math.min(DURATION, T));
+  T = playT = Math.max(0, Math.min(duration(), T));
+  rngOf = take;
   seed(true);
   try {
     if (!take.valid || T < take.t - 1e-6) {
@@ -283,7 +340,9 @@ async function seek(T: number) {
     }
     view.paint();
     showFrame();
+    await seekLoop(T, gen);
   } finally {
+    rngOf = take;
     if (gen === seekGen) {
       seed(false);
     }
@@ -305,13 +364,11 @@ function requestSeek(T: number) {
 // of the panel's column (export.html). One clip, the model's motion, its
 // length the timeline's; the dock's playhead is the time the model is
 // stepped to. ---
-const timeline = createDialTimeline(
-  "Model",
-  { duration: DURATION, motion: { at: 0, duration: DURATION, from: { t: 0 }, to: { t: DURATION }, transition: { type: "easing", duration: DURATION, ease: [0, 0, 1, 1] } } },
-  { autoplay: true, loop: true },
-);
+const timelineConfig = (d: number) => ({ duration: d, motion: { at: 0, duration: d, from: { t: 0 }, to: { t: d }, transition: { type: "easing" as const, duration: d, ease: [0, 0, 1, 1] as [number, number, number, number] } } });
+const timeline = createDialTimeline("Model", timelineConfig(duration()), { autoplay: true, loop: true });
 createDialTimelineRoot({ theme: "dark", defaultOpen: true, defaultVisible: true });
 timeline.subscribe((tv) => {
+  if (exporting) return;
   playing = tv.playing;
   if (Math.abs(tv.time - playT) > 1e-6) requestSeek(tv.time);
 }, false);
@@ -341,7 +398,14 @@ kit.subscribe((nv) => {
     kit.setValues({ output: { colour: o.light ? "#f4f7fa" : "#060709" } });
     return;
   }
-  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: o.light };
+  // the loop: the timeline its length, the copy ahead taken again
+  const loop = JSON.stringify(nv.loop);
+  if (loop !== last.loop) {
+    dropLoop();
+    timeline.updateConfig(timelineConfig(duration()) as never);
+    requestSeek(Math.min(playT, duration()));
+  }
+  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: o.light, loop };
   layout();
   if (again) remount();
   lightRail();
@@ -356,7 +420,7 @@ const snap = () => {
   // (and the position pad's {x, y})
   const plain = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x !== "object" || (x !== null && "x" in x)));
   // and the model's own panel, with its style
-  return JSON.stringify({ model: val.model, output: plain(val.output), placement: plain(val.placement), panel: stylePanel ? { style: stylePanel.style, values: stylePanel.kit.values } : null });
+  return JSON.stringify({ model: val.model, output: plain(val.output), placement: plain(val.placement), loop: plain(val.loop), panel: stylePanel ? { style: stylePanel.style, values: stylePanel.kit.values } : null });
 };
 const undos: string[] = [];
 let redos: string[] = [];
@@ -458,7 +522,7 @@ window.addEventListener("keydown", (e) => {
     // a frame (1/30 s), with shift a second
     e.preventDefault();
     setPlaying(false);
-    timeline.seek(Math.max(0, Math.min(DURATION, playT + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 1 : 1 / 30))));
+    timeline.seek(Math.max(0, Math.min(duration(), playT + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 1 : 1 / 30))));
   } else if (e.key === "Home") {
     e.preventDefault();
     timeline.seek(0);
@@ -514,23 +578,101 @@ frame.addEventListener("pointerup", () => (drag = null));
 
 // the view's canvas holds the last frame at the export scale: draw it at the
 // effect box's place on a frame-sized canvas, over the background colour
-function render(): Promise<Blob> {
+// draw the frame now onto c at k× (the model, mid-loop mixed with its copy
+// ahead), over the background unless it's transparent (a video never is)
+function compose(c: HTMLCanvasElement, k: number, opaque = false) {
   const view = getView(effect);
-  if (!view) return Promise.reject(new Error("no view"));
+  if (!view) return false;
+  const o = out();
+  const ctx = c.getContext("2d")!;
+  ctx.filter = "none";
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+  ctx.clearRect(0, 0, c.width, c.height);
+  if (opaque || !o.transparent) {
+    ctx.fillStyle = o.colour;
+    ctx.fillRect(0, 0, c.width, c.height);
+  }
+  const r = rect();
+  let art: CanvasImageSource = view.canvas;
+  const vb = getView(effectB);
+  if (blendW < 1 && vb && vb.canvas.width === view.canvas.width) {
+    // light added to light: a cross-fade of the two
+    const mixed = document.createElement("canvas");
+    mixed.width = view.canvas.width;
+    mixed.height = view.canvas.height;
+    const m = mixed.getContext("2d")!;
+    m.globalAlpha = blendW;
+    m.drawImage(view.canvas, 0, 0);
+    m.globalCompositeOperation = "lighter";
+    m.globalAlpha = 1 - blendW;
+    m.drawImage(vb.canvas, 0, 0, mixed.width, mixed.height);
+    art = mixed;
+  }
+  if (o.light) ctx.filter = "invert(1)";
+  ctx.drawImage(art, r.left * k, r.top * k, r.w * k, r.h * k);
+  ctx.filter = "none";
+  return true;
+}
+
+function render(): Promise<Blob> {
   const o = out();
   const k = scale();
   const c = document.createElement("canvas");
   c.width = o.w * k;
   c.height = o.h * k;
-  const ctx = c.getContext("2d")!;
-  if (!o.transparent) {
-    ctx.fillStyle = o.colour;
-    ctx.fillRect(0, 0, c.width, c.height);
-  }
-  const r = rect();
-  if (o.light) ctx.filter = "invert(1)";
-  ctx.drawImage(view.canvas, r.left * k, r.top * k, r.w * k, r.h * k);
+  if (!compose(c, k)) return Promise.reject(new Error("no view"));
   return new Promise((ok, fail) => c.toBlob((blob) => (blob ? ok(blob) : fail(new Error("toBlob failed"))), "image/png"));
+}
+
+// Export video: the whole timeline from 0 s (the loop: its length, the last
+// frame before it comes round), 60 fps, as a file. Each frame is stepped and
+// drawn, and handed to the browser's recorder in time, so it takes as long
+// as the timeline (MP4 where the browser records it, else WebM).
+let exporting = false;
+async function exportVideo() {
+  if (exporting) return;
+  exporting = true;
+  const wasPlaying = playing;
+  timeline.pause();
+  const o = out();
+  const k = Math.min(scale(), 3840 / Math.max(o.w, o.h));
+  const c = document.createElement("canvas");
+  c.width = Math.round((o.w * k) / 2) * 2;
+  c.height = Math.round((o.h * k) / 2) * 2;
+  const types = ["video/mp4;codecs=avc1.640033", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+  const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+  const stream = c.captureStream(0);
+  const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
+  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 24_000_000 });
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  const done = new Promise<void>((r) => (rec.onstop = () => r()));
+  const d = duration();
+  const frames = Math.round(d / SCRUB_DT);
+  await seek(0);
+  rec.start();
+  const t0 = performance.now();
+  for (let i = 0; i < frames; i++) {
+    if (i > 0) await seek(i * SCRUB_DT);
+    compose(c, k, true);
+    track.requestFrame?.();
+    if (i % 30 === 0) hud.textContent = `exporting video ${Math.round((i / frames) * 100)}% · it plays through once, ${Math.ceil(d - i * SCRUB_DT)} s left`;
+    const due = t0 + (i + 1) * SCRUB_DT * 1000;
+    await new Promise((r) => setTimeout(r, Math.max(0, due - performance.now())));
+  }
+  rec.stop();
+  await done;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(chunks, { type: mimeType || "video/webm" }));
+  a.download = `clarify-${v().model.toLowerCase().replace(/\s+/g, "-")}${v().loop.on ? "-loop" : ""}-${o.w}x${o.h}.${mimeType.includes("mp4") ? "mp4" : "webm"}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  exporting = false;
+  hud.textContent = `video exported to your downloads (${d.toFixed(1)} s, ${c.width} × ${c.height})`;
+  setTimeout(layout, 3000);
+  timeline.seek(playT);
+  if (wasPlaying) timeline.play();
 }
 
 // The clipboard takes the blob as a promise, so the write starts inside the
