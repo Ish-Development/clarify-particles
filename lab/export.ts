@@ -22,6 +22,7 @@ import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { GROUNDS, INKS, groundOf, inkOf, lightOf } from "./brand";
 import { SIZES } from "./sizes";
 import { shiftSnap } from "./snap";
+import { handOff } from "./handoff";
 import { viewToSvg } from "./svg";
 
 const MAX = 4000;
@@ -257,7 +258,12 @@ STYLES.forEach(([style, title], i) => {
 // the morph lab takes dots, blocks and lines: from a network or a flat
 // drawing there's nothing to take there
 const morphLink = document.querySelector<HTMLAnchorElement>('#rail .nav a[href="./morph.html"]')!;
-morphLink.addEventListener("click", (e) => morphLink.classList.contains("off") && e.preventDefault());
+// and takes the look along: the frame, the ground, the model's colour, its
+// place and its own dials (lab/handoff.ts)
+morphLink.addEventListener("click", (e) => {
+  if (morphLink.classList.contains("off")) return e.preventDefault();
+  handOff({ output: v().output, placement: v().placement, style: stylePanel?.kit.values });
+});
 function lightRail() {
   for (const a of list.querySelectorAll<HTMLElement>("a")) a.classList.toggle("on", a.dataset.model === v().model);
   const morphs = ["dots", "blocks", "lines"].includes(modelByName(v().model).style);

@@ -17,6 +17,7 @@ import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { GROUNDS, INKS, groundOf, inkOf, lightOf } from "./brand";
 import { SIZES } from "./sizes";
 import { shiftSnap } from "./snap";
+import { fit, takeHandOff, type HandOff } from "./handoff";
 import { viewToSvg } from "./svg";
 
 type Family = "dots" | "blocks";
@@ -64,12 +65,15 @@ let seq: string[] = (() => {
   }
   return ["Block cube", "Line globe", "Line torus"].filter(known);
 })();
-// ?model=<name> (from the export lab): a new sequence, starting with it
+// ?model=<name> (from the export lab): a new sequence, starting with it,
+// in the look it had there (handed: applied once the panels are up)
+let handed: HandOff | null = null;
 {
   const asked = new URLSearchParams(location.search).get("model");
   if (asked && known(asked)) {
     seq = [asked];
     store.set(SEQ_KEY, JSON.stringify(seq));
+    handed = takeHandOff();
   }
   if (asked) history.replaceState(null, "", location.pathname);
 }
@@ -124,6 +128,7 @@ const kit = createDialKit(
   { id: "morph-1", persist: true, onAction: (a: string) => actions[a]?.() },
 );
 shiftSnap(kit as never, PANEL);
+if (handed) kit.setValues(fit(PANEL, { output: handed.output, placement: handed.placement }) as never);
 const v = () => kit.values;
 const out = () => v().output;
 
@@ -138,6 +143,9 @@ function showPanel(f: Family | null) {
   const dials = f === "dots" ? STYLE_DIALS.dots : STYLE_DIALS.blocks;
   const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: `morph-${f}`, persist: true });
   k.setValues(tidy(k.values) as never);
+  // the model's own dials as they were in the export lab
+  if (handed?.style) k.setValues(fit(dials, handed.style) as never);
+  handed = null;
   stylePanel = { family: f, kit: k };
   shiftSnap(k as never, dials);
   k.subscribe(() => {
