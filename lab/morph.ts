@@ -14,6 +14,7 @@ import { getView, mount, setExportScale, setPaused, unmount } from "../src/runti
 import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
+import { GROUNDS, INKS, groundStep, inkOf } from "./brand";
 import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
@@ -93,9 +94,14 @@ const kit = createDialKit(
       // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
       // 1920 × 1080)
       video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
+      // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
+      // light: a light ground, the model drawn dark on it
+      background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
+      colour: { type: "color", default: "#060709" },
       light: false,
       transparent: false,
-      colour: { type: "color", default: "#060709" },
+      // the model's colour: Auto, the site's own; else a brand colour
+      modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
     },
     placement: {
       size: [100, 10, 500, 1],
@@ -248,7 +254,7 @@ function mountTake() {
   setExportScale(videoK || out().scale);
   const first = modelByName(cs[0].name);
   const shapes = cs.map((c) => shapeOf(modelByName(c.name)));
-  const look = styleOverrides(first, stylePanel?.kit.values);
+  const look = { ...styleOverrides(first, stylePanel?.kit.values), ...inkOf(first.style, out().modelColour, out().light) };
   // more than one: it opens on the last model, morphing into the first as
   // clip 1 starts (as each clip morphs in at its start), so played round it
   // never cuts
@@ -988,7 +994,8 @@ const actions: Record<string, () => void> = {
 };
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
 
-let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale, morph: v().timing.morph };
+let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale, morph: v().timing.morph, ink: out().modelColour };
+let ground = { background: out().background, colour: out().colour, light: out().light };
 kit.subscribe((nv) => {
   const o = nv.output;
   if (!restoring && o.size !== last.size && SIZES[o.size]) {
@@ -1002,17 +1009,20 @@ kit.subscribe((nv) => {
     kit.setValues({ output: { size: "Custom" } });
     return;
   }
-  if (!restoring && o.light !== last.light) {
-    last = { ...last, light: o.light };
-    kit.setValues({ output: { colour: o.light ? "#f4f7fa" : "#060709" } });
+  // the ground kept in step (a swatch, its colour, Light)
+  const step = restoring ? null : groundStep(o, ground);
+  ground = { background: o.background, colour: o.colour, light: o.light };
+  if (step) {
+    kit.setValues({ output: step });
     return;
   }
   // the Length dial dragged: every clip scaled to it
   if (!restoring && !evening && timeline && Math.abs(nv.timing.length - clipsEnd()) > 0.05) honest(nv.timing.length);
   // Morph: another ending (and the dock's length)
-  const rescale = o.scale !== last.scale || nv.timing.morph !== last.morph;
+  // (a model colour, or a light ground with one: the model made again in it)
+  const rescale = o.scale !== last.scale || nv.timing.morph !== last.morph || o.modelColour !== last.ink || (o.modelColour !== "Auto" && o.light !== last.light);
   if (nv.timing.morph !== last.morph) honest();
-  last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale, morph: nv.timing.morph };
+  last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale, morph: nv.timing.morph, ink: o.modelColour };
   layout();
   if (rescale) invalidate();
   record();

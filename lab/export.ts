@@ -19,6 +19,7 @@ import { LOOK, LOOP, LOOP_UNITS } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
+import { GROUNDS, INKS, groundStep, inkOf } from "./brand";
 import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
@@ -40,10 +41,14 @@ const kit = createDialKit(
       // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
       // 1920 × 1080)
       video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-      // light: the model inverted, dark lines on Bone 100
+      // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
+      // light: a light ground, the model drawn dark on it
+      background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
+      colour: { type: "color", default: "#060709" },
       light: false,
       transparent: false,
-      colour: { type: "color", default: "#060709" },
+      // the model's colour: Auto, the site's own; else a brand colour
+      modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
     },
     // the model fits a square box, so it never stretches. size: that box,
     // % of the frame's shorter side; position: its centre on the frame, the
@@ -159,7 +164,7 @@ function mountModel() {
 // gathering in from a scatter, which the loop's start faded over)
 function modelSpec(el: HTMLElement) {
   const m = modelByName(v().model);
-  return specFor(el, m, { ...styleOverrides(m, styleValues()), ...(m.style === "dots" ? { gather: false } : {}) });
+  return specFor(el, m, { ...styleOverrides(m, styleValues()), ...(m.style === "dots" ? { gather: false } : {}), ...inkOf(m.style, out().modelColour, out().light) });
 }
 
 // a new model (or size, or dots) at the same moment
@@ -265,7 +270,8 @@ for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.on
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, loop: JSON.stringify({ length: v().loop.length, blend: v().loop.blend }) };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, ink: out().modelColour, loop: JSON.stringify({ length: v().loop.length, blend: v().loop.blend }) };
+let ground = { background: out().background, colour: out().colour, light: out().light };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
@@ -555,11 +561,14 @@ kit.subscribe((nv) => {
     kit.setValues({ loop: { length: snapped } });
     return;
   }
-  const again = nv.model !== last.model || o.scale !== last.scale;
+  // (a model colour, or a light ground with one: the model made again in it)
+  const again = nv.model !== last.model || o.scale !== last.scale || o.modelColour !== last.ink || (o.modelColour !== "Auto" && o.light !== last.light);
   // a new mode takes its own background (changed after, it stays)
-  if (!restoring && o.light !== last.light) {
-    last = { ...last, light: o.light };
-    kit.setValues({ output: { colour: o.light ? "#f4f7fa" : "#060709" } });
+  // the ground kept in step (a swatch, its colour, Light)
+  const step = restoring ? null : groundStep(o, ground);
+  ground = { background: o.background, colour: o.colour, light: o.light };
+  if (step) {
+    kit.setValues({ output: step });
     return;
   }
   // the loop: the timeline its length, the copy ahead taken again
@@ -571,7 +580,7 @@ kit.subscribe((nv) => {
     timeline.updateConfig(timelineConfig(duration()) as never);
     requestSeek(Math.min(playT, duration()));
   }
-  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: o.light, loop };
+  last = { model: nv.model, scale: o.scale, size: o.size, w: o.w, h: o.h, light: o.light, ink: o.modelColour, loop };
   layout();
   if (again) remount();
   lightRail();
