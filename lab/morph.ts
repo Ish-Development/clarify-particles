@@ -961,7 +961,8 @@ list.append(note);
 
 // --- actions ---
 const actions: Record<string, () => void> = {
-  "placement.centre": () => kit.setValues({ placement: { size: 100, position: { x: 0, y: 0 } } }),
+  // (where it is, not how big)
+  "placement.centre": () => kit.setValues({ placement: { position: { x: 0, y: 0 } } }),
   "timing.even": () => {
     spacing += 1;
     store.set("clarify-morph-lab-spacing", String(spacing));
