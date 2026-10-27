@@ -178,13 +178,18 @@ async function sceneReady() {
 }
 
 // the clips, in time order: which model, from when, how long
-type Clip = { name: string; at: number; dur: number };
-type ClipValues = Record<string, { at: number; duration: number; to?: { model?: string } }>;
+// look: a blocks or lines clip's own mix, % of the panel's (from its popover)
+type Look = { lines: number; insideLines: number; farSide: number; dots: number };
+const LOOK_KEYS = ["lines", "insideLines", "farSide", "dots"] as const;
+const PLAIN: Look = { lines: 100, insideLines: 100, farSide: 100, dots: 100 };
+type Clip = { name: string; at: number; dur: number; look: Look };
+type ClipValues = Record<string, { at: number; duration: number; to?: Partial<Look> & { model?: string } }>;
+const pick = (to: Partial<Look> | undefined): Partial<Look> => Object.fromEntries(LOOK_KEYS.filter((n) => typeof to?.[n] === "number").map((n) => [n, to![n]]));
 function clips(): Clip[] {
   if (!timeline) return [];
   const tv = timeline.values as unknown as ClipValues;
   return keys()
-    .map((k, i) => ({ name: seq[i], at: tv[k]?.at ?? 0, dur: tv[k]?.duration ?? 1 }))
+    .map((k, i) => ({ name: seq[i], at: tv[k]?.at ?? 0, dur: tv[k]?.duration ?? 1, look: { ...PLAIN, ...pick(tv[k]?.to) } }))
     .sort((a, b) => a.at - b.at);
 }
 
@@ -193,7 +198,7 @@ function clips(): Clip[] {
 // (clocks: the scene's turn and spin at 0 s, and where they were when the
 // loop's morph back began)
 type Clocks = Record<string, number>;
-let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; start: Clocks | null; tail: Clocks | null } | null = null;
+let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; start: Clocks | null; tail: Clocks | null; base: Clocks | null } | null = null;
 function mountTake() {
   unmount(effect);
   plan = null;
@@ -210,7 +215,7 @@ function mountTake() {
       : // held until the lab says (drive), no bolt between morphs
         { ...look, shapes: shapes.join(","), holdTime: 1e9 };
   mount(effect, specFor(effect, first, extra), { root: effect });
-  plan = { family: f, shapes, clips: cs, started: 0, start: null, tail: null };
+  plan = { family: f, shapes, clips: cs, started: 0, start: null, tail: null, base: null };
 }
 
 // before each step: the clip under the playhead, and its morph started (the
@@ -244,12 +249,53 @@ function drive(view: ReturnType<typeof getView>, t: number) {
   // (counted by the morphs the lab started: the scene's own index wraps)
   const b = (view as unknown as { blocks: { morphing: boolean } | null }).blocks;
   if (!b) return;
+  mixLive(view, k, t, morph);
   if (!b.morphing && plan.started < k) {
     cfg.stagger = Math.min(baseStagger.value, morph * 0.4);
     cfg.morphTime = morph - (cfg.stagger as number);
     cfg.holdTime = 0;
     plan.started++;
   } else cfg.holdTime = 1e9;
+}
+
+// A clip's inside lines: the scene keeps, per shape, how bright each node and
+// line draws (1 outside, `inner` inside, 0 a ghost), and blends them through a
+// morph; the lab scales each shape's inside ones by its clip's mix (lab only)
+function mixInside(view: NonNullable<ReturnType<typeof getView>>) {
+  const p = plan!;
+  const b = (view as unknown as { blocks: { real: Float32Array[]; lines: { in: Float32Array }[] } | null }).blocks;
+  const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
+  if (!b) return;
+  p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim };
+  const inner = cfg.inner;
+  if (!(inner > 0 && inner < 1)) return;
+  const to = (s: number) => Math.min(1, (inner * p.clips[s].look.insideLines) / 100);
+  const fix = (arr: Float32Array, i: number, v: number) => {
+    if (Math.abs(arr[i] - inner) < 1e-6) arr[i] = v;
+  };
+  p.clips.forEach((_, s) => {
+    const v = to(s);
+    const real = b.real[s];
+    if (real) for (let i = 0; i < real.length; i++) fix(real, i, v);
+    for (const l of b.lines) fix(l.in, s, v);
+  });
+}
+// the live mix (lines, far side, dots): the clip's, blended through the
+// morph from the one before
+function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: number, morph: number) {
+  const p = plan!;
+  if (!p.base) return;
+  const cs = p.clips;
+  const look = (i: number) => cs[((i % cs.length) + cs.length) % cs.length].look;
+  const from = k === 0 ? look(0) : look(k - 1);
+  const to = look(k);
+  const startAt = k < cs.length ? cs[k].at : cs[cs.length - 1].at + cs[cs.length - 1].dur;
+  const u = k === 0 ? 1 : Math.max(0, Math.min(1, (t - startAt) / morph));
+  const mix = (n: keyof Look) => (from[n] + (to[n] - from[n]) * u) / 100;
+  const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
+  cfg.lineOpacity = p.base.lineOpacity * mix("lines");
+  cfg.nodeOpacity = Math.min(1, p.base.nodeOpacity * mix("dots"));
+  cfg.backDim = Math.min(1, p.base.backDim * mix("farSide"));
 }
 
 // Loop: the morph back also turns the scene back to how it stood at 0 s
@@ -299,6 +345,7 @@ async function seek(T: number) {
     if (!plan) return;
     const view = await sceneReady();
     if (!view || gen !== seekGen) return;
+    if (plan.family === "blocks" && !plan.base) mixInside(view);
     if (plan.family === "blocks") baseStagger.value = Number((view as unknown as { cfg: { stagger: number } }).cfg.stagger) || 0.6;
     while (take.t + DT <= T + 1e-6) {
       drive(view, take.t);
@@ -365,7 +412,8 @@ function buildTimeline() {
     config[k] = {
       at: Math.round(i * span * 10) / 10,
       duration: span,
-      to: { model: { type: "select", options, default: seq[i] } },
+      // blocks and lines: the clip's own mix too (dots set theirs when built)
+      to: f === "blocks" ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 110, 5] } : { model: { type: "select", options, default: seq[i] } },
     };
   });
   config.duration = Math.round((seq.length * span + room()) * 10) / 10;
@@ -551,8 +599,8 @@ function popover(): { el: HTMLElement; i: number } | null {
   }
   return { el, i: Number(el.dataset.clip) };
 }
-// the box: the clip's model, or the one under the pointer in its dropdown
-async function showStill(hover?: string) {
+// the box: the clip's model
+async function showStill() {
   const p = popover();
   if (!p || p.i >= seq.length) return;
   const body = p.el.querySelector(".dialkit-timeline-popover-body");
@@ -561,7 +609,7 @@ async function showStill(hover?: string) {
   if (!box) {
     box = document.createElement("div");
     box.className = "clip-still";
-    box.innerHTML = "<img alt='' /><span></span>";
+    box.innerHTML = "<img alt='' />";
     // under the dropdown: its list opens upwards, over what's above it
     body.append(box);
     // every model it could be, drawn in the background, the clip's first
@@ -570,8 +618,7 @@ async function showStill(hover?: string) {
   }
   const title = p.el.querySelector(".dialkit-timeline-popover-title");
   if (title) title.textContent = labels()[p.i];
-  const name = hover ?? seq[p.i];
-  box.querySelector("span")!.textContent = hover && hover !== seq[p.i] ? hover : "";
+  const name = seq[p.i];
   if (box.dataset.model === name) return;
   box.dataset.model = name;
   const gen = ++stillGen;
@@ -583,22 +630,35 @@ async function showStill(hover?: string) {
 }
 new MutationObserver(() => {
   if (document.querySelector(".dialkit-timeline-popover:not([data-clip])")) showStill();
-  // the dropdown closed: back to the clip's own model
-  else if (hovering && !document.querySelector(".dialkit-select-option")) {
-    hovering = false;
-    showStill();
-  }
+  // the dropdown closed: its preview goes
+  else if (!document.querySelector(".dialkit-select-option")) peek.hidden = true;
 }).observe(document.body, { childList: true, subtree: true });
-// browsing the dropdown: the box shows the model under the pointer (or the
-// keyboard's)
-let hovering = false;
-const optionName = (t: EventTarget | null) => (t instanceof Element ? t.closest(".dialkit-select-option")?.textContent?.trim() : undefined);
+// browsing a clip's dropdown: a preview of the model under the pointer (or
+// the keyboard's) beside the list, where the list can't cover it
+const peek = document.createElement("div");
+peek.id = "peek";
+peek.hidden = true;
+peek.innerHTML = "<img alt='' /><span></span>";
+document.body.append(peek);
+let peekGen = 0;
 for (const type of ["pointerover", "focusin"]) {
-  document.addEventListener(type, (e) => {
-    const name = optionName(e.target);
-    if (!name || !known(name) || !document.querySelector(".dialkit-timeline-popover")) return;
-    hovering = true;
-    showStill(name);
+  document.addEventListener(type, async (e) => {
+    const opt = e.target instanceof Element ? e.target.closest<HTMLElement>(".dialkit-select-option") : null;
+    const name = opt?.textContent?.trim();
+    if (!opt || !name || !known(name) || !document.querySelector(".dialkit-timeline-popover")) return;
+    const list = opt.parentElement!.getBoundingClientRect();
+    const size = 260;
+    const left = list.left - size - 12 >= 8 ? list.left - size - 12 : list.right + 12;
+    const top = Math.max(8, Math.min(innerHeight - size - 8, list.top));
+    Object.assign(peek.style, { left: `${left}px`, top: `${top}px`, width: `${size}px`, height: `${size}px` });
+    peek.querySelector("span")!.textContent = name;
+    peek.hidden = false;
+    const gen = ++peekGen;
+    peek.classList.toggle("loading", !stills.has(name));
+    const url = await stillOf(name);
+    if (gen !== peekGen) return;
+    peek.querySelector("img")!.src = url;
+    peek.classList.remove("loading");
   });
 }
 
@@ -715,7 +775,7 @@ window.addEventListener("resize", layout);
 
 // --- undo / redo: a step per settled change (a drag is one step). A step
 // holds the sequence, how its clips are timed and every dial ---
-type Snap = { seq: string[]; spacing: number; clips: Record<string, { at: number; duration: number }>; main: unknown; look: unknown };
+type Snap = { seq: string[]; spacing: number; clips: Record<string, { at: number; duration: number; look?: Partial<Look> }>; main: unknown; look: unknown };
 const plain = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x !== "object" || (x !== null && "x" in x)));
 function snap(): string {
   const tv = (timeline?.values ?? {}) as unknown as Record<string, { at: number; duration: number }>;
@@ -723,7 +783,7 @@ function snap(): string {
   const s: Snap = {
     seq,
     spacing,
-    clips: Object.fromEntries(keys().map((k) => [k, { at: tv[k]?.at ?? 0, duration: tv[k]?.duration ?? 0 }])),
+    clips: Object.fromEntries(keys().map((k) => [k, { at: tv[k]?.at ?? 0, duration: tv[k]?.duration ?? 0, look: pick(tv[k]?.to) }])),
     main: { output: plain(val.output), placement: plain(val.placement), timing: plain(val.timing) },
     look: stylePanel?.kit.values ?? null,
   };
@@ -776,6 +836,7 @@ function travel(from: string[], to: string[]) {
     for (const [k, c] of Object.entries(p.clips)) {
       DialStore.updateValue(timeline.id, `${k}.at`, c.at);
       DialStore.updateValue(timeline.id, `${k}.duration`, c.duration);
+      for (const [n, x] of Object.entries(c.look ?? {})) DialStore.updateValue(timeline.id, `${k}.to.${n}`, x);
     }
     evening = false;
     honest();
@@ -959,4 +1020,4 @@ async function recordVideo() {
 
 buildTimeline();
 committed = snap();
-(window as unknown as { lab: unknown }).lab = { kit, seek, clips, timeline: () => timeline, setSeq, record: recordVideo, copySvg: svgText, undo: () => travel(undos, redos), redo: () => travel(redos, undos) };
+(window as unknown as { lab: unknown }).lab = { store: DialStore, kit, seek, clips, timeline: () => timeline, setSeq, record: recordVideo, copySvg: svgText, undo: () => travel(undos, redos), redo: () => travel(redos, undos) };

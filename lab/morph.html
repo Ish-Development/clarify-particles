@@ -30,8 +30,13 @@
       .clip-still img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .clip-still img:not([src]), .clip-still.loading img { visibility: hidden; }
       .clip-still.loading::after { content: "Drawing…"; position: absolute; inset: 0; display: grid; place-items: center; font: 12px var(--mono); color: var(--muted); }
-      /* the model under the pointer, while browsing */
-      .clip-still span { position: absolute; left: 10px; bottom: 8px; font: 12px var(--mono); color: var(--muted); }
+      /* the model under the pointer while browsing a clip's dropdown, beside the list */
+      #peek { position: fixed; z-index: 100000; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: 0 12px 40px #000a; pointer-events: none; }
+      #peek[hidden] { display: none; }
+      #peek img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      #peek.loading img, #peek img:not([src]) { visibility: hidden; }
+      #peek.loading::after { content: "Drawing…"; position: absolute; inset: 0; display: grid; place-items: center; font: 12px var(--mono); color: var(--muted); }
+      #peek span { position: absolute; left: 12px; bottom: 10px; font: 12px var(--mono); color: var(--muted); }
       body.light #stage { background: #e3e7ec; }
       body.light #frame { outline-color: #00000033; }
       body.light #hud { color: #575b5f; }
