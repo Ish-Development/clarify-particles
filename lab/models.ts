@@ -188,7 +188,8 @@ export function crispDots(m: Model, d: { density: number; size: number; opacity:
 // Each style's own panel in the export lab, shown only for its models: the
 // dials, in % of the model's own settings (100: as it is, unless said), and
 // what they set on a model.
-const x1 = (max: number, min = 0): [number, number, number, number] => [100, min * 100, max * 100, 5];
+// (rounded: 0.2 × 100 is 20.000000000000004, and the dial showed every digit)
+const x1 = (max: number, min = 0): [number, number, number, number] => [100, Math.round(min * 100), Math.round(max * 100), 5];
 // (brightness tops out where the model's own opacity reaches 1: past it a
 // dial did nothing)
 const LINE_DIALS = {
@@ -212,6 +213,13 @@ export const STYLE_DIALS = {
   drawing: { lines: { brightness: x1(3), width: x1(4, 0.25) }, dots: { brightness: x1(1.05), inner: x1(3), outer: x1(3) }, electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2) } },
 } as const;
 type Dials = Record<string, Record<string, number>>;
+// a panel's values rounded to 2 places (values saved before the limits
+// were rounded carried the noise)
+export function tidy<T>(values: T): T {
+  const walk = (o: unknown): unknown =>
+    typeof o === "number" ? Math.round(o * 100) / 100 : o && typeof o === "object" && !Array.isArray(o) ? Object.fromEntries(Object.entries(o).filter(([, x]) => typeof x === "number" || (x && typeof x === "object" && !("type" in x))).map(([k, x]) => [k, walk(x)])) : o;
+  return walk(values) as T;
+}
 // a panel's values as multipliers (the seconds stay seconds)
 export function asMultipliers<T>(values: T): T {
   const walk = (o: unknown, key = ""): unknown =>

@@ -15,7 +15,7 @@ import { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRo
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { LOOK } from "./drawings";
-import { MODELS, STYLES, STYLE_DIALS, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
+import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
@@ -110,6 +110,7 @@ function showPanel(style: Style) {
   if (stylePanel?.style === style) return;
   stylePanel?.kit.destroy();
   const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: `export-${style}-pct`, persist: true });
+  k.setValues(tidy(k.values) as never);
   stylePanel = { style, kit: k };
   // a dial rebuilds the model at the same moment, once the dial settles
   k.subscribe(() => {

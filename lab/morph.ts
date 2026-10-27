@@ -11,7 +11,7 @@
 import { DialStore, createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
-import { MODELS, STYLES, STYLE_DIALS, modelByName, specFor, styleOverrides, type Model } from "./models";
+import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
 import { SIZES } from "./sizes";
 import { viewToSvg } from "./svg";
 
@@ -110,6 +110,7 @@ function showPanel(f: Family | null) {
   if (!f) return;
   const dials = f === "dots" ? STYLE_DIALS.dots : STYLE_DIALS.blocks;
   const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: `morph-${f}`, persist: true });
+  k.setValues(tidy(k.values) as never);
   stylePanel = { family: f, kit: k };
   k.subscribe(() => {
     clearTimeout(styleTimer);
