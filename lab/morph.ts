@@ -154,7 +154,9 @@ function layout() {
 // --- time: as the export lab, the lab steps the model itself, seeded ---
 setPaused(true);
 const DT = 1 / 60;
-const take = { seed: 1, valid: false, t: 0, rng: 1, clips: "", primed: false };
+// (base: played round, the take carries on into its next pass, `base` s in,
+// rather than being built again, which held the first frame up a moment)
+const take = { seed: 1, valid: false, t: 0, rng: 1, clips: "", primed: false, base: 0 };
 const realRandom = Math.random;
 function seed(on: boolean) {
   Math.random = on
@@ -232,16 +234,15 @@ function mountTake() {
   // more than one: it opens on the last model, morphing into the first as
   // clip 1 starts (as each clip morphs in at its start), so played round it
   // never cuts
-  const loops = shapes.length > 1;
   const opening = shapes[shapes.length - 1];
   const extra =
     f === "dots"
       ? // in shape from the first frame (the hero gathers its dots in from a
         // scatter, which flashed each time the loop came round)
         { ...look, sequence: "", shape: opening, holdShape: opening, gather: false }
-      : // held until the lab says (drive), no bolt between morphs; the
-        // scene's list: the last model, then every clip's
-        { ...look, shapes: (loops ? [opening, ...shapes] : shapes).join(","), holdTime: 1e9 };
+      : // held until the lab says (drive), no bolt between morphs (it opens
+        // on the last of them: see the priming in seek)
+        { ...look, shapes: shapes.join(","), holdTime: 1e9 };
   mount(effect, specFor(effect, first, extra), { root: effect });
   plan = { family: f, shapes, clips: cs, started: 0, base: null, wind: null, wound: null };
 }
@@ -249,14 +250,18 @@ function mountTake() {
 // before each step: the clip under the playhead, and its morph started (the
 // Morph dial long, or the clip if it's shorter)
 const baseStagger = { value: 0.6 };
-function drive(view: ReturnType<typeof getView>, t: number) {
+function drive(view: ReturnType<typeof getView>, tt: number) {
   if (!view || !plan) return;
   const cs = plan.clips;
+  // tt: the take's time, past the end on later passes; t: within the pass
+  const T = duration();
+  const pass = Math.floor((tt + 1e-9) / T);
+  const t = tt - pass * T;
   let k = 0;
   for (let i = 0; i < cs.length; i++) if (cs[i].at <= t + 1e-9) k = i;
   const morph = Math.max(0.2, Math.min(v().timing.morph, cs[k].dur));
   const loops = cs.length > 1;
-  unwind(view, t + DT, Math.max(0.2, Math.min(v().timing.morph, cs[0].dur)));
+  unwind(view, tt + DT, Math.max(0.2, Math.min(v().timing.morph, cs[0].dur)));
   const cfg = (view as unknown as { cfg: Record<string, unknown> }).cfg;
   if (plan.family === "dots") {
     if (cfg.holdShape !== plan.shapes[k]) {
@@ -279,8 +284,8 @@ function drive(view: ReturnType<typeof getView>, t: number) {
     b.boltIn.fill(Infinity);
   }
   mixLive(view, k, t, morph);
-  // (the scene's list opens on the last model: a morph more, at 0 s)
-  if (!b.morphing && plan.started < k + (loops ? 1 : 0)) {
+  // (it opens on the last model: a morph more each pass, at its 0 s)
+  if (!b.morphing && plan.started < pass * cs.length + k + (loops ? 1 : 0)) {
     cfg.stagger = Math.min(baseStagger.value, morph * 0.4);
     cfg.morphTime = morph - (cfg.stagger as number);
     cfg.holdTime = 0;
@@ -299,10 +304,7 @@ function mixInside(view: NonNullable<ReturnType<typeof getView>>) {
   p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim, dotSize: b.nodeMat.uniforms.uSize.value };
   const inner = cfg.inner;
   if (!(inner > 0 && inner < 1)) return;
-  // (the scene's shape s: with a loop, 0 is the last clip's and s the clip s - 1's)
-  const L = p.clips.length;
-  const clipOf = (s: number) => (L > 1 ? (s === 0 ? L - 1 : s - 1) : 0);
-  const to = (s: number) => Math.min(1, (inner * p.clips[clipOf(s)].look.insideLines) / 100);
+  const to = (s: number) => Math.min(1, (inner * p.clips[s].look.insideLines) / 100);
   const fix = (arr: Float32Array, i: number, v: number) => {
     if (Math.abs(arr[i] - inner) < 1e-6) arr[i] = v;
   };
@@ -437,14 +439,17 @@ async function seek(T: number) {
   seed(true);
   try {
     const now = JSON.stringify(clips());
-    if (!take.valid || T < take.t - 1e-6 || now !== take.clips) {
+    // back in time (not round): built again from 0
+    if (!take.valid || take.base + T < take.t - 1e-6 || now !== take.clips) {
       take.rng = take.seed;
       take.t = 0;
+      take.base = 0;
       take.clips = now;
       take.primed = false;
       mountTake();
       take.valid = true;
     }
+    const V = take.base + T;
     if (!plan) return;
     const view = await sceneReady();
     if (!view || gen !== seekGen) return;
@@ -454,6 +459,9 @@ async function seek(T: number) {
     // it on their first step), not the scatter they're made in
     if (take.t === 0 && !take.primed) {
       const m0 = Math.max(0.2, Math.min(v().timing.morph, plan.clips[0].dur));
+      // the blocks open on the last model (dots: mountTake)
+      const sc = (view as unknown as { blocks: { shape: number; from: number } | null }).blocks;
+      if (sc && plan.clips.length > 1) sc.shape = sc.from = plan.clips.length - 1;
       unwind(view, 0, m0);
       // and its look, as the steps after will have it
       if (plan.family === "dots") mixDots(view, 0, 0, m0);
@@ -461,7 +469,7 @@ async function seek(T: number) {
       view.step(0);
       take.primed = true;
     }
-    while (take.t + DT <= T + 1e-6) {
+    while (take.t + DT <= V + 1e-6) {
       drive(view, take.t);
       view.step(DT);
       take.t += DT;
@@ -560,6 +568,8 @@ function buildTimeline() {
     honest();
     // past the last clip: round again from 0
     if (tv.playing && tv.time > duration() + 1e-6) {
+      // round again: the same take, carried on (seamless, as it was made)
+      if (take.valid && take.t >= take.base + duration() - DT * 2) take.base += duration();
       timeline!.seek(0);
       return;
     }
@@ -1172,6 +1182,8 @@ async function recordVideo() {
   const chunks: Blob[] = [];
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   const done = new Promise<void>((r) => (rec.onstop = () => r()));
+  // a fresh take (a carried-on one doesn't open as the video must)
+  take.valid = false;
   await seek(0);
   const view = getView(effect);
   rec.start();
