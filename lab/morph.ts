@@ -180,11 +180,11 @@ async function sceneReady() {
 
 // the clips, in time order: which model, from when, how long
 // look: a clip's own mix, % of the panel's (from its popover). Blocks and
-// lines: lines, inside lines, far side, dots (their size); dots: size and
-// brightness
-type Look = { lines: number; insideLines: number; farSide: number; dots: number; size: number; brightness: number };
-const LOOK_KEYS = ["lines", "insideLines", "farSide", "dots", "size", "brightness"] as const;
-const PLAIN: Look = { lines: 100, insideLines: 100, farSide: 100, dots: 100, size: 100, brightness: 100 };
+// lines: lines, their width, inside lines, far side, dots (their size);
+// dots: size, brightness and density (the share of them showing)
+type Look = { lines: number; width: number; insideLines: number; farSide: number; dots: number; size: number; brightness: number; density: number };
+const LOOK_KEYS = ["lines", "width", "insideLines", "farSide", "dots", "size", "brightness", "density"] as const;
+const PLAIN: Look = { lines: 100, width: 100, insideLines: 100, farSide: 100, dots: 100, size: 100, brightness: 100, density: 100 };
 type Clip = { name: string; at: number; dur: number; look: Look };
 type ClipValues = Record<string, { at: number; duration: number; to?: Partial<Look> & { model?: string } }>;
 const pick = (to: Partial<Look> | undefined): Partial<Look> => Object.fromEntries(LOOK_KEYS.filter((n) => typeof to?.[n] === "number").map((n) => [n, to![n]]));
@@ -298,10 +298,10 @@ function drive(view: ReturnType<typeof getView>, tt: number) {
 // morph; the lab scales each shape's inside ones by its clip's mix (lab only)
 function mixInside(view: NonNullable<ReturnType<typeof getView>>) {
   const p = plan!;
-  const b = (view as unknown as { blocks: { real: Float32Array[]; lines: { in: Float32Array }[]; nodeMat: { uniforms: { uSize: { value: number } } } } | null }).blocks;
+  const b = (view as unknown as { blocks: { real: Float32Array[]; lines: { in: Float32Array }[]; nodeMat: { uniforms: { uSize: { value: number } } }; lineMat: { uniforms: { uWidth: { value: number } } } } | null }).blocks;
   const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
   if (!b) return;
-  p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim, dotSize: b.nodeMat.uniforms.uSize.value };
+  p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim, dotSize: b.nodeMat.uniforms.uSize.value, lineWidth: b.lineMat.uniforms.uWidth.value };
   const inner = cfg.inner;
   if (!(inner > 0 && inner < 1)) return;
   const to = (s: number) => Math.min(1, (inner * p.clips[s].look.insideLines) / 100);
@@ -337,8 +337,9 @@ function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   // out too, so 0 is none
   const dots = mix("dots");
   cfg.nodeOpacity = p.base.nodeOpacity * Math.min(1, dots);
-  const b = (view as unknown as { blocks: { nodeMat: { uniforms: { uSize: { value: number } } } } | null }).blocks;
+  const b = (view as unknown as { blocks: { nodeMat: { uniforms: { uSize: { value: number } } }; lineMat: { uniforms: { uWidth: { value: number } } } } | null }).blocks;
   if (b) b.nodeMat.uniforms.uSize.value = p.base.dotSize * dots;
+  if (b) b.lineMat.uniforms.uWidth.value = p.base.lineWidth * mix("width");
   cfg.backDim = Math.min(1, p.base.backDim * mix("farSide"));
 }
 
@@ -355,8 +356,14 @@ function mixDots(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   const mix = blend(k, t, morph);
   d.material.uniforms.uSizeScale.value = p.base.sizeScale * mix("size");
   const b = mix("brightness");
+  // density: each dot shows below its own fixed share (a hash of its index),
+  // fading in over the last 2%, so the same dots go and come back
+  const n = mix("density");
   const a = d.alphaAttr.array;
-  for (let i = 0; i < d.system.count; i++) a[i] = Math.min(1, p.alpha![i] * b);
+  for (let i = 0; i < d.system.count; i++) {
+    const h = (Math.imul(i + 1, 2654435761) >>> 0) / 4294967296;
+    a[i] = Math.min(1, p.alpha![i] * b) * Math.max(0, Math.min(1, (n - h) / 0.02 + 1));
+  }
   d.alphaAttr.needsUpdate = true;
 }
 
@@ -541,8 +548,8 @@ function buildTimeline() {
       // and the clip's own mix
       to:
         f === "blocks"
-          ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 400, 5] }
-          : { model: { type: "select", options, default: seq[i] }, size: [100, 20, 400, 5], brightness: [100, 0, 150, 5] },
+          ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], width: [100, 25, 400, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 400, 5] }
+          : { model: { type: "select", options, default: seq[i] }, size: [100, 20, 400, 5], brightness: [100, 0, 150, 5], density: [100, 10, 100, 5] },
     };
   });
   config.duration = Math.round((seq.length * span + room()) * 10) / 10;
@@ -735,6 +742,7 @@ function popover(): { el: HTMLElement; i: number } | null {
   }
   return { el, i: Number(el.dataset.clip) };
 }
+const SLIDER_NAMES: Record<string, string> = { Width: "Line width", "Inside Lines": "Inside lines", "Far Side": "Far side", Dots: "Dot size" };
 // the box: the clip's model
 async function showStill() {
   const p = popover();
@@ -754,6 +762,8 @@ async function showStill() {
   }
   const title = p.el.querySelector(".dialkit-timeline-popover-title");
   if (title) title.textContent = labels()[p.i];
+  // DialKit names a slider by its key: the ones a key can't say
+  for (const l of p.el.querySelectorAll(".dialkit-slider-label")) l.textContent = SLIDER_NAMES[l.textContent ?? ""] ?? l.textContent;
   const name = seq[p.i];
   if (box.dataset.model === name) return;
   box.dataset.model = name;
