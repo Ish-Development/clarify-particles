@@ -84,3 +84,10 @@ input, textarea, [contenteditable] { user-select: text; -webkit-user-select: tex
 /* a brand colour's swatch, beside its name in a dropdown (lab/brand.ts) */
 .dialkit-select-value.swatched, .dialkit-select-option.swatched { display: inline-flex; align-items: center; gap: 8px; }
 .dialkit-select-value.swatched::before, .dialkit-select-option.swatched::before { content: ""; width: 12px; height: 12px; border-radius: 3px; background: var(--swatch); box-shadow: inset 0 0 0 1px rgba(248, 251, 253, 0.18); flex-shrink: 0; }
+
+/* the clip being worked on (its card open) stands out: the others fade back
+   (as in the Dot sphere studio) */
+.dialkit-timeline-clip { transition: opacity 200ms cubic-bezier(0.16, 1, 0.3, 1); }
+.dialkit-timeline:has(.dialkit-timeline-clip[data-selected]) .dialkit-timeline-clip:not([data-selected]) { opacity: 0.3; }
+.dialkit-timeline:has(.dialkit-timeline-clip[data-selected]) .dialkit-timeline-clip:not([data-selected]):hover { opacity: 0.65; }
+.dialkit-timeline-clip[data-selected] { outline: 2px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.18); z-index: 2; }
