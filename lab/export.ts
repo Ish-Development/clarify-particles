@@ -21,55 +21,58 @@ import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { GROUNDS, INKS, groundStep, inkOf } from "./brand";
 import { SIZES } from "./sizes";
+import { shiftSnap } from "./snap";
 import { viewToSvg } from "./svg";
 
 const MAX = 4000;
 
 createDialRoot({ position: "top-right", theme: "dark" });
 
+const PANEL = {
+  // labelled with their style, in the gallery's order
+  model: { type: "select", options: MODELS.map((m) => ({ value: m.name, label: `${STYLES.find(([st]) => st === m.style)![1]} · ${m.name}` })), default: MODELS[0].name },
+  output: {
+    size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "LinkedIn banner (4:1)" },
+    w: [1584, 16, MAX, 1],
+    h: [396, 16, MAX, 1],
+    // the PNG's pixels per frame px
+    scale: [2, 1, 4, 1],
+    // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
+    // 1920 × 1080)
+    video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
+    // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
+    // light: a light ground, the model drawn dark on it
+    background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
+    colour: { type: "color", default: "#060709" },
+    light: false,
+    transparent: false,
+    // the model's colour: Auto, the site's own; else a brand colour
+    modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
+  },
+  // the model fits a square box, so it never stretches. size: that box,
+  // % of the frame's shorter side; position: its centre on the frame, the
+  // pad's edges the frame's (drag the frame to move it too)
+  placement: {
+    size: [100, 10, 500, 1],
+    position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
+    centre: { type: "action", label: "Centre in frame" },
+  },
+  // always a perfect loop: the timeline `length` s long, its last `blend`
+  // s fading into its start, so played round (or as a video) it never jumps
+  loop: { length: [10, 2, 60, 0.5], blend: [1.5, 0.2, 5, 0.1] },
+  // a new take: new random choices (wirings, bolts), from 0 s
+  take: { type: "action", label: "New take" },
+  copySvg: { type: "action", label: "Copy SVG" },
+  copy: { type: "action", label: "Copy PNG" },
+  video: { type: "action", label: "Export video" },
+};
 const kit = createDialKit(
   "Export",
-  {
-    // labelled with their style, in the gallery's order
-    model: { type: "select", options: MODELS.map((m) => ({ value: m.name, label: `${STYLES.find(([st]) => st === m.style)![1]} · ${m.name}` })), default: MODELS[0].name },
-    output: {
-      size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "LinkedIn banner (4:1)" },
-      w: [1584, 16, MAX, 1],
-      h: [396, 16, MAX, 1],
-      // the PNG's pixels per frame px
-      scale: [2, 1, 4, 1],
-      // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
-      // 1920 × 1080)
-      video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-      // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
-      // light: a light ground, the model drawn dark on it
-      background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
-      colour: { type: "color", default: "#060709" },
-      light: false,
-      transparent: false,
-      // the model's colour: Auto, the site's own; else a brand colour
-      modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
-    },
-    // the model fits a square box, so it never stretches. size: that box,
-    // % of the frame's shorter side; position: its centre on the frame, the
-    // pad's edges the frame's (drag the frame to move it too)
-    placement: {
-      size: [100, 10, 500, 1],
-      position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
-      centre: { type: "action", label: "Centre in frame" },
-    },
-    // always a perfect loop: the timeline `length` s long, its last `blend`
-    // s fading into its start, so played round (or as a video) it never jumps
-    loop: { length: [10, 2, 60, 0.5], blend: [1.5, 0.2, 5, 0.1] },
-    // a new take: new random choices (wirings, bolts), from 0 s
-    take: { type: "action", label: "New take" },
-    copySvg: { type: "action", label: "Copy SVG" },
-    copy: { type: "action", label: "Copy PNG" },
-    video: { type: "action", label: "Export video" },
-  },
+  PANEL,
   // (a new id: the dials changed units, old saved values would read wrong)
   { id: "export-2", persist: true, onAction: (a: string) => actions[a]?.() },
 );
+shiftSnap(kit as never, PANEL);
 
 type V = typeof kit.values;
 const v = (): V => kit.values;
@@ -131,6 +134,7 @@ function showPanel(style: Style) {
   const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: `export-${style}-pct`, persist: true });
   k.setValues(tidy(k.values) as never);
   stylePanel = { style, kit: k };
+  shiftSnap(k as never, STYLE_DIALS[style]);
   // a dial rebuilds the model at the same moment, once the dial settles
   k.subscribe(() => {
     clearTimeout(styleTimer);

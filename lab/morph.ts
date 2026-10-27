@@ -16,6 +16,7 @@ import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { GROUNDS, INKS, groundStep, inkOf } from "./brand";
 import { SIZES } from "./sizes";
+import { shiftSnap } from "./snap";
 import { viewToSvg } from "./svg";
 
 type Family = "dots" | "blocks";
@@ -82,47 +83,49 @@ const labels = () => seq.map((n, i) => (seq.slice(0, i).includes(n) ? `${n} ${se
 // --- the panel ---
 createDialRoot({ position: "top-right", theme: "dark" });
 const MAX = 4000;
+const PANEL = {
+  output: {
+    size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "16:9" },
+    w: [1920, 16, MAX, 1],
+    h: [1080, 16, MAX, 1],
+    // pixels per frame px (a video stops at 4K wide)
+    scale: [1, 1, 4, 1],
+    // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
+    // 1920 × 1080)
+    video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
+    // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
+    // light: a light ground, the model drawn dark on it
+    background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
+    colour: { type: "color", default: "#060709" },
+    light: false,
+    transparent: false,
+    // the model's colour: Auto, the site's own; else a brand colour
+    modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
+  },
+  placement: {
+    size: [100, 10, 500, 1],
+    position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
+    centre: { type: "action", label: "Centre in frame" },
+  },
+  // length: the whole video's, s (drag it to stretch or squeeze every clip
+  // together). hold + morph: a new sequence's clip, s each; morph: how long
+  // each morph takes (a clip shorter than that morphs for its whole length)
+  timing: {
+    // the video's length: every clip longer or shorter together
+    length: [12, 1, 120, 0.1],
+    hold: [2.5, 0.5, 10, 0.1],
+    morph: [1.5, 0.2, 6, 0.1],
+    even: { type: "action", label: "Space clips evenly" },
+  },
+  take: { type: "action", label: "New take" },
+  copySvg: { type: "action", label: "Copy SVG" },
+};
 const kit = createDialKit(
   "Morph",
-  {
-    output: {
-      size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "16:9" },
-      w: [1920, 16, MAX, 1],
-      h: [1080, 16, MAX, 1],
-      // pixels per frame px (a video stops at 4K wide)
-      scale: [1, 1, 4, 1],
-      // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
-      // 1920 × 1080)
-      video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-      // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
-      // light: a light ground, the model drawn dark on it
-      background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
-      colour: { type: "color", default: "#060709" },
-      light: false,
-      transparent: false,
-      // the model's colour: Auto, the site's own; else a brand colour
-      modelColour: { type: "select", options: ["Auto", ...Object.keys(INKS)], default: "Auto" },
-    },
-    placement: {
-      size: [100, 10, 500, 1],
-      position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
-      centre: { type: "action", label: "Centre in frame" },
-    },
-    // length: the whole video's, s (drag it to stretch or squeeze every clip
-    // together). hold + morph: a new sequence's clip, s each; morph: how long
-    // each morph takes (a clip shorter than that morphs for its whole length)
-    timing: {
-      // the video's length: every clip longer or shorter together
-      length: [12, 1, 120, 0.1],
-      hold: [2.5, 0.5, 10, 0.1],
-      morph: [1.5, 0.2, 6, 0.1],
-      even: { type: "action", label: "Space clips evenly" },
-    },
-    take: { type: "action", label: "New take" },
-    copySvg: { type: "action", label: "Copy SVG" },
-  },
+  PANEL,
   { id: "morph-1", persist: true, onAction: (a: string) => actions[a]?.() },
 );
+shiftSnap(kit as never, PANEL);
 const v = () => kit.values;
 const out = () => v().output;
 
@@ -138,6 +141,7 @@ function showPanel(f: Family | null) {
   const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: `morph-${f}`, persist: true });
   k.setValues(tidy(k.values) as never);
   stylePanel = { family: f, kit: k };
+  shiftSnap(k as never, dials);
   k.subscribe(() => {
     clearTimeout(styleTimer);
     styleTimer = window.setTimeout(() => invalidate(), 150);
