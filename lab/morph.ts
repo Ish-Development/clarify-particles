@@ -177,11 +177,12 @@ async function sceneReady() {
 }
 
 // the clips, in time order: which model, from when, how long
-// look: a blocks or lines clip's own mix, % of the panel's (from its popover;
-// dots: their size)
-type Look = { lines: number; insideLines: number; farSide: number; dots: number };
-const LOOK_KEYS = ["lines", "insideLines", "farSide", "dots"] as const;
-const PLAIN: Look = { lines: 100, insideLines: 100, farSide: 100, dots: 100 };
+// look: a clip's own mix, % of the panel's (from its popover). Blocks and
+// lines: lines, inside lines, far side, dots (their size); dots: size and
+// brightness
+type Look = { lines: number; insideLines: number; farSide: number; dots: number; size: number; brightness: number };
+const LOOK_KEYS = ["lines", "insideLines", "farSide", "dots", "size", "brightness"] as const;
+const PLAIN: Look = { lines: 100, insideLines: 100, farSide: 100, dots: 100, size: 100, brightness: 100 };
 type Clip = { name: string; at: number; dur: number; look: Look };
 type ClipValues = Record<string, { at: number; duration: number; to?: Partial<Look> & { model?: string } }>;
 const pick = (to: Partial<Look> | undefined): Partial<Look> => Object.fromEntries(LOOK_KEYS.filter((n) => typeof to?.[n] === "number").map((n) => [n, to![n]]));
@@ -198,7 +199,7 @@ function clips(): Clip[] {
 // (clocks: the scene's turn and spin at 0 s, and where they were when the
 // loop's morph back began)
 type Clocks = Record<string, number>;
-let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; base: Clocks | null; wind: Clocks | null; wound: Clocks | null } | null = null;
+let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; base: Clocks | null; wind: Clocks | null; wound: Clocks | null; alpha?: Float32Array } | null = null;
 // While the take starts again (scrubbed back, or round from the end), its
 // last frame stays up until the new one has painted: the scene loads a frame
 // or two after mounting, and the gap read as a flicker
@@ -262,6 +263,7 @@ function drive(view: ReturnType<typeof getView>, t: number) {
       cfg.morphTime = morph;
       cfg.holdShape = plan.shapes[k];
     }
+    mixDots(view, k, t, morph);
     return;
   }
   // the blocks scene morphs to its next shape once its hold is up: the lab
@@ -313,16 +315,20 @@ function mixInside(view: NonNullable<ReturnType<typeof getView>>) {
 }
 // the live mix (lines, far side, dots): the clip's, blended through the
 // morph from the one before
-function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: number, morph: number) {
-  const p = plan!;
-  if (!p.base) return;
-  const cs = p.clips;
+// the clip's look at t, blended through its morph from the one before (clip
+// 1's from the last clip's), as a multiplier
+function blend(k: number, t: number, morph: number) {
+  const cs = plan!.clips;
   const look = (i: number) => cs[((i % cs.length) + cs.length) % cs.length].look;
-  // (clip 1's morph comes from the last clip's look)
   const from = cs.length > 1 ? look(k - 1) : look(0);
   const to = look(k);
   const u = Math.max(0, Math.min(1, (t - cs[k].at) / morph));
-  const mix = (n: keyof Look) => (from[n] + (to[n] - from[n]) * u) / 100;
+  return (n: keyof Look) => (from[n] + (to[n] - from[n]) * u) / 100;
+}
+function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: number, morph: number) {
+  const p = plan!;
+  if (!p.base) return;
+  const mix = blend(k, t, morph);
   const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
   cfg.lineOpacity = p.base.lineOpacity * mix("lines");
   // dots: their size (the scene's own, a shader value); below 100 they fade
@@ -332,6 +338,24 @@ function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   const b = (view as unknown as { blocks: { nodeMat: { uniforms: { uSize: { value: number } } } } | null }).blocks;
   if (b) b.nodeMat.uniforms.uSize.value = p.base.dotSize * dots;
   cfg.backDim = Math.min(1, p.base.backDim * mix("farSide"));
+}
+
+// dots: their size (a shader value) and brightness (each dot's own, the
+// scene's opacities scaled; lab only)
+type DotsView = { system: { opacity: Float32Array; count: number }; material: { uniforms: { uSizeScale: { value: number } } }; alphaAttr: { array: Float32Array; needsUpdate: boolean } };
+function mixDots(view: NonNullable<ReturnType<typeof getView>>, k: number, t: number, morph: number) {
+  const p = plan!;
+  const d = view as unknown as DotsView;
+  if (!p.base) {
+    p.base = { sizeScale: d.material.uniforms.uSizeScale.value };
+    p.alpha = d.system.opacity.slice();
+  }
+  const mix = blend(k, t, morph);
+  d.material.uniforms.uSizeScale.value = p.base.sizeScale * mix("size");
+  const b = mix("brightness");
+  const a = d.alphaAttr.array;
+  for (let i = 0; i < d.system.count; i++) a[i] = Math.min(1, p.alpha![i] * b);
+  d.alphaAttr.needsUpdate = true;
 }
 
 // Played round, the last frame must be the first: but the scene keeps
@@ -429,7 +453,11 @@ async function seek(T: number) {
     // a new take: one step of no time, so 0 s is the shape (the dots snap to
     // it on their first step), not the scatter they're made in
     if (take.t === 0 && !take.primed) {
-      unwind(view, 0, Math.max(0.2, Math.min(v().timing.morph, plan.clips[0].dur)));
+      const m0 = Math.max(0.2, Math.min(v().timing.morph, plan.clips[0].dur));
+      unwind(view, 0, m0);
+      // and its look, as the steps after will have it
+      if (plan.family === "dots") mixDots(view, 0, 0, m0);
+      else mixLive(view, 0, 0, m0);
       view.step(0);
       take.primed = true;
     }
@@ -502,14 +530,20 @@ function buildTimeline() {
     config[k] = {
       at: Math.round(i * span * 10) / 10,
       duration: span,
-      // blocks and lines: the clip's own mix too (dots set theirs when built)
-      to: f === "blocks" ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 400, 5] } : { model: { type: "select", options, default: seq[i] } },
+      // and the clip's own mix
+      to:
+        f === "blocks"
+          ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 400, 5] }
+          : { model: { type: "select", options, default: seq[i] }, size: [100, 20, 400, 5], brightness: [100, 0, 150, 5] },
     };
   });
   config.duration = Math.round((seq.length * span + room()) * 10) / 10;
   const id = `morph-${spacing}-${f}-${seq.length}`;
   timeline = createDialTimeline("Morph", config as never, { id, persist: true, autoplay: playing, loop: false });
   showModels();
+  // a fresh timeline: its clips are where it put them, not moves of the old
+  // one's (read as drags, they got mangled)
+  shape = {};
   honest();
   layout();
   timeline.subscribe((tv) => {
