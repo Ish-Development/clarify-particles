@@ -22,6 +22,10 @@
       .dialkit-timeline { left: var(--rail) !important; right: var(--panel) !important; bottom: 0 !important; }
       .dialkit-timeline-dock { border-radius: 0 !important; border-width: 1px 0 0 !important; }
       .dialkit-pad-surface { aspect-ratio: var(--frame-aspect, 1) !important; }
+      /* a clip's popover: just its model (the engine eases the morph itself, so
+         DialKit's curve there did nothing; the clip's length is dragged) */
+      .dialkit-timeline-popover-body > .dialkit-folder:not(:has(.dialkit-select-row)) { display: none; }
+      .dialkit-timeline-popover-body > .dialkit-folder:has(.dialkit-select-row) > .dialkit-folder-header { display: none; }
       body.light #stage { background: #e3e7ec; }
       body.light #frame { outline-color: #00000033; }
       body.light #hud { color: #575b5f; }
@@ -51,7 +55,7 @@
       </div>
       <div class="list" id="list"></div>
       <div class="foot">
-        <button class="btn primary" data-act="record">Record video</button>
+        <button class="btn primary" data-act="record">Export video</button>
         <button class="btn" data-act="copy">Copy PNG</button>
       </div>
     </nav>

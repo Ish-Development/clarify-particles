@@ -8,7 +8,7 @@
 // PNG or SVG, or record the whole timeline as a video. ⌘Z / ⇧⌘Z undo and redo
 // it all: the sequence, the clips' timing and the dials.
 // Not part of the build; with the lab's dev server open /lab/morph.html.
-import { DialStore, createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
+import { DialStore, TimelineStore, createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
@@ -61,8 +61,11 @@ let seq: string[] = (() => {
   return ["Block cube", "Line globe", "Line torus"].filter(known);
 })();
 const family = (): Family | null => (seq.length ? familyOf(modelByName(seq[0])) : null);
-// a clip's key on the timeline: the model's name, numbered when it's in twice
-const keys = () => seq.map((n, i) => (seq.slice(0, i).includes(n) ? `${n} ${seq.slice(0, i).filter((x) => x === n).length + 1}` : n));
+// a clip's key on the timeline: its slot (the model in it can change, from
+// the clip's own popover), and its label: the model's name, numbered when
+// it's in twice
+const keys = () => seq.map((_, i) => `clip${i + 1}`);
+const labels = () => seq.map((n, i) => (seq.slice(0, i).includes(n) ? `${n} ${seq.slice(0, i).filter((x) => x === n).length + 1}` : n));
 
 // --- the panel ---
 createDialRoot({ position: "top-right", theme: "dark" });
@@ -276,8 +279,9 @@ function invalidate() {
   seek(playT);
 }
 
-// --- the timeline: a clip per model, rebuilt when the sequence changes (its
-// id names the sequence, so each one keeps its own timing) ---
+// --- the timeline: a clip per model, rebuilt when a model joins or leaves
+// (its id names the family and the count, so each keeps its own timing). A
+// clip's popover picks its model ---
 let timeline: ReturnType<typeof createDialTimeline> | null = null;
 let playing = true;
 let spacing = Number(store.get("clarify-morph-lab-spacing") ?? 0) || 0;
@@ -296,14 +300,25 @@ function buildTimeline() {
   const { hold, morph } = v().timing;
   const span = hold + morph;
   const config: Record<string, unknown> = { duration: Math.round(seq.length * span * 10) / 10 };
+  const f = family()!;
+  // (labelled as named: DialKit title-cases a bare option)
+  const options = MODELS.filter((m) => familyOf(m) === f).map((m) => ({ value: m.name, label: m.name }));
   keys().forEach((k, i) => {
-    config[k] = { at: Math.round(i * span * 10) / 10, duration: span, from: { p: 0 }, to: { p: 1 }, transition: { type: "easing", duration: span, ease: [0, 0, 1, 1] } };
+    config[k] = { at: Math.round(i * span * 10) / 10, duration: span, to: { model: { type: "select", options, default: seq[i] } } };
   });
-  const id = `morph-${spacing}-${keys().join("|")}`;
+  const id = `morph-${spacing}-${f}-${seq.length}`;
   timeline = createDialTimeline("Morph", config as never, { id, persist: true, autoplay: playing, loop: true });
+  showModels();
   timeline.subscribe((tv) => {
     if (recording) return;
     playing = tv.playing;
+    // a model picked in a clip's popover
+    const picked = keys().map((k, i) => (tv as unknown as Record<string, { to?: { model?: string } }>)[k]?.to?.model ?? seq[i]);
+    if (!restoring && picked.some((n, i) => n !== seq[i] && known(n))) {
+      seq = picked;
+      store.set(SEQ_KEY, JSON.stringify(seq));
+      showModels();
+    }
     // a clip moved: the take starts again, at the same moment
     if (JSON.stringify(clips()) !== take.clips) {
       renderRail();
@@ -313,6 +328,17 @@ function buildTimeline() {
   }, false);
   take.valid = false;
   seek(0);
+}
+// the clips' models and labels from the sequence
+function showModels() {
+  if (!timeline) return;
+  const id = timeline.id;
+  keys().forEach((k, i) => {
+    if ((DialStore.getValue(id, `${k}.to.model`) as string | undefined) !== seq[i]) DialStore.updateValue(id, `${k}.to.model`, seq[i]);
+  });
+  const meta = TimelineStore.getTimeline(id);
+  const names = labels();
+  if (meta && meta.clips.some((c, i) => c.label !== names[i])) TimelineStore.update({ ...meta, clips: meta.clips.map((c, i) => ({ ...c, label: names[i] ?? c.label })) });
 }
 const dock = createDialTimelineRoot({ theme: "dark", defaultOpen: true, defaultVisible: true });
 // the dock grows a row per clip: the preview keeps clear of it
@@ -334,7 +360,7 @@ function setSeq(next: string[]) {
 }
 function renderRail() {
   seqList.textContent = "";
-  const ks = keys();
+  const ks = labels();
   const order = clips().length === seq.length ? clips().map((c) => c.name) : seq;
   // the rail lists them in play order; × takes that one out
   const used = new Map<string, number>();
@@ -466,12 +492,17 @@ function travel(from: string[], to: string[]) {
   restoring = true;
   const p = JSON.parse(s) as Snap;
   // another sequence (or spacing): its timeline first
-  if (JSON.stringify(p.seq) !== JSON.stringify(seq) || p.spacing !== spacing) {
+  // another count, family or spacing: its timeline first; else the models
+  if (p.seq.length !== seq.length || p.spacing !== spacing || familyOf(modelByName(p.seq[0] ?? "")) !== family()) {
     seq = p.seq;
     spacing = p.spacing;
     store.set(SEQ_KEY, JSON.stringify(seq));
     store.set("clarify-morph-lab-spacing", String(spacing));
     buildTimeline();
+  } else if (JSON.stringify(p.seq) !== JSON.stringify(seq)) {
+    seq = p.seq;
+    store.set(SEQ_KEY, JSON.stringify(seq));
+    showModels();
   }
   if (timeline) for (const [k, c] of Object.entries(p.clips)) {
     DialStore.updateValue(timeline.id, `${k}.at`, c.at);
@@ -593,9 +624,10 @@ function copySvg() {
   else fallback();
 }
 
-// A video of the whole timeline, from 0 s, at 60 fps: the lab steps and draws
-// each frame and hands it to the recorder in time (MP4 where the browser
-// records it, else WebM). Always on the background colour.
+// Export video: the whole timeline, from 0 s, at 60 fps, as a file. The lab
+// steps and draws each frame and hands it to the browser's recorder in time,
+// so it takes as long as the timeline (MP4 where the browser records it, else
+// WebM). Always on the background colour.
 let recording = false;
 async function recordVideo() {
   if (recording || !timeline || !plan) return;
@@ -633,7 +665,7 @@ async function recordVideo() {
       }
       compose(c, k, true);
       track.requestFrame?.();
-      if (i % 30 === 0) hud.textContent = `recording ${Math.round((i / frames) * 100)}%`;
+      if (i % 30 === 0) hud.textContent = `exporting video ${Math.round((i / frames) * 100)}% · it plays through once, ${Math.ceil(dur - i * DT)} s left`;
       // in time: the recorder stamps frames as they come
       const due = t0 + (i + 1) * DT * 1000;
       seed(false);
@@ -648,7 +680,7 @@ async function recordVideo() {
   playT = take.t;
   download(new Blob(chunks, { type: mimeType || "video/webm" }), fileName(mimeType.includes("mp4") ? "mp4" : "webm"));
   recording = false;
-  flash(`video saved (${(dur).toFixed(1)} s, ${c.width} × ${c.height})`);
+  flash(`video exported to your downloads (${dur.toFixed(1)} s, ${c.width} × ${c.height})`);
   timeline.seek(playT);
   if (wasPlaying) timeline.play();
 }
