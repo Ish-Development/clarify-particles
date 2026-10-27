@@ -94,6 +94,7 @@ const kit = createDialKit(
     timing: {
       // the video's length: every clip longer or shorter together
       length: [12, 1, 120, 0.1],
+      loop: false,
       hold: [2.5, 0.5, 10, 0.1],
       morph: [1.5, 0.2, 6, 0.1],
       even: { type: "action", label: "Space clips evenly" },
@@ -148,7 +149,7 @@ function layout() {
   frame.style.transform = `translate(-50%, -50%) scale(${fit})`;
   empty.style.display = seq.length ? "none" : "";
   frame.style.visibility = seq.length ? "" : "hidden";
-  if (!recording) hud.textContent = `output ${o.w * out().scale} × ${o.h * out().scale} px · ${seq.length < 2 ? "add a second model to morph" : "drag the clips below to retime"}`;
+  if (!recording) hud.textContent = `output ${o.w * out().scale} × ${o.h * out().scale} px · ${seq.length < 2 ? "add a second model to morph" : "drag the clips below to retime"}${loopTail() ? ` · loops: back to ${clips()[0]?.name ?? seq[0]} by ${duration().toFixed(1)} s` : ""}`;
 }
 
 // --- time: as the export lab, the lab steps the model itself, seeded ---
@@ -189,7 +190,10 @@ function clips(): Clip[] {
 
 // the model mounted for a take: the first clip's, with every clip's shape
 // (blocks: in time order, as the scene morphs through them in turn)
-let plan: { family: Family; shapes: string[]; clips: Clip[] } | null = null;
+// (clocks: the scene's turn and spin at 0 s, and where they were when the
+// loop's morph back began)
+type Clocks = Record<string, number>;
+let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; start: Clocks | null; tail: Clocks | null } | null = null;
 function mountTake() {
   unmount(effect);
   plan = null;
@@ -206,7 +210,7 @@ function mountTake() {
       : // held until the lab says (drive), no bolt between morphs
         { ...look, shapes: shapes.join(","), holdTime: 1e9 };
   mount(effect, specFor(effect, first, extra), { root: effect });
-  plan = { family: f, shapes, clips: cs };
+  plan = { family: f, shapes, clips: cs, started: 0, start: null, tail: null };
 }
 
 // before each step: the clip under the playhead, and its morph started (the
@@ -217,25 +221,63 @@ function drive(view: ReturnType<typeof getView>, t: number) {
   const cs = plan.clips;
   let k = 0;
   for (let i = 0; i < cs.length; i++) if (cs[i].at <= t + 1e-9) k = i;
-  const morph = Math.max(0.2, Math.min(v().timing.morph, cs[k].dur));
+  let morph = Math.max(0.2, Math.min(v().timing.morph, cs[k].dur));
+  // Loop: past the last clip, the morph back to the first (index L: the
+  // blocks go round their list to 0)
+  const end = cs[cs.length - 1].at + cs[cs.length - 1].dur;
+  if (loopTail() && t >= end - 1e-9) {
+    k = cs.length;
+    morph = loopTail();
+  }
+  turnBack(view, t, end);
   const cfg = (view as unknown as { cfg: Record<string, unknown> }).cfg;
   if (plan.family === "dots") {
-    if (cfg.holdShape !== plan.shapes[k]) {
+    if (cfg.holdShape !== plan.shapes[k % plan.shapes.length]) {
       cfg.morphTime = morph;
-      cfg.holdShape = plan.shapes[k];
+      cfg.holdShape = plan.shapes[k % plan.shapes.length];
     }
     return;
   }
   // the blocks scene morphs to its next shape once its hold is up: the lab
-  // ends the hold when the next clip starts (lab only: it reads the scene's
-  // own place in the list)
-  const b = (view as unknown as { blocks: { shape: number; morphing: boolean } | null }).blocks;
+  // ends the hold when the next clip starts (lab only: it reads whether the
+  // scene is mid-morph)
+  // (counted by the morphs the lab started: the scene's own index wraps)
+  const b = (view as unknown as { blocks: { morphing: boolean } | null }).blocks;
   if (!b) return;
-  if (!b.morphing && b.shape < k) {
+  if (!b.morphing && plan.started < k) {
     cfg.stagger = Math.min(baseStagger.value, morph * 0.4);
     cfg.morphTime = morph - (cfg.stagger as number);
     cfg.holdTime = 0;
+    plan.started++;
   } else cfg.holdTime = 1e9;
+}
+
+// Loop: the morph back also turns the scene back to how it stood at 0 s
+// (the blocks' slow turn, the dots' spin and drift), so the last frame is
+// the first and the video loops without a jump (lab only: it sets those
+// clocks on the scenes)
+function turnBack(view: NonNullable<ReturnType<typeof getView>>, t: number, end: number) {
+  const p = plan!;
+  const blocks = p.family === "blocks";
+  const target = (blocks ? (view as unknown as { blocks: Clocks | null }).blocks : (view as unknown as { system: Clocks }).system) as Clocks | null;
+  if (!target) return;
+  const names = blocks ? ["turn"] : ["rotTime", "idleTime", "time"];
+  if (!p.start) p.start = Object.fromEntries(names.map((n) => [n, target[n]]));
+  const tail = loopTail();
+  if (!tail || t < end - 1e-9) {
+    p.tail = null;
+    return;
+  }
+  if (!p.tail) p.tail = Object.fromEntries(names.map((n) => [n, target[n]]));
+  // where each clock should be after this step, less what the step adds
+  const u = Math.min(1, (t + DT - end) / tail);
+  const e = u * u * (3 - 2 * u);
+  const cfg = (view as unknown as { cfg: Record<string, number | boolean> }).cfg;
+  const spin = Math.max(0, Number(cfg.rotateSpeed) || 0);
+  const adds: Clocks = blocks
+    ? { turn: DT * Number(cfg.turnSpeed || 0) }
+    : { rotTime: cfg.autoRotate ? DT * spin : 0, idleTime: cfg.idleMotion ? DT * 0.35 * spin : 0, time: DT * Number(cfg.speed ?? 1) };
+  for (const n of names) target[n] = p.tail[n] + (p.start[n] - p.tail[n]) * e - (adds[n] ?? 0);
 }
 
 let seekGen = 0;
@@ -292,11 +334,16 @@ let playing = true;
 let spacing = Number(store.get("clarify-morph-lab-spacing") ?? 0) || 0;
 // the video's length: where the last clip ends (the dock runs a little past
 // it, room to drag that end out)
-const duration = () => {
+const clipsEnd = () => {
   const cs = clips();
   return cs.length ? Math.max(0.5, cs[cs.length - 1].at + cs[cs.length - 1].dur) : 1;
 };
-const ROOM = 3;
+// Loop: after the last clip, its model morphs back into the first one's, and
+// the video ends once it's there: played round, it never cuts
+const loopTail = () => (v().timing.loop && seq.length > 1 ? Math.max(0.2, v().timing.morph) : 0);
+const duration = () => clipsEnd() + loopTail();
+// past the clips, the dock shows the loop's morph and a little room
+const room = () => Math.max(3, loopTail() + 1);
 function buildTimeline() {
   timeline?.destroy();
   timeline = null;
@@ -321,11 +368,12 @@ function buildTimeline() {
       to: { model: { type: "select", options, default: seq[i] } },
     };
   });
-  config.duration = Math.round((seq.length * span + ROOM) * 10) / 10;
+  config.duration = Math.round((seq.length * span + room()) * 10) / 10;
   const id = `morph-${spacing}-${f}-${seq.length}`;
   timeline = createDialTimeline("Morph", config as never, { id, persist: true, autoplay: playing, loop: false });
   showModels();
   honest();
+  layout();
   timeline.subscribe((tv) => {
     if (recording) return;
     playing = tv.playing;
@@ -356,7 +404,8 @@ function buildTimeline() {
 // The timeline tells the truth: a clip runs from its start to the next one's,
 // as long as its model is on screen (no gaps, no overlaps). Dragging a clip
 // past another reorders them; dragging a clip's end moves every clip after it
-// along; the last clip's end is the video's. The dock runs ROOM s past it.
+// along; the last clip's end is the video's (or, with Loop, the morph back
+// to the first after it). The dock runs a little past it.
 let shape: Record<string, { at: number; dur: number }> = {};
 let evening = false;
 // (once a drag on the dock ends: tidied mid-drag, the clips moved under it)
@@ -421,7 +470,7 @@ function honest(scaleTo?: number) {
   evening = true;
   try {
     const meta = TimelineStore.getTimeline(id);
-    if (meta && Math.abs(meta.duration - (end + ROOM)) > 1e-6) TimelineStore.update({ ...meta, duration: r2(end + ROOM) });
+    if (meta && Math.abs(meta.duration - (end + room())) > 1e-6) TimelineStore.update({ ...meta, duration: r2(end + room()) });
     for (const c of next) {
       if (Math.abs((tv[c.k]?.at ?? 0) - c.at) > 1e-6) DialStore.updateValue(id, `${c.k}.at`, c.at);
       if (Math.abs((tv[c.k]?.duration ?? 0) - c.dur) > 1e-6) DialStore.updateValue(id, `${c.k}.duration`, c.dur);
@@ -602,7 +651,7 @@ const actions: Record<string, () => void> = {
 };
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
 
-let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale };
+let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale, loop: v().timing.loop, morph: v().timing.morph };
 kit.subscribe((nv) => {
   const o = nv.output;
   if (!restoring && o.size !== last.size && SIZES[o.size]) {
@@ -622,9 +671,11 @@ kit.subscribe((nv) => {
     return;
   }
   // the Length dial dragged: every clip scaled to it
-  if (!restoring && !evening && timeline && Math.abs(nv.timing.length - duration()) > 0.05) honest(nv.timing.length);
-  const rescale = o.scale !== last.scale;
-  last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale };
+  if (!restoring && !evening && timeline && Math.abs(nv.timing.length - clipsEnd()) > 0.05) honest(nv.timing.length);
+  // Loop or Morph: another ending (and the dock's length)
+  const rescale = o.scale !== last.scale || nv.timing.loop !== last.loop || nv.timing.morph !== last.morph;
+  if (nv.timing.loop !== last.loop || nv.timing.morph !== last.morph) honest();
+  last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale, loop: nv.timing.loop, morph: nv.timing.morph };
   layout();
   if (rescale) invalidate();
   record();
