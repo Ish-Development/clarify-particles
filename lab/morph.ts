@@ -94,7 +94,7 @@ const kit = createDialKit(
     timing: {
       // the video's length: every clip longer or shorter together
       length: [12, 1, 120, 0.1],
-      loop: false,
+      loop: true,
       hold: [2.5, 0.5, 10, 0.1],
       morph: [1.5, 0.2, 6, 0.1],
       even: { type: "action", label: "Space clips evenly" },
@@ -105,6 +105,11 @@ const kit = createDialKit(
   { id: "morph-1", persist: true, onAction: (a: string) => actions[a]?.() },
 );
 const v = () => kit.values;
+// Loop came in off; it's on now unless turned off since (once per browser)
+if (!store.get("clarify-morph-lab-loop-default")) {
+  kit.setValues({ timing: { loop: true } } as never);
+  store.set("clarify-morph-lab-loop-default", "1");
+}
 const out = () => v().output;
 
 // the family's look (the export lab's dials for its style)
@@ -178,7 +183,8 @@ async function sceneReady() {
 }
 
 // the clips, in time order: which model, from when, how long
-// look: a blocks or lines clip's own mix, % of the panel's (from its popover)
+// look: a blocks or lines clip's own mix, % of the panel's (from its popover;
+// dots: their size)
 type Look = { lines: number; insideLines: number; farSide: number; dots: number };
 const LOOK_KEYS = ["lines", "insideLines", "farSide", "dots"] as const;
 const PLAIN: Look = { lines: 100, insideLines: 100, farSide: 100, dots: 100 };
@@ -263,10 +269,10 @@ function drive(view: ReturnType<typeof getView>, t: number) {
 // morph; the lab scales each shape's inside ones by its clip's mix (lab only)
 function mixInside(view: NonNullable<ReturnType<typeof getView>>) {
   const p = plan!;
-  const b = (view as unknown as { blocks: { real: Float32Array[]; lines: { in: Float32Array }[] } | null }).blocks;
+  const b = (view as unknown as { blocks: { real: Float32Array[]; lines: { in: Float32Array }[]; nodeMat: { uniforms: { uSize: { value: number } } } } | null }).blocks;
   const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
   if (!b) return;
-  p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim };
+  p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim, dotSize: b.nodeMat.uniforms.uSize.value };
   const inner = cfg.inner;
   if (!(inner > 0 && inner < 1)) return;
   const to = (s: number) => Math.min(1, (inner * p.clips[s].look.insideLines) / 100);
@@ -294,7 +300,12 @@ function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   const mix = (n: keyof Look) => (from[n] + (to[n] - from[n]) * u) / 100;
   const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
   cfg.lineOpacity = p.base.lineOpacity * mix("lines");
-  cfg.nodeOpacity = Math.min(1, p.base.nodeOpacity * mix("dots"));
+  // dots: their size (the scene's own, a shader value); below 100 they fade
+  // out too, so 0 is none
+  const dots = mix("dots");
+  cfg.nodeOpacity = p.base.nodeOpacity * Math.min(1, dots);
+  const b = (view as unknown as { blocks: { nodeMat: { uniforms: { uSize: { value: number } } } } | null }).blocks;
+  if (b) b.nodeMat.uniforms.uSize.value = p.base.dotSize * dots;
   cfg.backDim = Math.min(1, p.base.backDim * mix("farSide"));
 }
 
@@ -353,6 +364,10 @@ async function seek(T: number) {
       take.t += DT;
     }
     view.paint();
+    // no fade in (the engine eases a new view in; here it read as a flicker
+    // each time the take started again)
+    view.canvas.style.transition = "none";
+    view.canvas.style.opacity = "1";
   } finally {
     if (gen === seekGen) seed(false);
   }
@@ -413,9 +428,12 @@ function buildTimeline() {
       at: Math.round(i * span * 10) / 10,
       duration: span,
       // blocks and lines: the clip's own mix too (dots set theirs when built)
-      to: f === "blocks" ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 110, 5] } : { model: { type: "select", options, default: seq[i] } },
+      to: f === "blocks" ? { model: { type: "select", options, default: seq[i] }, lines: [100, 0, 250, 5], insideLines: [100, 0, 400, 5], farSide: [100, 0, 330, 5], dots: [100, 0, 400, 5] } : { model: { type: "select", options, default: seq[i] } },
     };
   });
+  // Loop: the morph back to the first model, a clip of its own after the
+  // last (where honest() keeps it: it can't be moved)
+  if (loopTail()) config[BACK] = { at: seq.length * span, duration: loopTail(), from: { p: 0 }, to: { p: 1 }, transition: { type: "easing", duration: loopTail(), ease: [0, 0, 1, 1] } };
   config.duration = Math.round((seq.length * span + room()) * 10) / 10;
   const id = `morph-${spacing}-${f}-${seq.length}`;
   timeline = createDialTimeline("Morph", config as never, { id, persist: true, autoplay: playing, loop: false });
@@ -523,13 +541,22 @@ function honest(scaleTo?: number) {
       if (Math.abs((tv[c.k]?.at ?? 0) - c.at) > 1e-6) DialStore.updateValue(id, `${c.k}.at`, c.at);
       if (Math.abs((tv[c.k]?.duration ?? 0) - c.dur) > 1e-6) DialStore.updateValue(id, `${c.k}.duration`, c.dur);
     }
+    // the loop's morph back: right after the last clip, the Morph dial long
+    const back = tv[BACK];
+    if (back) {
+      if (Math.abs(back.at - end) > 1e-6) DialStore.updateValue(id, `${BACK}.at`, end);
+      if (Math.abs(back.duration - loopTail()) > 1e-6) DialStore.updateValue(id, `${BACK}.duration`, loopTail());
+    }
     // the Length dial shows it
     if (Math.abs(v().timing.length - end) > 0.05) kit.setValues({ timing: { length: Math.round(end * 10) / 10 } });
   } finally {
     evening = false;
   }
+  // (the morph back names the first clip, which a move may have changed)
+  showModels();
 }
 
+const BACK = "loopBack";
 // the clips' models and labels from the sequence
 function showModels() {
   if (!timeline) return;
@@ -539,7 +566,9 @@ function showModels() {
   });
   const meta = TimelineStore.getTimeline(id);
   const names = labels();
-  if (meta && meta.clips.some((c, i) => c.label !== names[i])) TimelineStore.update({ ...meta, clips: meta.clips.map((c, i) => ({ ...c, label: names[i] ?? c.label })) });
+  const back = `↺ ${clips()[0]?.name ?? seq[0]}`;
+  const label = (c: { key: string }, i: number) => (c.key === BACK ? back : names[i]);
+  if (meta && meta.clips.some((c, i) => label(c, i) && c.label !== label(c, i))) TimelineStore.update({ ...meta, clips: meta.clips.map((c, i) => ({ ...c, label: label(c, i) ?? c.label })) });
 }
 // --- a clip's popover: a still of its model above its dropdown (DialKit's
 // curve there is hidden: the morphs keep the engine's own pace) ---
@@ -765,7 +794,9 @@ kit.subscribe((nv) => {
   if (!restoring && !evening && timeline && Math.abs(nv.timing.length - clipsEnd()) > 0.05) honest(nv.timing.length);
   // Loop or Morph: another ending (and the dock's length)
   const rescale = o.scale !== last.scale || nv.timing.loop !== last.loop || nv.timing.morph !== last.morph;
-  if (nv.timing.loop !== last.loop || nv.timing.morph !== last.morph) honest();
+  // Loop adds or takes away the morph back's clip
+  if (nv.timing.loop !== last.loop) buildTimeline();
+  else if (nv.timing.morph !== last.morph) honest();
   last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale, loop: nv.timing.loop, morph: nv.timing.morph };
   layout();
   if (rescale) invalidate();
