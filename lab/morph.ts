@@ -205,12 +205,31 @@ function clips(): Clip[] {
 // loop's morph back began)
 type Clocks = Record<string, number>;
 let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; start: Clocks | null; tail: Clocks | null; base: Clocks | null } | null = null;
+// While the take starts again (scrubbed back, or round from the end), its
+// last frame stays up until the new one has painted: the scene loads a frame
+// or two after mounting, and the gap read as a flicker
+let ghost: HTMLCanvasElement | null = null;
+function holdFrame() {
+  const old = getView(effect)?.canvas;
+  if (!old || ghost || !old.width) return;
+  ghost = document.createElement("canvas");
+  ghost.width = old.width;
+  ghost.height = old.height;
+  ghost.getContext("2d")!.drawImage(old, 0, 0);
+  ghost.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
+  effect.append(ghost);
+}
+function showFrame() {
+  ghost?.remove();
+  ghost = null;
+}
 function mountTake() {
+  holdFrame();
   unmount(effect);
   plan = null;
   const f = family();
   const cs = clips();
-  if (!f || !cs.length) return;
+  if (!f || !cs.length) return showFrame();
   setExportScale(out().scale);
   const first = modelByName(cs[0].name);
   const shapes = cs.map((c) => shapeOf(modelByName(c.name)));
@@ -368,6 +387,7 @@ async function seek(T: number) {
     // each time the take started again)
     view.canvas.style.transition = "none";
     view.canvas.style.opacity = "1";
+    showFrame();
   } finally {
     if (gen === seekGen) seed(false);
   }
