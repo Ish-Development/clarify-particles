@@ -2,11 +2,7 @@
 // style, each linking to the export lab with that model open. Run with the
 // lab's dev server and open /lab/models.html.
 import { mount } from "../src/runtime/engine";
-import { PRESETS } from "../src/runtime/presets";
-import { MODELS, STYLES, specFor } from "./models";
-// the site's dots are sized in pixels for a big canvas: in a small tile they
-// clump into grain and the dense middles burn white, so they draw finer here
-const TILE_DOTS = 0.6;
+import { MODELS, STYLES, fitDots, specFor } from "./models";
 
 const main = document.getElementById("grid")!;
 const list = document.getElementById("list")!;
@@ -44,8 +40,7 @@ STYLES.forEach(([style, title], i) => {
     if (!m.site) tag.classList.add("new");
     grid.append(a);
     const art = a.querySelector<HTMLElement>(".art")!;
-    const c = { ...PRESETS[m.preset].config, ...m.config } as Record<string, number>;
-    const extra = m.style === "dots" ? { sizeMin: (c.sizeMin ?? 1) * TILE_DOTS, sizeMax: (c.sizeMax ?? 1) * TILE_DOTS } : {};
-    mount(art, specFor(art, m, extra), { root: art });
+    mount(art, specFor(art, m), { root: art });
+    fitDots(art, art.clientWidth);
   }
 });

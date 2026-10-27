@@ -16,7 +16,7 @@ import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { PRESETS } from "../src/runtime/presets";
 import { LOOK, LOOP, LOOP_UNITS } from "./drawings";
-import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
+import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, fitDots, type Style } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { GROUNDS, INKS, groundOf, inkOf, lightOf } from "./brand";
@@ -130,7 +130,7 @@ let styleTimer = 0;
 function showPanel(style: Style) {
   if (stylePanel?.style === style) return;
   stylePanel?.kit.destroy();
-  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: `export-${style}-pct`, persist: true });
+  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: style === "dots" ? "export-dots-site" : `export-${style}-pct`, persist: true });
   k.setValues(tidy(k.values) as never);
   stylePanel = { style, kit: k };
   shiftSnap(k as never, STYLE_DIALS[style]);
@@ -209,6 +209,8 @@ function layout() {
       left: `${r.left}px`,
       top: `${r.top}px`,
     });
+  // (dots sized to the box, as in the gallery)
+  for (const el of [effect, effectB]) fitDots(el, r.w);
   const st = stage.getBoundingClientRect();
   const fit = Math.min(1, (st.width - 48) / o.w, (st.height - 48) / o.h) * view.zoom;
   frame.style.transform = `translate(calc(-50% + ${view.x}px), calc(-50% + ${view.y}px)) scale(${fit})`;
@@ -451,6 +453,7 @@ async function seekLoop(T: number, gen: number) {
   }
   const vb = await sceneReady(effectB);
   if (!vb || gen !== seekGen) return;
+  fitDots(effectB, rect().w);
   if (takeB.t === 0) {
     loopTurn(vb, 0);
     vb.step(0);
@@ -491,6 +494,7 @@ async function seek(T: number) {
     const view = await sceneReady();
     // a newer seek took over while this one waited
     if (!view || gen !== seekGen) return;
+    fitDots(effect, rect().w);
     // a new take: its turn set for 0 s and one step of no time, so the first
     // frame is the loop's own
     if (take.t === 0) {

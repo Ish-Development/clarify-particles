@@ -4,8 +4,9 @@
 // edges), with no backdrop pattern. Plus new ones for brand assets only.
 // Listed by style, then shape family (ORDER). Shared by the export lab and
 // the gallery.
-import { blocksDefaults, glyphDefaults, graphDefaults } from "../src/runtime/defaults";
+import { blocksDefaults, glyphDefaults, graphDefaults, pointsDefaults } from "../src/runtime/defaults";
 import { PRESETS } from "../src/runtime/presets";
+import { getView } from "../src/runtime/engine";
 import { parseSpec, type ViewSpec } from "../src/runtime/spec";
 import { BLOCK_SHAPES } from "./blocks";
 import { DOT_SHAPES } from "./dots";
@@ -169,19 +170,33 @@ MODELS.sort((a, b) => styleRank(a) - styleRank(b) || rank(a) - rank(b));
 
 export const modelByName = (name: string) => MODELS.find((m) => m.name === name) ?? MODELS[0];
 
-// Dots made crisp for a still: the site's fine, faint dots shimmer in motion
-// but smear into grey once frozen, so fewer, bigger, more solid ones.
-// density: share of the preset's dots; size: × their size; opacity: the
-// faintest one (the brightest is 1).
+// Dots are drawn in px, the same in any box (the site tuned them for its
+// own); the labs size them to the box instead, so a model looks as it does in
+// the gallery at any size: × box / DOT_BOX (a tile of about 310 px: 0.6),
+// or a small box piles them up into white.
+export const DOT_BOX = 515;
+export const dotsK = (px: number) => px / DOT_BOX;
+// (the dots' shader size: 6 in the engine at 1×; SVG copies read it too)
+export const dotsScale = (px: number) => 6 * dotsK(px);
+export function fitDots(el: HTMLElement, px: number) {
+  const u = (getView(el) as unknown as { system?: object; material?: { uniforms: { uSizeScale?: { value: number } } } } | undefined)?.material?.uniforms.uSizeScale;
+  if (u && getView(el)?.system) u.value = dotsScale(px);
+}
+
+// The dots' dials, in % of the model's own (100: as in the gallery).
+// Fewer, bigger, more solid dots (e.g. 50 / 160 / 200) read crisper as a
+// still: the site's fine, faint dots shimmer in motion but smear into grey
+// once frozen. density: share of its dots; size: × their size; opacity: ×
+// each dot's (capped at solid).
 export function crispDots(m: Model, d: { density: number; size: number; opacity: number }): Record<string, unknown> {
   if (m.style !== "dots") return {};
-  const c = PRESETS[m.preset].config as Record<string, number>;
+  const c = { ...pointsDefaults, ...PRESETS[m.preset].config, ...m.config } as unknown as Record<string, number>;
   return {
-    count: Math.round((c.count ?? 10000) * d.density),
-    sizeMin: (c.sizeMin ?? 0.5) * d.size,
-    sizeMax: (c.sizeMax ?? 1) * d.size,
-    opacityMin: d.opacity,
-    opacityMax: 1,
+    count: Math.round(c.count * d.density),
+    sizeMin: c.sizeMin * d.size,
+    sizeMax: c.sizeMax * d.size,
+    opacityMin: cap(c.opacityMin * d.opacity),
+    opacityMax: cap(c.opacityMax * d.opacity),
   };
 }
 
@@ -201,9 +216,8 @@ const LINE_DIALS = {
   electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [9, 1, 30, 0.5] as [number, number, number, number] },
 };
 export const STYLE_DIALS = {
-  // fewer, bigger, more solid dots read crisp as a still (crispDots);
-  // 100 / 100 / 25 is the site's look
-  dots: { density: [50, 10, 100, 5], size: [160, 50, 400, 5], opacity: [60, 0, 100, 5] },
+  // (crispDots)
+  dots: { density: [100, 10, 100, 5], size: [100, 50, 400, 5], opacity: [100, 0, 400, 5] },
   network: { lines: { brightness: x1(1.8), width: x1(4, 0.25) }, nodes: { size: x1(4) } },
   // the blocks have inside lines too (the line models don't)
   blocks: { ...LINE_DIALS, depth: { inner: x1(4), farSide: x1(3.3) } },

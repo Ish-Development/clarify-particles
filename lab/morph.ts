@@ -11,7 +11,7 @@
 import { DialStore, TimelineStore, createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
-import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
+import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, dotsScale, type Model } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
 import { GROUNDS, INKS, groundOf, inkOf, lightOf } from "./brand";
@@ -141,7 +141,7 @@ function showPanel(f: Family | null) {
   stylePanel = null;
   if (!f) return;
   const dials = f === "dots" ? STYLE_DIALS.dots : STYLE_DIALS.blocks;
-  const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: `morph-${f}`, persist: true });
+  const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: f === "dots" ? "morph-dots-site" : `morph-${f}`, persist: true });
   k.setValues(tidy(k.values) as never);
   // the model's own dials as they were in the export lab
   if (handed?.style) k.setValues(fit(dials, handed.style) as never);
@@ -400,11 +400,12 @@ function mixDots(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   const p = plan!;
   const d = view as unknown as DotsView;
   if (!p.base) {
-    p.base = { sizeScale: d.material.uniforms.uSizeScale.value };
+    p.base = {};
     p.alpha = d.system.opacity.slice();
   }
   const mix = blend(k, t, morph);
-  d.material.uniforms.uSizeScale.value = p.base.sizeScale * mix("size");
+  // (sized to the box, as in the gallery)
+  d.material.uniforms.uSizeScale.value = dotsScale(rect().w) * mix("size");
   const b = mix("brightness");
   // density: each dot shows below its own fixed share (a hash of its index),
   // fading in over the last 2%, so the same dots go and come back
