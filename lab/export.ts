@@ -14,7 +14,8 @@
 import { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRoot } from "dialkit/vanilla";
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
-import { LOOK } from "./drawings";
+import { PRESETS } from "../src/runtime/presets";
+import { LOOK, LOOP_UNITS } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
@@ -197,7 +198,8 @@ function layout() {
   hud.className = big > maxPx ? "warn" : "";
   hud.textContent =
     `output ${o.w * k} × ${o.h * k} px · ` +
-    (big > maxPx ? `the box at ${k}× is ${big} px, over this GPU's ${maxPx}: make it smaller or lower the scale` : `preview ${Math.round(fit * 100)}% (⌘0 fits)`);
+    (big > maxPx ? `the box at ${k}× is ${big} px, over this GPU's ${maxPx}: make it smaller or lower the scale` : `preview ${Math.round(fit * 100)}% (⌘0 fits)`) +
+    (loopUnit(v().model) ? ` · ${v().model} comes round every ${loopUnit(v().model)} s, so its loop is a multiple of that` : "");
 }
 
 const actions: Record<string, () => void> = {
@@ -257,6 +259,20 @@ let last = { model: v().model, scale: out().scale, size: out().size, w: out().w,
 setPaused(true);
 // the timeline's length: the loop's
 const duration = () => v().loop.length;
+// A drawing whose shapes move comes round every so many s (LOOP_UNITS): its
+// loop is a whole number of those, or the cross-fade would show it in two
+// places at once. The longest that fits the dial, if the dial is past it.
+function loopUnit(name: string) {
+  const m = modelByName(name);
+  // (the site's own drawings name theirs in their preset)
+  const kind = m.config.kind ?? (PRESETS[m.preset].config as Record<string, unknown>).kind;
+  return m.style === "drawing" ? (LOOP_UNITS[String(kind)] ?? 0) : 0;
+}
+function snapLength(length: number, unit: number) {
+  if (!unit) return length;
+  const most = Math.floor(60 / unit) * unit;
+  return Math.max(unit, Math.min(most, Math.round(length / unit) * unit));
+}
 const take = { seed: 1, valid: false, t: 0, rng: 1 };
 let playing = true;
 const SCRUB_DT = 1 / 60;
@@ -407,6 +423,12 @@ kit.subscribe((nv) => {
   if (!restoring && (o.w !== last.w || o.h !== last.h) && SIZES[o.size] && (SIZES[o.size][0] !== o.w || SIZES[o.size][1] !== o.h)) {
     last = { ...last, size: "Custom", w: o.w, h: o.h };
     kit.setValues({ output: { size: "Custom" } });
+    return;
+  }
+  // a moving drawing's loop: whole rounds of it
+  const snapped = snapLength(nv.loop.length, loopUnit(nv.model));
+  if (Math.abs(snapped - nv.loop.length) > 1e-6) {
+    kit.setValues({ loop: { length: snapped } });
     return;
   }
   const again = nv.model !== last.model || o.scale !== last.scale;

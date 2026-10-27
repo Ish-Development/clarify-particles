@@ -146,14 +146,16 @@ class Bolt {
   }
   // edge k's points (from a to b) drawn with the bolt on them
   draw(pen: Pen, k: number, pts: Pt[], base: number) {
-    if (!(this.t >= this.tin[k])) return litLine(pen, pts, base);
+    // (before the first strike t and tin are both Infinity: not lit)
+    if (this.tin[k] === Infinity || !(this.t >= this.tin[k])) return litLine(pen, pts, base);
     const head = clamp01((this.t - this.tin[k]) / Math.max(1e-3, this.tout[k] - this.tin[k]));
     const glow = this.o.gain * LOOK.gain * Math.exp(-Math.max(0, this.t - this.tout[k]) / (this.o.fade * LOOK.fade));
     const p = this.fromB[k] ? [...pts].reverse() : pts;
     litLine(pen, p, base, head * lengthOf(p), glow);
   }
   flash(i: number) {
-    return this.t >= this.hit[i] ? Math.min(1.5, LOOK.gain) * Math.exp(-(this.t - this.hit[i]) / (this.o.fade * LOOK.fade)) : 0;
+    // (never reached: 0, not Infinity - Infinity, which hid the dot)
+    return this.hit[i] < Infinity && this.t >= this.hit[i] ? Math.min(1.5, LOOK.gain) * Math.exp(-(this.t - this.hit[i]) / (this.o.fade * LOOK.fade)) : 0;
   }
 }
 
@@ -201,7 +203,7 @@ const fadeIn = (t: number) => {
  * as one figure, so the links hold. Every few s a bolt leaves the core and
  * branches out along the links; each rider it reaches flashes and sparks.
  * Every REWIRE bolts the links fade over to a new wiring. */
-const ORBIT = { rings: [62, 108, 154], riders: [2, 3, 5], loop: 48, core: 11, rider: 6, ticks: 60, tickR: 182, segs: 120, trail: 0.8, every: 9, rewire: 2, chords: 0.3 };
+const ORBIT = { rings: [62, 108, 154], riders: [2, 3, 5], loop: 30, core: 11, rider: 6, ticks: 60, tickR: 182, segs: 120, trail: 0.8, every: 9, rewire: 2, chords: 0.3 };
 type OrbitWiring = { links: Edge[]; bolt: Bolt; t: number };
 class Orbit implements Drawing {
   readonly maxLines = ORBIT.rings.length * ORBIT.segs + 2 * 18 * 40 + 12 * SPARK.segs;
@@ -444,7 +446,8 @@ class Signal implements Drawing {
     for (let i = 0; i < bars; i++) {
       const x = -span + (i * 2 * span) / (bars - 1);
       const env = Math.exp(-((x / 100) ** 2));
-      const w = 0.55 + 0.45 * Math.sin(this.t * 1.1 + i * 0.47) * Math.sin(this.t * 0.63 + i * 0.19 + 1);
+      // (6 s and 10 s waves: the bars come round every 15 s, for a loop)
+      const w = 0.55 + 0.45 * Math.sin((this.t * TAU) / 6 + i * 0.47) * Math.sin((this.t * TAU) / 10 + i * 0.19 + 1);
       const h = min + (max - min) * env * w;
       const g = p <= 1.3 ? Math.exp(-(((x - sx) / 22) ** 2)) + (x < sx ? 0.45 * Math.exp(-(sx - x) / 70) : 0) : 0;
       pen.line(x, -h, x, h, 1.2 + 1.8 * g);
@@ -677,7 +680,8 @@ class Iris implements Drawing {
 
 /* DIAL: a gauge. Three rings of radial ticks round an empty middle, long
  * ones every fifth, the inner rings turning slowly against each other. */
-const DIAL = { rings: [[120, 178, 0], [84, 112, 1 / 40], [60, 76, -1 / 28]] as [number, number, number][] };
+// (spins: each ring's ticks come round to the same look every 2.5 s, for a loop)
+const DIAL = { rings: [[120, 178, 0], [84, 112, 1 / 45], [60, 76, -1 / 30]] as [number, number, number][] };
 class Dial implements Drawing {
   readonly maxLines = 120 + 90 + 60;
   readonly maxDots = 120 + 90 + 60;
@@ -1079,7 +1083,7 @@ class Perspective implements Drawing {
 /* TANGENTS: a circle and a point outside it, the two tangents from the
  * point, the radii to where they touch with their right angles, the line
  * to the middle dashed; the point drifts slowly and it all follows. */
-const TANG = { c: [55, -10] as Pt, r: 85, drift: 30 };
+const TANG = { c: [55, -10] as Pt, r: 85, drift: 15 };
 class Tangents implements Drawing {
   readonly maxLines = 600;
   readonly maxDots = 4;
@@ -1207,7 +1211,7 @@ class Incircle implements Drawing {
  * width; some solid, some dashed, a dot riding on two. They turn slowly,
  * like pages. */
 // turns: rad about the upright, all under a quarter turn so each opens to the right
-const HINGE = { r: 150, turns: [0.12, 0.42, 0.7, 0.95, 1.18, 1.38], dashed: [false, true, false, true, false, true], period: 40 };
+const HINGE = { r: 150, turns: [0.12, 0.42, 0.7, 0.95, 1.18, 1.38], dashed: [false, true, false, true, false, true], period: 30 };
 class Hinge implements Drawing {
   readonly maxLines = 6 * 200;
   readonly maxDots = 2;
@@ -1231,7 +1235,8 @@ class Hinge implements Drawing {
       }
     });
     // the two riders, on dashed circles, going round slowly
-    for (const [k, sp, ph] of [[1, 0.05, 0.4], [5, -0.035, 2.2]] as const) {
+    // (once round in 15 s and 30 s: with the swing, all of it every 30 s)
+    for (const [k, sp, ph] of [[1, 1 / 15, 0.4], [5, -1 / 30, 2.2]] as const) {
       const [x, y] = at(turns[k] + base, ph + this.t * sp * TAU);
       pen.dot(x + 50, y, 7, 1);
     }
@@ -1440,6 +1445,112 @@ function polar(rings: number, spokes: number, r0: number, R: number): Poly[] {
   return out;
 }
 
+// Every how many s a drawing's shapes come round to where they were (its
+// lines and dots, not its light: a loop's cross-fade takes care of that).
+// A loop is a whole number of these; the drawings not here never move, or
+// only fade lines in and out, so any length loops
+export const LOOP_UNITS: Record<string, number> = {
+  orbit: 30,
+  signal: 15,
+  halo: 22,
+  iris: 18,
+  dial: 2.5,
+  proof: 14,
+  circleStudy: 16,
+  rosette: 7.5,
+  construction: 16,
+  hexagon: 18,
+  golden: 16,
+  perspective: 16,
+  tangents: 30,
+  sine: 9,
+  incircle: 16,
+  hinge: 30,
+  pendulum: 4.5,
+  rings: 16,
+  spider: 20,
+};
+
+// The site's rings and spider, made to come round (lab only: their own
+// code is the site's, so the lab sets them up after they're made).
+// Rings: each dot's pace and its drift, rounded to whole turns in the unit
+// (they still go at their own paces, drifting faster and slower)
+function loopRings(d: Drawing, unit: number) {
+  const rings = (d as unknown as { rings: { w: number; amp: number; nu: number }[] }).rings;
+  const whole = (rate: number) => (TAU * Math.max(1, Math.round((rate * unit) / TAU))) / unit;
+  for (const r of rings) {
+    const share = (r.amp * r.nu) / r.w;
+    r.w = whole(r.w);
+    r.nu = whole(r.nu);
+    r.amp = (share * r.w) / r.nu;
+  }
+}
+// Spider: instead of wandering off at random, it walks a figure of eight
+// once round in the unit. Its legs follow as ever, but never step the same
+// way twice round, so over the last moments of each round they step back,
+// two at a time, onto the dots they held as it set off
+type Leg = { from: number; to: number; p: number };
+function loopSpider(d: Drawing, unit: number) {
+  const s = d as unknown as {
+    bx: number; by: number; vx: number; vy: number; heading: number; spin: number; pace: number; legs: Leg[];
+    walk: (dt: number) => void; pick: () => void; target: (leg: Leg, taken: Set<number>, from?: number) => number;
+  };
+  const w = TAU / unit;
+  const at = (t: number): Pt => [78 * Math.sin(w * t), 48 * Math.sin(2 * w * t)];
+  const heading = (t: number) => {
+    const [x0, y0] = at(t - 0.02);
+    const [x1, y1] = at(t + 0.02);
+    return Math.atan2(y1 - y0, x1 - x0);
+  };
+  let t = 0;
+  s.pick = () => {};
+  s.walk = (dt: number) => {
+    t += dt;
+    const [x, y] = at(t);
+    const [x1, y1] = at(t + 0.01);
+    s.vx = (x1 - x) / 0.01;
+    s.vy = (y1 - y) / 0.01;
+    s.bx = x;
+    s.by = y;
+    s.heading = heading(t);
+    const turn = heading(t + 0.01) - s.heading;
+    s.spin = Math.atan2(Math.sin(turn), Math.cos(turn)) / 0.01;
+    s.pace = Math.hypot(s.vx, s.vy);
+  };
+  // where its feet are as it sets off: planted where they'd reach from there
+  s.walk(0);
+  t = 0;
+  const home: number[] = [];
+  for (const leg of s.legs) {
+    leg.from = leg.to = s.target(leg, new Set(home));
+    leg.p = 1;
+    home.push(leg.to);
+  }
+  const target = s.target.bind(s);
+  const BACK = 2; // s before the round's end they start stepping home
+  const step = d.step.bind(d);
+  d.step = (dt: number) => {
+    const left = unit - (t % unit);
+    if (left <= BACK) {
+      // home: any step it takes now is to its own dot, and the ones not
+      // there yet set off (two swinging at most)
+      s.target = (leg, taken, from) => (s.legs.indexOf(leg) >= 0 ? home[s.legs.indexOf(leg)] : target(leg, taken, from));
+      let swinging = s.legs.filter((l) => l.p < 1).length;
+      s.legs.forEach((leg, k) => {
+        if (swinging >= 2 || leg.p < 1 || leg.to === home[k]) return;
+        leg.from = leg.to;
+        leg.to = home[k];
+        leg.p = 0;
+        swinging++;
+      });
+    } else s.target = target;
+    step(dt);
+    // round: exactly as it set off
+    if (unit - (t % unit) > unit - dt / 2 || t % unit < dt / 2) s.legs.forEach((leg, k) => leg.p === 1 && (leg.from = leg.to = home[k]));
+  };
+  // once round unseen: from the second round on, every round is the same
+  for (let i = 0; i < Math.round(unit * 60); i++) d.step(1 / 60);
+}
 export const DRAWING_KINDS: [string, string][] = [
   ["orbit", "Orbit"],
   ["routes", "Routes"],
@@ -1527,7 +1638,9 @@ function splitDots(make: () => Drawing): () => Drawing {
     return d;
   };
 }
+const LOOPED: Record<string, (d: Drawing, unit: number) => void> = { rings: loopRings, spider: loopSpider };
 for (const kind of ["spider", "pendulum", "rings", ...DRAWING_KINDS.map(([k]) => k)]) {
   const make = drawingMaker(kind);
-  if (make) registerDrawing(kind, splitDots(make));
+  const loop = LOOPED[kind];
+  if (make) registerDrawing(kind, splitDots(loop ? () => (d => (loop(d, LOOP_UNITS[kind]), d))(make()) : make));
 }
