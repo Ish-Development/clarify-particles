@@ -497,39 +497,47 @@ function showModels() {
 // curve there is hidden: the morphs keep the engine's own pace) ---
 const stills = new Map<string, string>();
 let stillGen = 0;
-async function stillOf(name: string, box: HTMLElement): Promise<string> {
+// one at a time, off screen (each mounts a view, steps it a few seconds in,
+// keeps a picture of it and lets it go)
+const stillHost = document.createElement("div");
+stillHost.style.cssText = "position:fixed;left:-10000px;top:0;width:360px;height:360px;pointer-events:none";
+document.body.append(stillHost);
+let stillQueue: Promise<unknown> = Promise.resolve();
+function stillOf(name: string): Promise<string> {
   const hit = stills.get(name);
-  if (hit) return hit;
-  const m = modelByName(name);
-  // mounted in the box itself (a view off screen doesn't paint), held a
-  // few seconds in, kept as an image
-  const host = document.createElement("div");
-  host.style.cssText = "position:absolute;inset:0";
-  box.append(host);
-  try {
-    mount(host, specFor(host, m, styleOverrides(m, stylePanel?.kit.values)), { root: host });
-    let view = getView(host);
-    for (let i = 0; i < 120 && !(view && view.scene.children.some((c) => c.children.length > 0 || (c as { isMesh?: boolean }).isMesh || (c as { isPoints?: boolean }).isPoints)); i++) {
-      await new Promise((r) => requestAnimationFrame(r));
-      view = getView(host);
-    }
-    if (!view) return "";
-    // its own randomness, not the take's
-    const seeded = Math.random;
-    Math.random = realRandom;
+  if (hit) return Promise.resolve(hit);
+  const job = stillQueue.then(async () => {
+    // never while a video exports (it would take frames from it)
+    while (recording) await new Promise((r) => setTimeout(r, 250));
+    const again = stills.get(name);
+    if (again) return again;
+    const m = modelByName(name);
     try {
-      for (let i = 0; i < 150; i++) view.step(DT);
-      view.paint();
+      mount(stillHost, specFor(stillHost, m, styleOverrides(m, stylePanel?.kit.values)), { root: stillHost });
+      let view = getView(stillHost);
+      for (let i = 0; i < 120 && !(view && view.scene.children.some((c) => c.children.length > 0 || (c as { isMesh?: boolean }).isMesh || (c as { isPoints?: boolean }).isPoints)); i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        view = getView(stillHost);
+      }
+      if (!view) return "";
+      // its own randomness, not the take's
+      const seeded = Math.random;
+      Math.random = realRandom;
+      try {
+        for (let i = 0; i < 150; i++) view.step(DT);
+        view.paint();
+      } finally {
+        Math.random = seeded;
+      }
+      const url = view.canvas.toDataURL("image/png");
+      stills.set(name, url);
+      return url;
     } finally {
-      Math.random = seeded;
+      unmount(stillHost);
     }
-    const url = view.canvas.toDataURL("image/png");
-    stills.set(name, url);
-    return url;
-  } finally {
-    unmount(host);
-    host.remove();
-  }
+  });
+  stillQueue = job.catch(() => "");
+  return job;
 }
 // the popover open now, which clip it's for (by its title, set when it opened)
 function popover(): { el: HTMLElement; i: number } | null {
@@ -543,7 +551,8 @@ function popover(): { el: HTMLElement; i: number } | null {
   }
   return { el, i: Number(el.dataset.clip) };
 }
-async function showStill() {
+// the box: the clip's model, or the one under the pointer in its dropdown
+async function showStill(hover?: string) {
   const p = popover();
   if (!p || p.i >= seq.length) return;
   const body = p.el.querySelector(".dialkit-timeline-popover-body");
@@ -552,24 +561,46 @@ async function showStill() {
   if (!box) {
     box = document.createElement("div");
     box.className = "clip-still";
-    box.innerHTML = "<img alt='' />";
-    body.prepend(box);
+    box.innerHTML = "<img alt='' /><span></span>";
+    // under the dropdown: its list opens upwards, over what's above it
+    body.append(box);
+    // every model it could be, drawn in the background, the clip's first
+    const f = family();
+    for (const m of [seq[p.i], ...MODELS.filter((m) => familyOf(m) === f).map((m) => m.name)]) stillOf(m);
   }
   const title = p.el.querySelector(".dialkit-timeline-popover-title");
   if (title) title.textContent = labels()[p.i];
-  const name = seq[p.i];
+  const name = hover ?? seq[p.i];
+  box.querySelector("span")!.textContent = hover && hover !== seq[p.i] ? hover : "";
   if (box.dataset.model === name) return;
   box.dataset.model = name;
   const gen = ++stillGen;
-  box.classList.add("loading");
-  const url = await stillOf(name, box);
+  box.classList.toggle("loading", !stills.has(name));
+  const url = await stillOf(name);
   if (gen !== stillGen) return;
   box.querySelector("img")!.src = url;
   box.classList.remove("loading");
 }
 new MutationObserver(() => {
   if (document.querySelector(".dialkit-timeline-popover:not([data-clip])")) showStill();
+  // the dropdown closed: back to the clip's own model
+  else if (hovering && !document.querySelector(".dialkit-select-option")) {
+    hovering = false;
+    showStill();
+  }
 }).observe(document.body, { childList: true, subtree: true });
+// browsing the dropdown: the box shows the model under the pointer (or the
+// keyboard's)
+let hovering = false;
+const optionName = (t: EventTarget | null) => (t instanceof Element ? t.closest(".dialkit-select-option")?.textContent?.trim() : undefined);
+for (const type of ["pointerover", "focusin"]) {
+  document.addEventListener(type, (e) => {
+    const name = optionName(e.target);
+    if (!name || !known(name) || !document.querySelector(".dialkit-timeline-popover")) return;
+    hovering = true;
+    showStill(name);
+  });
+}
 
 const dock = createDialTimelineRoot({ theme: "dark", defaultOpen: true, defaultVisible: true });
 // the dock grows a row per clip: the preview keeps clear of it

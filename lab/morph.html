@@ -26,9 +26,12 @@
          (DialKit's curve is hidden: the morphs keep the engine's own pace) */
       .dialkit-timeline-popover-body > .dialkit-folder:not(:has(.dialkit-select-row)) { display: none; }
       .dialkit-timeline-popover-body > .dialkit-folder:has(.dialkit-select-row) > .dialkit-folder-header { display: none; }
-      .clip-still { position: relative; aspect-ratio: 1; margin-bottom: 8px; border-radius: 8px; overflow: hidden; background: var(--surface); }
+      .clip-still { position: relative; aspect-ratio: 1; margin-top: 8px; border-radius: 8px; overflow: hidden; background: var(--surface); }
       .clip-still img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
       .clip-still img:not([src]), .clip-still.loading img { visibility: hidden; }
+      .clip-still.loading::after { content: "Drawing…"; position: absolute; inset: 0; display: grid; place-items: center; font: 12px var(--mono); color: var(--muted); }
+      /* the model under the pointer, while browsing */
+      .clip-still span { position: absolute; left: 10px; bottom: 8px; font: 12px var(--mono); color: var(--muted); }
       body.light #stage { background: #e3e7ec; }
       body.light #frame { outline-color: #00000033; }
       body.light #hud { color: #575b5f; }
