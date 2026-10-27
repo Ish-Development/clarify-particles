@@ -7,3 +7,4 @@ dist
 .particles-debug.log
 .env*
 lab/state.json
+dist-lab

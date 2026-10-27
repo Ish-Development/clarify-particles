@@ -30,4 +30,11 @@ export default defineConfig({
   plugins: [labState()],
   // the lab writes state.json; don't reload the page for it
   server: { watch: { ignored: ["**/lab/state.json"] } },
+  // `npm run build:lab`: the gallery, export and morph labs as a static site
+  // (dist-lab/lab/*.html), for the brand lab on Vercel
+  build: {
+    outDir: process.env.LAB_OUT ?? "dist-lab",
+    emptyOutDir: true,
+    rollupOptions: { input: ["models", "export", "morph"].map((n) => resolve(__dirname, `lab/${n}.html`)) },
+  },
 });

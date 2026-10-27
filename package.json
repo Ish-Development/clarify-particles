@@ -6,7 +6,9 @@
   "scripts": {
     "build:runtime": "tsc -b && vite build --config vite.runtime.config.ts && node scripts/build-demo.mjs",
     "preview:runtime": "vite preview --config vite.runtime.config.ts --open /demo.html",
-    "bake:map": "node scripts/bake-map.mjs"
+    "bake:map": "node scripts/bake-map.mjs",
+    "build:lab": "vite build --config vite.lab.config.ts",
+    "deploy:lab": "sh scripts/deploy-lab.sh"
   },
   "dependencies": {
     "three": "^0.186.1"
