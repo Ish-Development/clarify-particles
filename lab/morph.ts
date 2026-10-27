@@ -148,7 +148,7 @@ function layout() {
   frame.style.transform = `translate(-50%, -50%) scale(${fit})`;
   empty.style.display = seq.length ? "none" : "";
   frame.style.visibility = seq.length ? "" : "hidden";
-  if (!recording) hud.textContent = `output ${o.w * out().scale} × ${o.h * out().scale} px · ${seq.length < 2 ? "add a second model to morph" : "drag the clips below to retime"}${loopTail() ? ` · loops: the last clip morphs back to ${clips()[0]?.name ?? seq[0]} by its end` : ""}`;
+  if (!recording) hud.textContent = `output ${o.w * out().scale} × ${o.h * out().scale} px · ${seq.length < 2 ? "add a second model to morph" : "drag the clips below to retime"}${seq.length > 1 ? ` · loops: ${clips()[clips().length - 1]?.name ?? ""} morphs into ${clips()[0]?.name ?? ""} at 0 s` : ""}`;
 }
 
 // --- time: as the export lab, the lab steps the model itself, seeded ---
@@ -198,7 +198,7 @@ function clips(): Clip[] {
 // (clocks: the scene's turn and spin at 0 s, and where they were when the
 // loop's morph back began)
 type Clocks = Record<string, number>;
-let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; start: Clocks | null; tail: Clocks | null; base: Clocks | null } | null = null;
+let plan: { family: Family; shapes: string[]; clips: Clip[]; started: number; base: Clocks | null; wind: Clocks | null; wound: Clocks | null } | null = null;
 // While the take starts again (scrubbed back, or round from the end), its
 // last frame stays up until the new one has painted: the scene loads a frame
 // or two after mounting, and the gap read as a flicker
@@ -228,15 +228,21 @@ function mountTake() {
   const first = modelByName(cs[0].name);
   const shapes = cs.map((c) => shapeOf(modelByName(c.name)));
   const look = styleOverrides(first, stylePanel?.kit.values);
+  // more than one: it opens on the last model, morphing into the first as
+  // clip 1 starts (as each clip morphs in at its start), so played round it
+  // never cuts
+  const loops = shapes.length > 1;
+  const opening = shapes[shapes.length - 1];
   const extra =
     f === "dots"
       ? // in shape from the first frame (the hero gathers its dots in from a
         // scatter, which flashed each time the loop came round)
-        { ...look, sequence: "", shape: shapes[0], holdShape: shapes[0], gather: false }
-      : // held until the lab says (drive), no bolt between morphs
-        { ...look, shapes: shapes.join(","), holdTime: 1e9 };
+        { ...look, sequence: "", shape: opening, holdShape: opening, gather: false }
+      : // held until the lab says (drive), no bolt between morphs; the
+        // scene's list: the last model, then every clip's
+        { ...look, shapes: (loops ? [opening, ...shapes] : shapes).join(","), holdTime: 1e9 };
   mount(effect, specFor(effect, first, extra), { root: effect });
-  plan = { family: f, shapes, clips: cs, started: 0, start: null, tail: null, base: null };
+  plan = { family: f, shapes, clips: cs, started: 0, base: null, wind: null, wound: null };
 }
 
 // before each step: the clip under the playhead, and its morph started (the
@@ -247,27 +253,20 @@ function drive(view: ReturnType<typeof getView>, t: number) {
   const cs = plan.clips;
   let k = 0;
   for (let i = 0; i < cs.length; i++) if (cs[i].at <= t + 1e-9) k = i;
-  let morph = Math.max(0.2, Math.min(v().timing.morph, cs[k].dur));
-  // the end of the last clip: the morph back to the first (index L: the
-  // blocks go round their list to 0); the dots' settle comes after its morph
-  const back = backOf(cs);
-  if (back.tail && t >= back.at - 1e-9) {
-    k = cs.length;
-    morph = Math.max(0.2, back.tail - (plan.family === "dots" ? Math.min(SETTLE, back.tail / 2) : 0));
-  }
-  turnBack(view, t, back.at, back.tail);
+  const morph = Math.max(0.2, Math.min(v().timing.morph, cs[k].dur));
+  const loops = cs.length > 1;
+  unwind(view, t + DT, Math.max(0.2, Math.min(v().timing.morph, cs[0].dur)));
   const cfg = (view as unknown as { cfg: Record<string, unknown> }).cfg;
   if (plan.family === "dots") {
-    if (cfg.holdShape !== plan.shapes[k % plan.shapes.length]) {
+    if (cfg.holdShape !== plan.shapes[k]) {
       cfg.morphTime = morph;
-      cfg.holdShape = plan.shapes[k % plan.shapes.length];
+      cfg.holdShape = plan.shapes[k];
     }
     return;
   }
   // the blocks scene morphs to its next shape once its hold is up: the lab
   // ends the hold when the next clip starts (lab only: it reads whether the
-  // scene is mid-morph)
-  // (counted by the morphs the lab started: the scene's own index wraps)
+  // scene is mid-morph; counted by the morphs the lab started)
   const b = (view as unknown as { blocks: { morphing: boolean; boltClock: number; boltIn: Float32Array } | null }).blocks;
   if (!b) return;
   // calm at 0 s: its first bolt after the usual rest, not at once (that
@@ -278,7 +277,8 @@ function drive(view: ReturnType<typeof getView>, t: number) {
     b.boltIn.fill(Infinity);
   }
   mixLive(view, k, t, morph);
-  if (!b.morphing && plan.started < k) {
+  // (the scene's list opens on the last model: a morph more, at 0 s)
+  if (!b.morphing && plan.started < k + (loops ? 1 : 0)) {
     cfg.stagger = Math.min(baseStagger.value, morph * 0.4);
     cfg.morphTime = morph - (cfg.stagger as number);
     cfg.holdTime = 0;
@@ -297,11 +297,14 @@ function mixInside(view: NonNullable<ReturnType<typeof getView>>) {
   p.base = { lineOpacity: cfg.lineOpacity, nodeOpacity: cfg.nodeOpacity, backDim: cfg.backDim, dotSize: b.nodeMat.uniforms.uSize.value };
   const inner = cfg.inner;
   if (!(inner > 0 && inner < 1)) return;
-  const to = (s: number) => Math.min(1, (inner * p.clips[s].look.insideLines) / 100);
+  // (the scene's shape s: with a loop, 0 is the last clip's and s the clip s - 1's)
+  const L = p.clips.length;
+  const clipOf = (s: number) => (L > 1 ? (s === 0 ? L - 1 : s - 1) : 0);
+  const to = (s: number) => Math.min(1, (inner * p.clips[clipOf(s)].look.insideLines) / 100);
   const fix = (arr: Float32Array, i: number, v: number) => {
     if (Math.abs(arr[i] - inner) < 1e-6) arr[i] = v;
   };
-  p.clips.forEach((_, s) => {
+  b.real.forEach((_, s) => {
     const v = to(s);
     const real = b.real[s];
     if (real) for (let i = 0; i < real.length; i++) fix(real, i, v);
@@ -315,10 +318,10 @@ function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   if (!p.base) return;
   const cs = p.clips;
   const look = (i: number) => cs[((i % cs.length) + cs.length) % cs.length].look;
-  const from = k === 0 ? look(0) : look(k - 1);
+  // (clip 1's morph comes from the last clip's look)
+  const from = cs.length > 1 ? look(k - 1) : look(0);
   const to = look(k);
-  const startAt = k < cs.length ? cs[k].at : backOf(cs).at;
-  const u = k === 0 ? 1 : Math.max(0, Math.min(1, (t - startAt) / morph));
+  const u = Math.max(0, Math.min(1, (t - cs[k].at) / morph));
   const mix = (n: keyof Look) => (from[n] + (to[n] - from[n]) * u) / 100;
   const cfg = (view as unknown as { cfg: Record<string, number> }).cfg;
   cfg.lineOpacity = p.base.lineOpacity * mix("lines");
@@ -331,31 +334,74 @@ function mixLive(view: NonNullable<ReturnType<typeof getView>>, k: number, t: nu
   cfg.backDim = Math.min(1, p.base.backDim * mix("farSide"));
 }
 
-// Loop: the morph back also turns the scene back to how it stood at 0 s
-// (the blocks' slow turn, the dots' spin and drift), so the last frame is
-// the first and the video loops without a jump (lab only: it sets those
+// Played round, the last frame must be the first: but the scene keeps
+// turning (the blocks' slow turn, the dots' spin and drift), so by the end
+// it has moved on. Over the whole video it moves on by a known amount (D):
+// the take opens D ahead, as the end will be, and gives it back during the
+// first morph, while the shape is changing anyway (lab only: it sets those
 // clocks on the scenes)
-function turnBack(view: NonNullable<ReturnType<typeof getView>>, t: number, end: number, tail: number) {
+const smooth = (u: number) => u * u * (3 - 2 * u);
+function unwind(view: NonNullable<ReturnType<typeof getView>>, at: number, m0: number) {
   const p = plan!;
+  if (p.clips.length < 2) return;
   const blocks = p.family === "blocks";
   const target = (blocks ? (view as unknown as { blocks: Clocks | null }).blocks : (view as unknown as { system: Clocks }).system) as Clocks | null;
   if (!target) return;
-  const names = blocks ? ["turn"] : ["rotTime", "idleTime", "time"];
-  if (!p.start) p.start = Object.fromEntries(names.map((n) => [n, target[n]]));
-  if (!tail || t < end - 1e-9) {
-    p.tail = null;
-    return;
+  if (!p.wind) p.wind = windOf(view);
+  if (!p.wound) p.wound = Object.fromEntries(Object.keys(p.wind).map((n) => [n, 0]));
+  // the offset each clock should carry at time `at`
+  const left = 1 - smooth(Math.max(0, Math.min(1, at / m0)));
+  for (const [n, d] of Object.entries(p.wind)) {
+    const want = d * left;
+    target[n] += want - p.wound[n];
+    p.wound[n] = want;
   }
-  if (!p.tail) p.tail = Object.fromEntries(names.map((n) => [n, target[n]]));
-  // where each clock should be after this step, less what the step adds
-  const u = Math.min(1, (t + DT - end) / tail);
-  const e = u * u * (3 - 2 * u);
+}
+// D: how far each clock moves over the video's steps
+function windOf(view: NonNullable<ReturnType<typeof getView>>): Clocks {
+  const p = plan!;
+  const cs = p.clips;
+  const steps = Math.floor(duration() / DT + 1e-6);
   const cfg = (view as unknown as { cfg: Record<string, number | boolean> }).cfg;
-  const spin = Math.max(0, Number(cfg.rotateSpeed) || 0);
-  const adds: Clocks = blocks
-    ? { turn: DT * Number(cfg.turnSpeed || 0) }
-    : { rotTime: cfg.autoRotate ? DT * spin : 0, idleTime: cfg.idleMotion ? DT * 0.35 * spin : 0, time: DT * Number(cfg.speed ?? 1) };
-  for (const n of names) target[n] = p.tail[n] + (p.start[n] - p.tail[n]) * e - (adds[n] ?? 0);
+  if (p.family === "dots") {
+    const spin = Math.max(0, Number(cfg.rotateSpeed) || 0);
+    return { rotTime: cfg.autoRotate ? steps * DT * spin : 0, idleTime: cfg.idleMotion ? steps * DT * 0.35 * spin : 0, time: steps * DT * Number(cfg.speed ?? 1) };
+  }
+  // the blocks: their turn, faster mid-morph (spinKick), played as drive()
+  // and the scene play it, step by step
+  const speed = Number(cfg.turnSpeed) || 0;
+  const kickK = Number(cfg.spinKick) || 0;
+  let clock = 0;
+  let morphing = false;
+  let all = 0;
+  let started = 0;
+  let turn = 0;
+  for (let i = 0; i < steps; i++) {
+    const t = i * DT;
+    let k = 0;
+    for (let j = 0; j < cs.length; j++) if (cs[j].at <= t + 1e-9) k = j;
+    const morph = Math.max(0.2, Math.min(v().timing.morph, cs[k].dur));
+    let hold = 1e9;
+    if (!morphing && started < k + 1) {
+      const stagger = Math.min(baseStagger.value, morph * 0.4);
+      all = stagger + (morph - stagger);
+      hold = 0;
+      started++;
+    }
+    clock += DT;
+    const kick = morphing ? kickK * Math.sin(Math.PI * Math.max(0, Math.min(1, clock / all))) : 0;
+    turn += DT * speed * (1 + kick);
+    if (!morphing) {
+      if (clock >= hold) {
+        morphing = true;
+        clock = 0;
+      }
+    } else if (clock >= all) {
+      morphing = false;
+      clock = 0;
+    }
+  }
+  return { turn };
 }
 
 let seekGen = 0;
@@ -383,6 +429,7 @@ async function seek(T: number) {
     // a new take: one step of no time, so 0 s is the shape (the dots snap to
     // it on their first step), not the scatter they're made in
     if (take.t === 0 && !take.primed) {
+      unwind(view, 0, Math.max(0.2, Math.min(v().timing.morph, plan.clips[0].dur)));
       view.step(0);
       take.primed = true;
     }
@@ -429,22 +476,10 @@ const clipsEnd = () => {
   const cs = clips();
   return cs.length ? Math.max(0.5, cs[cs.length - 1].at + cs[cs.length - 1].dur) : 1;
 };
-// Always a perfect loop: after the last clip, its model morphs back into the
-// first one's, and the video ends once it's there: played round, it never cuts
-// (the dots ease into place for a moment after a morph: given time to settle,
-// the last frame is as crisp as the first)
-const SETTLE = 1;
-const loopTail = () => (seq.length > 1 ? Math.max(0.2, v().timing.morph) + (family() === "dots" ? SETTLE : 0) : 0);
-// where it starts: in the last clip's own end (its model holds, then morphs
-// back, as every clip morphs in at its start); never more than most of it
-function backOf(cs: Clip[]) {
-  const last = cs[cs.length - 1];
-  const end = last.at + last.dur;
-  const tail = Math.min(loopTail(), last.dur * 0.75);
-  return { end, tail, at: end - tail };
-}
+// Always a perfect loop: the video ends where the last clip does, on the
+// last model, and opens on it morphing into the first (mountTake)
 const duration = () => clipsEnd();
-// past the clips, the dock shows the loop's morph and a little room
+// past the clips, the dock runs a little further
 const room = () => 3;
 function buildTimeline() {
   timeline?.destroy();
@@ -685,7 +720,72 @@ async function showStill() {
   box.querySelector("img")!.src = url;
   box.classList.remove("loading");
 }
+// --- a clip's card: dragged by its title wherever you like, and opened there
+// next time ---
+let cardAt: { x: number; y: number } | null = null;
+function placeCard(el: HTMLElement) {
+  if (el.dataset.placed) return;
+  el.dataset.placed = "1";
+  // where DialKit put it, then (once it has, and whenever the card's size
+  // changes) where it was dragged to last, kept on screen
+  const apply = () => {
+    if (!cardAt || !el.isConnected) return;
+    el.style.translate = "0px 0px";
+    const r = el.getBoundingClientRect();
+    const x = Math.max(8, Math.min(innerWidth - r.width - 8, cardAt.x));
+    const y = Math.max(8, Math.min(innerHeight - r.height - 8, cardAt.y));
+    el.style.translate = `${x - r.left}px ${y - r.top}px`;
+  };
+  requestAnimationFrame(() => requestAnimationFrame(apply));
+  new ResizeObserver(apply).observe(el);
+}
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    const head = e.target instanceof Element ? e.target.closest<HTMLElement>(".dialkit-timeline-popover-header") : null;
+    if (!head || (e.target as Element).closest("button")) return;
+    const card = head.closest<HTMLElement>(".dialkit-timeline-popover")!;
+    e.preventDefault();
+    const [tx, ty] = (card.style.translate || "0px 0px").split(" ").map((n) => parseFloat(n) || 0);
+    const r = card.getBoundingClientRect();
+    const from = { x: e.clientX, y: e.clientY, tx, ty, left: r.left, top: r.top };
+    const move = (m: PointerEvent) => {
+      const dx = Math.max(8 - from.left, Math.min(innerWidth - 8 - (from.left + r.width), m.clientX - from.x));
+      const dy = Math.max(8 - from.top, Math.min(innerHeight - 8 - (from.top + r.height), m.clientY - from.y));
+      card.style.translate = `${from.tx + dx}px ${from.ty + dy}px`;
+      cardAt = { x: from.left + dx, y: from.top + dy };
+    };
+    const up = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", up);
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", up);
+  },
+  true,
+);
+
+// Backspace (or Delete) takes the selected clip out of the sequence
+function selectedClip(): number {
+  const p = popover();
+  if (p) return p.i;
+  const all = [...document.querySelectorAll(".dialkit-timeline-clip")];
+  return all.findIndex((c) => c.hasAttribute("data-selected"));
+}
+window.addEventListener("keydown", (e) => {
+  if ((e.key !== "Backspace" && e.key !== "Delete") || e.metaKey || e.ctrlKey || recording) return;
+  const t = e.target;
+  if (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  const i = selectedClip();
+  if (i < 0 || i >= seq.length) return;
+  e.preventDefault();
+  document.querySelector<HTMLElement>(".dialkit-timeline-popover-close")?.click();
+  setSeq(seq.filter((_, j) => j !== i));
+});
+
 new MutationObserver(() => {
+  const card = document.querySelector<HTMLElement>(".dialkit-timeline-popover:not([data-placed])");
+  if (card) placeCard(card);
   if (document.querySelector(".dialkit-timeline-popover:not([data-clip])")) showStill();
   // the dropdown closed: its preview goes
   else if (!document.querySelector(".dialkit-select-option")) peek.hidden = true;
@@ -1046,7 +1146,8 @@ async function recordVideo() {
   const t0 = performance.now();
   seed(true);
   try {
-    for (let i = 0; i <= frames; i++) {
+    // (not the frame at the end: played round, that's frame 0's)
+    for (let i = 0; i < frames; i++) {
       if (i > 0 && view) {
         drive(view, take.t);
         view.step(DT);

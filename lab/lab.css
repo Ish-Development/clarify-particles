@@ -59,3 +59,9 @@ body .dialkit-root[data-theme] {
 /* DialKit's extras the lab doesn't use: versions (the lab has ⌘Z and keeps
    its dials), copying the values as code, hiding the timeline or the dock */
 .dialkit-panel-section-toolbar, .dialkit-preset-manager, .dialkit-toolbar-add[aria-label="Copy parameters"], .dialkit-panel-toolbar, .dialkit-timeline-chevron { display: none !important; }
+
+/* a lab is a tool: dragging doesn't select its text (fields still do) */
+body { user-select: none; -webkit-user-select: none; }
+input, textarea, [contenteditable] { user-select: text; -webkit-user-select: text; }
+.dialkit-timeline-popover-header { cursor: grab; }
+.dialkit-timeline-popover-header:active { cursor: grabbing; }
