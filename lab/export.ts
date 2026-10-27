@@ -153,7 +153,13 @@ function mountModel() {
     LOOK,
     dv ? { gain: dv.electricity.brightness, speed: dv.electricity.speed, fade: dv.electricity.afterglow, dotInner: dv.dots.inner, dotOuter: dv.dots.outer } : { gain: 1, speed: 1, fade: 1, dotInner: 1, dotOuter: 1 },
   );
-  mount(effect, specFor(effect, m, styleOverrides(m, sv)), { root: effect });
+  mount(effect, modelSpec(effect), { root: effect });
+}
+// the model's spec on a box (dots: in shape from the first frame, not
+// gathering in from a scatter, which the loop's start faded over)
+function modelSpec(el: HTMLElement) {
+  const m = modelByName(v().model);
+  return specFor(el, m, { ...styleOverrides(m, styleValues()), ...(m.style === "dots" ? { gather: false } : {}) });
 }
 
 // a new model (or size, or dots) at the same moment
@@ -205,7 +211,7 @@ function layout() {
   hud.textContent =
     `output ${o.w * k} × ${o.h * k} px · ` +
     (big > maxPx ? `the box at ${k}× is ${big} px, over this GPU's ${maxPx}: make it smaller or lower the scale` : `preview ${Math.round(fit * 100)}% (⌘0 fits)`) +
-    (loopUnit(v().model) ? ` · ${v().model} comes round every ${loopUnit(v().model)} s, so its loop is a multiple of that` : "");
+    (loopUnit(v().model) ? ` · ${v().model} comes round every ${loopUnit(v().model)} s, so its loop is a multiple of that` : turnNote());
 }
 
 const actions: Record<string, () => void> = {
@@ -331,6 +337,89 @@ function dropLoop() {
   unmount(effectB);
   mix(1);
 }
+// --- the turn, round the loop: a model keeps turning (the dots tumble, the
+// blocks and lines turn, the networks turn and nod), so by the loop's end it
+// has moved on, and the fade into the start showed it twice. The lab turns it
+// itself, by where it is in the loop: whole turns in the loop when that's
+// near its own pace, else rocking to and fro at its own pace and back, so
+// the end is where it started. The blocks' bolts keep clear of the ends ---
+const TURNS = new WeakMap<object, Record<string, number>>();
+// a clock's value at s into the loop (rate: per s, its own; period: a whole
+// turn of it)
+function round(at: number, rate: number, period: number) {
+  const L = duration();
+  const u = ((at % L) + L) % L;
+  const n = Math.round((rate * L) / period);
+  return n >= 1 ? (n * period * u) / L : ((rate * L) / TAU) * Math.sin((TAU * u) / L);
+}
+const TAU = Math.PI * 2;
+type Clocks = Record<string, number | boolean>;
+function loopTurn(view: NonNullable<ReturnType<typeof getView>>, at: number) {
+  const vw = view as unknown as { system?: Clocks & { cfg?: Clocks }; blocks?: (Clocks & { cfg: Clocks; boltIn: Float32Array; boltOut: Float32Array; hit: Float32Array }) | null };
+  const sys = vw.system;
+  // dots: the tumble (both its turns: whole only after 2π / 0.06 of it),
+  // and their own clock and idle drift (some shapes turn their shells by
+  // them, and the dots drift on them): none comes round soon, so they rock
+  if (sys && "rotTime" in sys && sys.cfg) {
+    const cfg = sys.cfg;
+    const spin = Math.max(0, Number(cfg.rotateSpeed));
+    const own = TURNS.get(sys) ?? { on: cfg.autoRotate ? 1 : 0, spin, speed: Number(cfg.speed) || 0, idle: cfg.idleMotion ? 0.35 * spin : 0 };
+    TURNS.set(sys, own);
+    cfg.autoRotate = cfg.idleMotion = false;
+    cfg.speed = 0;
+    if (own.on) sys.rotTime = round(at, own.spin, TAU / 0.06);
+    sys.time = round(at, own.speed, Infinity);
+    sys.idleTime = round(at, own.idle, Infinity);
+    return;
+  }
+  // networks: the turn, and the nod (a sine of its own clock)
+  if (sys && "rot" in sys && sys.cfg) {
+    const cfg = sys.cfg;
+    const own = TURNS.get(sys) ?? { speed: Number(cfg.idleRotationSpeed) || 0, tilt: Number(cfg.idleTiltAmount) || 0, rotX: Number(cfg.rotX) || 0 };
+    TURNS.set(sys, own);
+    cfg.idleRotationSpeed = 0;
+    sys.rot = round(at, own.speed, TAU);
+    const nod = own.speed > 0 ? round(at, 1, TAU / (own.speed * 0.6)) * own.speed * 0.6 : 0;
+    cfg.rotX = own.rotX + (Math.sin(nod) * own.tilt * 180) / Math.PI;
+    return;
+  }
+  // blocks and lines: the turn; bolts as calm at the end as at the start
+  const b = vw.blocks;
+  if (b) {
+    const cfg = b.cfg;
+    const own = TURNS.get(b) ?? { turn: Number(cfg.turnSpeed) || 0, every: Number(cfg.boltEvery) || 0, gain: Number(cfg.boltGain) || 0, pass: 0 };
+    TURNS.set(b, own);
+    cfg.turnSpeed = 0;
+    b.turn = round(at, own.turn, TAU);
+    const L = duration();
+    const u = ((at % L) + L) % L;
+    const pass = Math.floor((at + 1e-9) / L);
+    // round again (played on): calm, as at 0 s
+    if (b.boltClock === -Infinity || pass !== own.pass) {
+      b.hit.fill(Infinity);
+      b.boltOut.fill(Infinity);
+      b.boltIn.fill(Infinity);
+      b.boltClock = 0;
+      own.pass = pass;
+    }
+    const life = Math.max(1.5, Number(b.boltLast) || 0) * 1.2 + 4 * (Number(cfg.boltFade) || 0.5);
+    cfg.boltEvery = L - u < life || u < Math.min(v().loop.blend, L / 2) ? 0 : own.every;
+    cfg.boltGain = own.gain * Math.min(1, Math.max(0, (L - u) / 0.8));
+  }
+}
+
+// what the loop does with the model's turn, for the status line
+function turnNote() {
+  const vw = getView(effect) as unknown as { system?: object; blocks?: object | null } | undefined;
+  const own = vw && (TURNS.get(vw.blocks ?? {}) ?? TURNS.get(vw.system ?? {}));
+  if (!own) return "";
+  const rate = own.turn ?? own.speed ?? 0;
+  if ("rotTime" in (vw!.system ?? {})) return own.on ? " · it rocks to and fro in the loop (its own tumble takes minutes to come round)" : "";
+  if (!rate) return "";
+  const n = Math.round((rate * duration()) / TAU);
+  return n >= 1 ? ` · it turns ${n === 1 ? "once" : `${n} times`} round in the loop` : ` · it rocks to and fro in the loop (a whole turn takes ${Math.round(TAU / rate)} s: a loop of ${Math.ceil(Math.PI / rate)} s or more turns it round)`;
+}
+
 async function seekLoop(T: number, gen: number) {
   const { length: L, blend } = v().loop;
   const F = Math.min(blend, L / 2);
@@ -342,13 +431,18 @@ async function seekLoop(T: number, gen: number) {
     takeB.t = 0;
     unmount(effectB);
     const m = modelByName(v().model);
-    mount(effectB, specFor(effectB, m, styleOverrides(m, styleValues())), { root: effectB });
+    mount(effectB, modelSpec(effectB), { root: effectB });
     takeB.valid = true;
   }
   const vb = await sceneReady(effectB);
   if (!vb || gen !== seekGen) return;
+  if (takeB.t === 0) {
+    loopTurn(vb, 0);
+    vb.step(0);
+  }
   while (takeB.t + SCRUB_DT <= T + L + 1e-6) {
     LOOP.t = takeB.t;
+    loopTurn(vb, takeB.t + SCRUB_DT);
     vb.step(SCRUB_DT);
     takeB.t += SCRUB_DT;
   }
@@ -382,8 +476,17 @@ async function seek(T: number) {
     const view = await sceneReady();
     // a newer seek took over while this one waited
     if (!view || gen !== seekGen) return;
+    // a new take: its turn set for 0 s and one step of no time, so the first
+    // frame is the loop's own
+    if (take.t === 0) {
+      loopTurn(view, 0);
+      view.step(0);
+      // (the status line says how it turns, now it's known)
+      layout();
+    }
     while (take.t + SCRUB_DT <= take.base + T + 1e-6) {
       LOOP.t = take.t;
+      loopTurn(view, take.t + SCRUB_DT);
       view.step(SCRUB_DT);
       take.t += SCRUB_DT;
     }
