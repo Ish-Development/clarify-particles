@@ -62,6 +62,15 @@ let seq: string[] = (() => {
   }
   return ["Block cube", "Line globe", "Line torus"].filter(known);
 })();
+// ?model=<name> (from the export lab): a new sequence, starting with it
+{
+  const asked = new URLSearchParams(location.search).get("model");
+  if (asked && known(asked)) {
+    seq = [asked];
+    store.set(SEQ_KEY, JSON.stringify(seq));
+  }
+  if (asked) history.replaceState(null, "", location.pathname);
+}
 const family = (): Family | null => (seq.length ? familyOf(modelByName(seq[0])) : null);
 // a clip's key on the timeline: its slot (the model in it can change, from
 // the clip's own popover), and its label: the model's name, numbered when

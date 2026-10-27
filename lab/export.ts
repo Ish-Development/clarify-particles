@@ -256,6 +256,8 @@ function lightRail() {
   const morphs = ["dots", "blocks", "lines"].includes(modelByName(v().model).style);
   morphLink.classList.toggle("off", !morphs);
   morphLink.title = morphs ? "" : "Networks and flat drawings don't morph";
+  // (it starts the morph lab off with this model)
+  morphLink.href = `./morph.html?model=${encodeURIComponent(v().model)}`;
   requestAnimationFrame(() => list.querySelector(".on")?.scrollIntoView({ block: "center" }));
 }
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
