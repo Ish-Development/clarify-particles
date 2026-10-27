@@ -47,9 +47,9 @@ const kit = createDialKit(
       position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
       centre: { type: "action", label: "Centre in frame" },
     },
-    // a perfect loop: the timeline `length` s long, its last `blend` s
-    // fading into its start, so played round (or as a video) it never jumps
-    loop: { on: false, length: [10, 2, 30, 0.5], blend: [1.5, 0.2, 5, 0.1] },
+    // always a perfect loop: the timeline `length` s long, its last `blend`
+    // s fading into its start, so played round (or as a video) it never jumps
+    loop: { length: [10, 2, 60, 0.5], blend: [1.5, 0.2, 5, 0.1] },
     // a new take: new random choices (wirings, bolts), from 0 s
     take: { type: "action", label: "New take" },
     copySvg: { type: "action", label: "Copy SVG" },
@@ -239,15 +239,15 @@ for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.on
 // react to the dials: a named size sets the frame, a typed one switches the
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
-let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, loop: JSON.stringify(v().loop) };
+let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, loop: JSON.stringify({ length: v().loop.length, blend: v().loop.blend }) };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
 // within a take, played or scrubbed to; forward only steps the difference,
 // back starts again from 0. ---
 setPaused(true);
-// the timeline's length: 30 s, or the loop's
-const duration = () => (v().loop.on ? v().loop.length : 30);
+// the timeline's length: the loop's
+const duration = () => v().loop.length;
 const take = { seed: 1, valid: false, t: 0, rng: 1 };
 let playing = true;
 const SCRUB_DT = 1 / 60;
@@ -298,9 +298,9 @@ function dropLoop() {
   mix(1);
 }
 async function seekLoop(T: number, gen: number) {
-  const { on, length: L, blend } = v().loop;
+  const { length: L, blend } = v().loop;
   const F = Math.min(blend, L / 2);
-  if (!on || T >= F) return mix(1);
+  if (T >= F) return mix(1);
   rngOf = takeB;
   if (!takeB.valid || T + L < takeB.t - 1e-6) {
     takeB.rng = take.seed;
@@ -406,7 +406,7 @@ kit.subscribe((nv) => {
     return;
   }
   // the loop: the timeline its length, the copy ahead taken again
-  const loop = JSON.stringify(nv.loop);
+  const loop = JSON.stringify({ length: nv.loop.length, blend: nv.loop.blend });
   if (loop !== last.loop) {
     dropLoop();
     timeline.updateConfig(timelineConfig(duration()) as never);
@@ -672,7 +672,7 @@ async function exportVideo() {
   await done;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(chunks, { type: mimeType || "video/webm" }));
-  a.download = `clarify-${v().model.toLowerCase().replace(/\s+/g, "-")}${v().loop.on ? "-loop" : ""}-${o.w}x${o.h}.${mimeType.includes("mp4") ? "mp4" : "webm"}`;
+  a.download = `clarify-${v().model.toLowerCase().replace(/\s+/g, "-")}-loop-${o.w}x${o.h}.${mimeType.includes("mp4") ? "mp4" : "webm"}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   exporting = false;
