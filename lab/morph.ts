@@ -89,8 +89,8 @@ createDialRoot({ position: "top-right", theme: "dark" });
 const MAX = 4000;
 const PANEL = {
   output: {
-    size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "16:9" },
-    w: [1920, 16, MAX, 1],
+    size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "1:1" },
+    w: [1080, 16, MAX, 1],
     h: [1080, 16, MAX, 1],
     // pixels per frame px (a video stops at 4K wide)
     scale: [1, 1, 4, 1],
@@ -125,7 +125,7 @@ const PANEL = {
 const kit = createDialKit(
   "Morph",
   PANEL,
-  { id: "morph-1", persist: true, onAction: (a: string) => actions[a]?.() },
+  { id: "morph-2", persist: true, onAction: (a: string) => actions[a]?.() },
 );
 shiftSnap(kit as never, PANEL);
 if (handed) kit.setValues(fit(PANEL, { output: handed.output, placement: handed.placement }) as never);

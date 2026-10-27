@@ -33,9 +33,9 @@ const PANEL = {
   // labelled with their style, in the gallery's order
   model: { type: "select", options: MODELS.map((m) => ({ value: m.name, label: `${STYLES.find(([st]) => st === m.style)![1]} · ${m.name}` })), default: MODELS[0].name },
   output: {
-    size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "LinkedIn banner (4:1)" },
-    w: [1584, 16, MAX, 1],
-    h: [396, 16, MAX, 1],
+    size: { type: "select", options: [...Object.keys(SIZES), "Custom"], default: "1:1" },
+    w: [1080, 16, MAX, 1],
+    h: [1080, 16, MAX, 1],
     // the PNG's pixels per frame px
     scale: [2, 1, 4, 1],
     // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
@@ -69,7 +69,7 @@ const kit = createDialKit(
   "Export",
   PANEL,
   // (a new id: the dials changed units, old saved values would read wrong)
-  { id: "export-2", persist: true, onAction: (a: string) => actions[a]?.() },
+  { id: "export-3", persist: true, onAction: (a: string) => actions[a]?.() },
 );
 shiftSnap(kit as never, PANEL);
 
