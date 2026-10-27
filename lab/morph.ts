@@ -88,9 +88,12 @@ const kit = createDialKit(
       position: { type: "pad", x: [0, -1, 1, 0.01], y: [0, -1, 1, 0.01] },
       centre: { type: "action", label: "Centre in frame" },
     },
-    // what a new sequence's clips get: s each model holds, and s each morph
-    // takes (a clip shorter than that morphs for its whole length)
+    // length: the whole video's, s (drag it to stretch or squeeze every clip
+    // together). hold + morph: a new sequence's clip, s each; morph: how long
+    // each morph takes (a clip shorter than that morphs for its whole length)
     timing: {
+      // the video's length: every clip longer or shorter together
+      length: [12, 1, 120, 0.1],
       hold: [2.5, 0.5, 10, 0.1],
       morph: [1.5, 0.2, 6, 0.1],
       even: { type: "action", label: "Space clips evenly" },
@@ -175,9 +178,10 @@ async function sceneReady() {
 
 // the clips, in time order: which model, from when, how long
 type Clip = { name: string; at: number; dur: number };
+type ClipValues = Record<string, { at: number; duration: number; to?: { model?: string } }>;
 function clips(): Clip[] {
   if (!timeline) return [];
-  const tv = timeline.values as unknown as Record<string, { at: number; duration: number }>;
+  const tv = timeline.values as unknown as ClipValues;
   return keys()
     .map((k, i) => ({ name: seq[i], at: tv[k]?.at ?? 0, dur: tv[k]?.duration ?? 1 }))
     .sort((a, b) => a.at - b.at);
@@ -205,7 +209,8 @@ function mountTake() {
   plan = { family: f, shapes, clips: cs };
 }
 
-// before each step: the clip under the playhead, and its morph started
+// before each step: the clip under the playhead, and its morph started (the
+// Morph dial long, or the clip if it's shorter)
 const baseStagger = { value: 0.6 };
 function drive(view: ReturnType<typeof getView>, t: number) {
   if (!view || !plan) return;
@@ -285,7 +290,13 @@ function invalidate() {
 let timeline: ReturnType<typeof createDialTimeline> | null = null;
 let playing = true;
 let spacing = Number(store.get("clarify-morph-lab-spacing") ?? 0) || 0;
-const duration = () => (timeline ? Math.max(1, timeline.values.duration) : 1);
+// the video's length: where the last clip ends (the dock runs a little past
+// it, room to drag that end out)
+const duration = () => {
+  const cs = clips();
+  return cs.length ? Math.max(0.5, cs[cs.length - 1].at + cs[cs.length - 1].dur) : 1;
+};
+const ROOM = 3;
 function buildTimeline() {
   timeline?.destroy();
   timeline = null;
@@ -304,11 +315,17 @@ function buildTimeline() {
   // (labelled as named: DialKit title-cases a bare option)
   const options = MODELS.filter((m) => familyOf(m) === f).map((m) => ({ value: m.name, label: m.name }));
   keys().forEach((k, i) => {
-    config[k] = { at: Math.round(i * span * 10) / 10, duration: span, to: { model: { type: "select", options, default: seq[i] } } };
+    config[k] = {
+      at: Math.round(i * span * 10) / 10,
+      duration: span,
+      to: { model: { type: "select", options, default: seq[i] } },
+    };
   });
+  config.duration = Math.round((seq.length * span + ROOM) * 10) / 10;
   const id = `morph-${spacing}-${f}-${seq.length}`;
-  timeline = createDialTimeline("Morph", config as never, { id, persist: true, autoplay: playing, loop: true });
+  timeline = createDialTimeline("Morph", config as never, { id, persist: true, autoplay: playing, loop: false });
   showModels();
+  honest();
   timeline.subscribe((tv) => {
     if (recording) return;
     playing = tv.playing;
@@ -318,6 +335,13 @@ function buildTimeline() {
       seq = picked;
       store.set(SEQ_KEY, JSON.stringify(seq));
       showModels();
+      showStill();
+    }
+    honest();
+    // past the last clip: round again from 0
+    if (tv.playing && tv.time > duration() + 1e-6) {
+      timeline!.seek(0);
+      return;
     }
     // a clip moved: the take starts again, at the same moment
     if (JSON.stringify(clips()) !== take.clips) {
@@ -329,6 +353,86 @@ function buildTimeline() {
   take.valid = false;
   seek(0);
 }
+// The timeline tells the truth: a clip runs from its start to the next one's,
+// as long as its model is on screen (no gaps, no overlaps). Dragging a clip
+// past another reorders them; dragging a clip's end moves every clip after it
+// along; the last clip's end is the video's. The dock runs ROOM s past it.
+let shape: Record<string, { at: number; dur: number }> = {};
+let evening = false;
+// (once a drag on the dock ends: tidied mid-drag, the clips moved under it)
+let dragging = false;
+window.addEventListener("pointerdown", (e) => (dragging = e.target instanceof Element && !!e.target.closest(".dialkit-timeline")), true);
+window.addEventListener("pointerup", () => {
+  if (!dragging) return;
+  dragging = false;
+  setTimeout(honest);
+}, true);
+function honest(scaleTo?: number) {
+  if (!timeline || evening || dragging) return;
+  const id = timeline.id;
+  const tv = timeline.values as unknown as ClipValues;
+  const raw = keys().map((k) => ({ k, at: tv[k]?.at ?? 0, dur: tv[k]?.duration ?? 1 }));
+  const prev = shape;
+  let order = [...raw].sort((a, b) => a.at - b.at);
+  const len = new Map<string, number>();
+  if (restoring || !raw.every((c) => prev[c.k])) {
+    // first look (or an undo): the starts say it all
+    order.forEach((c, i) => len.set(c.k, i < order.length - 1 ? order[i + 1].at - c.at : c.dur));
+  } else {
+    // against the last tidy state, in its order
+    order = [...raw].sort((a, b) => prev[a.k].at - prev[b.k].at);
+    for (const c of order) len.set(c.k, prev[c.k].dur);
+    let moving: (typeof raw)[number] | null = null;
+    order.forEach((c, i) => {
+      const p = prev[c.k];
+      const moved = Math.abs(c.at - p.at) > 1e-6;
+      const resized = Math.abs(c.dur - p.dur) > 1e-6;
+      // moved whole: it goes where it was dropped
+      if (moved && !resized) moving = c;
+      // its end: its own length (the clips after it move along)
+      else if (resized && !moved) len.set(c.k, c.dur);
+      // its start: the cut with the clip before
+      else if (resized && moved) {
+        len.set(c.k, c.dur);
+        if (i > 0) len.set(order[i - 1].k, len.get(order[i - 1].k)! + (c.at - p.at));
+      }
+    });
+    if (moving) {
+      const m = moving as (typeof raw)[number];
+      const mid = m.at + len.get(m.k)! / 2;
+      order = order.filter((o) => o !== m);
+      const at = order.filter((o) => prev[o.k].at + prev[o.k].dur / 2 < mid).length;
+      order.splice(at, 0, m);
+    }
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  // the Length dial: every clip scaled together
+  const total = order.reduce((sum, c) => sum + len.get(c.k)!, 0);
+  const k = scaleTo ? scaleTo / total : 1;
+  let at = 0;
+  const next = order.map((c) => {
+    const dur = r2(Math.max(0.2, len.get(c.k)! * k));
+    const out = { k: c.k, at: r2(at), dur };
+    at += dur;
+    return out;
+  });
+  shape = Object.fromEntries(next.map((c) => [c.k, { at: c.at, dur: c.dur }]));
+  const end = r2(at);
+  evening = true;
+  try {
+    const meta = TimelineStore.getTimeline(id);
+    if (meta && Math.abs(meta.duration - (end + ROOM)) > 1e-6) TimelineStore.update({ ...meta, duration: r2(end + ROOM) });
+    for (const c of next) {
+      if (Math.abs((tv[c.k]?.at ?? 0) - c.at) > 1e-6) DialStore.updateValue(id, `${c.k}.at`, c.at);
+      if (Math.abs((tv[c.k]?.duration ?? 0) - c.dur) > 1e-6) DialStore.updateValue(id, `${c.k}.duration`, c.dur);
+    }
+    // the Length dial shows it
+    if (Math.abs(v().timing.length - end) > 0.05) kit.setValues({ timing: { length: Math.round(end * 10) / 10 } });
+  } finally {
+    evening = false;
+  }
+}
+
 // the clips' models and labels from the sequence
 function showModels() {
   if (!timeline) return;
@@ -340,6 +444,84 @@ function showModels() {
   const names = labels();
   if (meta && meta.clips.some((c, i) => c.label !== names[i])) TimelineStore.update({ ...meta, clips: meta.clips.map((c, i) => ({ ...c, label: names[i] ?? c.label })) });
 }
+// --- a clip's popover: a still of its model above its dropdown (DialKit's
+// curve there is hidden: the morphs keep the engine's own pace) ---
+const stills = new Map<string, string>();
+let stillGen = 0;
+async function stillOf(name: string, box: HTMLElement): Promise<string> {
+  const hit = stills.get(name);
+  if (hit) return hit;
+  const m = modelByName(name);
+  // mounted in the box itself (a view off screen doesn't paint), held a
+  // few seconds in, kept as an image
+  const host = document.createElement("div");
+  host.style.cssText = "position:absolute;inset:0";
+  box.append(host);
+  try {
+    mount(host, specFor(host, m, styleOverrides(m, stylePanel?.kit.values)), { root: host });
+    let view = getView(host);
+    for (let i = 0; i < 120 && !(view && view.scene.children.some((c) => c.children.length > 0 || (c as { isMesh?: boolean }).isMesh || (c as { isPoints?: boolean }).isPoints)); i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      view = getView(host);
+    }
+    if (!view) return "";
+    // its own randomness, not the take's
+    const seeded = Math.random;
+    Math.random = realRandom;
+    try {
+      for (let i = 0; i < 150; i++) view.step(DT);
+      view.paint();
+    } finally {
+      Math.random = seeded;
+    }
+    const url = view.canvas.toDataURL("image/png");
+    stills.set(name, url);
+    return url;
+  } finally {
+    unmount(host);
+    host.remove();
+  }
+}
+// the popover open now, which clip it's for (by its title, set when it opened)
+function popover(): { el: HTMLElement; i: number } | null {
+  const el = document.querySelector<HTMLElement>(".dialkit-timeline-popover");
+  if (!el) return null;
+  if (el.dataset.clip === undefined) {
+    const title = el.querySelector(".dialkit-timeline-popover-title")?.textContent ?? "";
+    const i = labels().indexOf(title);
+    if (i < 0) return null;
+    el.dataset.clip = String(i);
+  }
+  return { el, i: Number(el.dataset.clip) };
+}
+async function showStill() {
+  const p = popover();
+  if (!p || p.i >= seq.length) return;
+  const body = p.el.querySelector(".dialkit-timeline-popover-body");
+  if (!body) return;
+  let box = body.querySelector<HTMLElement>(".clip-still");
+  if (!box) {
+    box = document.createElement("div");
+    box.className = "clip-still";
+    box.innerHTML = "<img alt='' />";
+    body.prepend(box);
+  }
+  const title = p.el.querySelector(".dialkit-timeline-popover-title");
+  if (title) title.textContent = labels()[p.i];
+  const name = seq[p.i];
+  if (box.dataset.model === name) return;
+  box.dataset.model = name;
+  const gen = ++stillGen;
+  box.classList.add("loading");
+  const url = await stillOf(name, box);
+  if (gen !== stillGen) return;
+  box.querySelector("img")!.src = url;
+  box.classList.remove("loading");
+}
+new MutationObserver(() => {
+  if (document.querySelector(".dialkit-timeline-popover:not([data-clip])")) showStill();
+}).observe(document.body, { childList: true, subtree: true });
+
 const dock = createDialTimelineRoot({ theme: "dark", defaultOpen: true, defaultVisible: true });
 // the dock grows a row per clip: the preview keeps clear of it
 new ResizeObserver(() => {
@@ -439,6 +621,8 @@ kit.subscribe((nv) => {
     kit.setValues({ output: { colour: o.light ? "#f4f7fa" : "#060709" } });
     return;
   }
+  // the Length dial dragged: every clip scaled to it
+  if (!restoring && !evening && timeline && Math.abs(nv.timing.length - duration()) > 0.05) honest(nv.timing.length);
   const rescale = o.scale !== last.scale;
   last = { size: o.size, w: o.w, h: o.h, light: o.light, scale: o.scale };
   layout();
@@ -504,9 +688,15 @@ function travel(from: string[], to: string[]) {
     store.set(SEQ_KEY, JSON.stringify(seq));
     showModels();
   }
-  if (timeline) for (const [k, c] of Object.entries(p.clips)) {
-    DialStore.updateValue(timeline.id, `${k}.at`, c.at);
-    DialStore.updateValue(timeline.id, `${k}.duration`, c.duration);
+  if (timeline) {
+    // all of them before tidying (one at a time, they read as drags)
+    evening = true;
+    for (const [k, c] of Object.entries(p.clips)) {
+      DialStore.updateValue(timeline.id, `${k}.at`, c.at);
+      DialStore.updateValue(timeline.id, `${k}.duration`, c.duration);
+    }
+    evening = false;
+    honest();
   }
   kit.setValues(p.main as never);
   if (p.look && stylePanel) stylePanel.kit.setValues(p.look as never);

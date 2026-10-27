@@ -22,10 +22,13 @@
       .dialkit-timeline { left: var(--rail) !important; right: var(--panel) !important; bottom: 0 !important; }
       .dialkit-timeline-dock { border-radius: 0 !important; border-width: 1px 0 0 !important; }
       .dialkit-pad-surface { aspect-ratio: var(--frame-aspect, 1) !important; }
-      /* a clip's popover: just its model (the engine eases the morph itself, so
-         DialKit's curve there did nothing; the clip's length is dragged) */
+      /* a clip's popover: a still of its model, and the dropdown to change it
+         (DialKit's curve is hidden: the morphs keep the engine's own pace) */
       .dialkit-timeline-popover-body > .dialkit-folder:not(:has(.dialkit-select-row)) { display: none; }
       .dialkit-timeline-popover-body > .dialkit-folder:has(.dialkit-select-row) > .dialkit-folder-header { display: none; }
+      .clip-still { position: relative; aspect-ratio: 1; margin-bottom: 8px; border-radius: 8px; overflow: hidden; background: var(--surface); }
+      .clip-still img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+      .clip-still img:not([src]), .clip-still.loading img { visibility: hidden; }
       body.light #stage { background: #e3e7ec; }
       body.light #frame { outline-color: #00000033; }
       body.light #hud { color: #575b5f; }
