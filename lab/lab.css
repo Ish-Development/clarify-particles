@@ -73,3 +73,10 @@ input, textarea, [contenteditable] { user-select: text; -webkit-user-select: tex
 .btn.busy span { position: relative; }
 .btn.busy:hover span { opacity: 0.6; }
 .btn.done { border-color: #3a3e44; color: var(--ink); }
+
+/* the panel's own header: "Settings", not the tool's name, and no × (it
+   folded the whole panel away, easy to hit and hard to find again) */
+.dialkit-folder-title-root { font-size: 0 !important; }
+.dialkit-folder-title-root::after { content: "Settings"; font-size: 15px; }
+.dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top { pointer-events: none; }
+.dialkit-folder-root > .dialkit-panel-header > .dialkit-folder-header-top > svg { display: none; }
