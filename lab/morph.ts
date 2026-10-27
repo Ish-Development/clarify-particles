@@ -14,7 +14,7 @@ import { getView, mount, setExportScale, setPaused, unmount } from "../src/runti
 import { MODELS, STYLES, STYLE_DIALS, tidy, modelByName, specFor, styleOverrides, type Model } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
-import { GROUNDS, INKS, groundStep, inkOf } from "./brand";
+import { GROUNDS, INKS, groundOf, groundStep, inkOf } from "./brand";
 import { SIZES } from "./sizes";
 import { shiftSnap } from "./snap";
 import { viewToSvg } from "./svg";
@@ -93,10 +93,9 @@ const PANEL = {
     // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
     // 1920 × 1080)
     video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-    // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
-    // light: a light ground, the model drawn dark on it
-    background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
-    colour: { type: "color", default: "#060709" },
+    // the ground: a brand swatch (lab/brand.ts); light: a light ground, the
+    // model drawn dark on it
+    background: { type: "select", options: Object.keys(GROUNDS), default: "Carbon 900" },
     light: false,
     transparent: false,
     // the model's colour: Auto, the site's own; else a brand colour
@@ -163,7 +162,7 @@ function layout() {
   document.documentElement.style.setProperty("--frame-aspect", String(Math.min(3, Math.max(0.75, o.w / o.h))));
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
-  frame.style.background = o.transparent ? "transparent" : o.colour;
+  frame.style.background = o.transparent ? "transparent" : groundOf(o);
   effect.style.filter = o.light ? "invert(1)" : "none";
   document.body.classList.toggle("light", o.light);
   Object.assign(effect.style, { width: `${r.w}px`, height: `${r.h}px`, left: `${r.left}px`, top: `${r.top}px` });
@@ -999,7 +998,7 @@ const actions: Record<string, () => void> = {
 for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.onclick = () => actions[b.dataset.act!]();
 
 let last = { size: out().size, w: out().w, h: out().h, light: out().light, scale: out().scale, morph: v().timing.morph, ink: out().modelColour };
-let ground = { background: out().background, colour: out().colour, light: out().light };
+let ground = { background: out().background, light: out().light };
 kit.subscribe((nv) => {
   const o = nv.output;
   if (!restoring && o.size !== last.size && SIZES[o.size]) {
@@ -1015,7 +1014,7 @@ kit.subscribe((nv) => {
   }
   // the ground kept in step (a swatch, its colour, Light)
   const step = restoring ? null : groundStep(o, ground);
-  ground = { background: o.background, colour: o.colour, light: o.light };
+  ground = { background: o.background, light: o.light };
   if (step) {
     kit.setValues({ output: step });
     return;
@@ -1170,7 +1169,7 @@ function compose(c: HTMLCanvasElement, k: number, opaque: boolean) {
   ctx.filter = "none";
   ctx.clearRect(0, 0, c.width, c.height);
   if (opaque || !o.transparent) {
-    ctx.fillStyle = o.colour;
+    ctx.fillStyle = groundOf(o);
     ctx.fillRect(0, 0, c.width, c.height);
   }
   if (!view) return;
@@ -1207,7 +1206,7 @@ function svgText() {
   if (!view) return "";
   const o = out();
   const r = rect();
-  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : o.colour, invert: o.light });
+  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : groundOf(o), invert: o.light });
 }
 function copySvg() {
   const svg = svgText();

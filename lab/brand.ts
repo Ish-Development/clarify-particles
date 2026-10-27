@@ -51,20 +51,32 @@ export function inkOf(style: string, name: string, light: boolean): Record<strin
   return { color: c };
 }
 
-// The Output panel's ground, kept in step: a swatch picked sets the colour
-// (and Light, for a light ground); a colour picked names its swatch (or
-// Custom); Light switched picks Bone 50 or Carbon 900. What to set, if
-// anything (only what differs from now)
-type Ground = { background: string; colour: string; light: boolean };
+// the ground's colour (a name saved before the swatches: Carbon 900)
+export const groundOf = (o: { background: string }) => GROUNDS[o.background] ?? GROUNDS["Carbon 900"];
+
+// The Output panel's ground and Light kept in step: a swatch picked sets
+// Light (on for a light ground); Light switched picks Bone 50 or Carbon 900.
+// What to set, if anything
+type Ground = { background: string; light: boolean };
 export function groundStep(now: Ground, before: Ground): Partial<Ground> | null {
-  const named = (hex: string) => Object.keys(GROUNDS).find((n) => GROUNDS[n] === hex.toLowerCase()) ?? "Custom";
-  let want: Ground = now;
-  if (now.background !== before.background && GROUNDS[now.background]) want = { background: now.background, colour: GROUNDS[now.background], light: isLight(GROUNDS[now.background]) };
-  else if (now.colour !== before.colour) want = { ...now, background: named(now.colour), light: isLight(now.colour) };
-  else if (now.light !== before.light) {
-    const hex = now.light ? GROUNDS["Bone 50"] : GROUNDS["Carbon 900"];
-    want = { background: named(hex), colour: hex, light: now.light };
-  }
-  const patch = Object.fromEntries(Object.entries(want).filter(([k, x]) => now[k as keyof Ground] !== x));
-  return Object.keys(patch).length ? patch : null;
+  if (now.background !== before.background && GROUNDS[now.background] && isLight(GROUNDS[now.background]) !== now.light) return { light: isLight(GROUNDS[now.background]) };
+  if (now.light !== before.light && isLight(groundOf(now)) !== now.light) return { background: now.light ? "Bone 50" : "Carbon 900" };
+  return null;
 }
+
+// A swatch beside every brand colour in the panel's dropdowns (the value
+// shown, and each option in the list), drawn by lab.css from --swatch
+const SWATCHES: Record<string, string> = { ...INKS, ...GROUNDS };
+function swatch() {
+  for (const el of document.querySelectorAll<HTMLElement>(".dialkit-select-value, .dialkit-select-option")) {
+    const hex = SWATCHES[el.textContent?.trim() ?? ""];
+    if (hex) {
+      if (el.style.getPropertyValue("--swatch") !== hex) el.style.setProperty("--swatch", hex);
+      el.classList.add("swatched");
+    } else if (el.classList.contains("swatched")) {
+      el.classList.remove("swatched");
+      el.style.removeProperty("--swatch");
+    }
+  }
+}
+new MutationObserver(swatch).observe(document.documentElement, { childList: true, subtree: true, characterData: true });

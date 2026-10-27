@@ -19,7 +19,7 @@ import { LOOK, LOOP, LOOP_UNITS } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
-import { GROUNDS, INKS, groundStep, inkOf } from "./brand";
+import { GROUNDS, INKS, groundOf, groundStep, inkOf } from "./brand";
 import { SIZES } from "./sizes";
 import { shiftSnap } from "./snap";
 import { viewToSvg } from "./svg";
@@ -40,10 +40,9 @@ const PANEL = {
     // the video's size (the frame fitted in 3840 × 2160, 2560 × 1440 or
     // 1920 × 1080)
     video: { type: "select", options: Object.keys(VIDEO_SIZES), default: "4K" },
-    // the ground: a brand swatch (lab/brand.ts) or Custom (the colour);
-    // light: a light ground, the model drawn dark on it
-    background: { type: "select", options: [...Object.keys(GROUNDS), "Custom"], default: "Carbon 900" },
-    colour: { type: "color", default: "#060709" },
+    // the ground: a brand swatch (lab/brand.ts); light: a light ground, the
+    // model drawn dark on it
+    background: { type: "select", options: Object.keys(GROUNDS), default: "Carbon 900" },
     light: false,
     transparent: false,
     // the model's colour: Auto, the site's own; else a brand colour
@@ -199,7 +198,7 @@ function layout() {
   document.documentElement.style.setProperty("--frame-aspect", String(Math.min(3, Math.max(0.75, o.w / o.h))));
   frame.style.width = `${o.w}px`;
   frame.style.height = `${o.h}px`;
-  frame.style.background = o.transparent ? "transparent" : o.colour;
+  frame.style.background = o.transparent ? "transparent" : groundOf(o);
   effect.style.filter = effectB.style.filter = o.light ? "invert(1)" : "none";
   // the page behind goes light too, so a transparent frame shows the model
   document.body.classList.toggle("light", o.light);
@@ -275,7 +274,7 @@ for (const b of document.querySelectorAll<HTMLElement>("#rail [data-act]")) b.on
 // size to Custom; a new frame starts centred, a new model keeps the
 // placement (size and position)
 let last = { model: v().model, scale: out().scale, size: out().size, w: out().w, h: out().h, light: out().light, ink: out().modelColour, loop: JSON.stringify({ length: v().loop.length, blend: v().loop.blend }) };
-let ground = { background: out().background, colour: out().colour, light: out().light };
+let ground = { background: out().background, light: out().light };
 // --- time: the lab plays the model itself, a fixed step at a time, the
 // engine's own loop stopped. Random choices (wirings, bolts, timings) come
 // from a seeded generator while it steps, so a moment always looks the same
@@ -570,7 +569,7 @@ kit.subscribe((nv) => {
   // a new mode takes its own background (changed after, it stays)
   // the ground kept in step (a swatch, its colour, Light)
   const step = restoring ? null : groundStep(o, ground);
-  ground = { background: o.background, colour: o.colour, light: o.light };
+  ground = { background: o.background, light: o.light };
   if (step) {
     kit.setValues({ output: step });
     return;
@@ -769,7 +768,7 @@ function compose(c: HTMLCanvasElement, k: number, opaque = false) {
   ctx.globalCompositeOperation = "source-over";
   ctx.clearRect(0, 0, c.width, c.height);
   if (opaque || !o.transparent) {
-    ctx.fillStyle = o.colour;
+    ctx.fillStyle = groundOf(o);
     ctx.fillRect(0, 0, c.width, c.height);
   }
   const r = rect();
@@ -890,7 +889,7 @@ function svgText() {
   if (!view) return "";
   const o = out();
   const r = rect();
-  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : o.colour, invert: o.light });
+  return viewToSvg(view, { w: o.w, h: o.h, left: r.left, top: r.top, background: o.transparent ? null : groundOf(o), invert: o.light });
 }
 function copySvg() {
   const svg = svgText();
