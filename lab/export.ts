@@ -15,7 +15,7 @@ import { createDialKit, createDialRoot, createDialTimeline, createDialTimelineRo
 import "dialkit/vanilla/styles.css";
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { PRESETS } from "../src/runtime/presets";
-import { LOOK, LOOP_UNITS } from "./drawings";
+import { LOOK, LOOP, LOOP_UNITS } from "./drawings";
 import { MODELS, STYLES, STYLE_DIALS, tidy, asMultipliers, modelByName, specFor, styleOverrides, type Style } from "./models";
 import { progressButton } from "./progress";
 import { encodeVideo, videoScale, VIDEO_SIZES, type VideoSize } from "./video";
@@ -141,7 +141,11 @@ function mountModel() {
   takeB.valid = false;
   setExportScale(videoK || scale());
   const m = modelByName(v().model);
+  // (a new panel's own random ids don't come out of the take's numbers)
+  const seeded = Math.random;
+  Math.random = realRandom;
   showPanel(m.style);
+  Math.random = seeded;
   const sv = styleValues();
   // the drawings' electricity is read live by drawings.ts
   const dv = m.style === "drawing" ? (asMultipliers(sv) as { electricity: { brightness: number; speed: number; afterglow: number }; dots: { inner: number; outer: number } }) : null;
@@ -154,6 +158,8 @@ function mountModel() {
 
 // a new model (or size, or dots) at the same moment
 function remount() {
+  // (a video being made has the model to itself: it's made again after)
+  if (exporting) return;
   take.valid = false;
   seek(playT);
 }
@@ -203,7 +209,8 @@ function layout() {
 }
 
 const actions: Record<string, () => void> = {
-  "placement.centre": () => kit.setValues({ placement: centred() }),
+  // (where it is, not how big)
+  "placement.centre": () => kit.setValues({ placement: { position: { x: 0, y: 0 } } }),
   take: () => {
     take.seed = (take.seed * 9301 + 49297) % 233280;
     take.valid = false;
@@ -273,7 +280,9 @@ function snapLength(length: number, unit: number) {
   const most = Math.floor(60 / unit) * unit;
   return Math.max(unit, Math.min(most, Math.round(length / unit) * unit));
 }
-const take = { seed: 1, valid: false, t: 0, rng: 1 };
+// base: s of the take played before this round (played round, the take
+// carries on rather than starting again: no stall as it comes round)
+const take = { seed: 1, valid: false, t: 0, rng: 1, base: 0 };
 let playing = true;
 const SCRUB_DT = 1 / 60;
 // the seeded generator stays in for the whole seek: a lazily loaded scene
@@ -325,7 +334,8 @@ function dropLoop() {
 async function seekLoop(T: number, gen: number) {
   const { length: L, blend } = v().loop;
   const F = Math.min(blend, L / 2);
-  if (T >= F) return mix(1);
+  // (a later round carries on from the last: it needs no fade)
+  if (T >= F || take.base > 0) return mix(1);
   rngOf = takeB;
   if (!takeB.valid || T + L < takeB.t - 1e-6) {
     takeB.rng = take.seed;
@@ -338,6 +348,7 @@ async function seekLoop(T: number, gen: number) {
   const vb = await sceneReady(effectB);
   if (!vb || gen !== seekGen) return;
   while (takeB.t + SCRUB_DT <= T + L + 1e-6) {
+    LOOP.t = takeB.t;
     vb.step(SCRUB_DT);
     takeB.t += SCRUB_DT;
   }
@@ -356,17 +367,23 @@ async function seek(T: number) {
   T = playT = Math.max(0, Math.min(duration(), T));
   rngOf = take;
   seed(true);
+  // the drawings: where the loop is (its light keeps clear of the ends)
+  LOOP.length = duration();
+  LOOP.start = Math.min(v().loop.blend, duration() / 2);
   try {
-    if (!take.valid || T < take.t - 1e-6) {
+    if (!take.valid || take.base + T < take.t - 1e-6) {
       take.rng = take.seed;
       take.t = 0;
+      take.base = 0;
+      LOOP.t = 0;
       mountModel();
       take.valid = true;
     }
     const view = await sceneReady();
     // a newer seek took over while this one waited
     if (!view || gen !== seekGen) return;
-    while (take.t + SCRUB_DT <= T + 1e-6) {
+    while (take.t + SCRUB_DT <= take.base + T + 1e-6) {
+      LOOP.t = take.t;
       view.step(SCRUB_DT);
       take.t += SCRUB_DT;
     }
@@ -404,6 +421,8 @@ createDialTimelineRoot({ theme: "dark", defaultOpen: true, defaultVisible: true 
 timeline.subscribe((tv) => {
   if (exporting) return;
   playing = tv.playing;
+  // come round while playing: the same take, carried on
+  if (tv.playing && tv.time < playT - 1e-6 && playT > duration() - 0.5 && take.valid && take.t >= take.base + duration() - 3 * SCRUB_DT) take.base += duration();
   if (Math.abs(tv.time - playT) > 1e-6) requestSeek(tv.time);
 }, false);
 function setPlaying(p: boolean) {
@@ -441,6 +460,8 @@ kit.subscribe((nv) => {
   // the loop: the timeline its length, the copy ahead taken again
   const loop = JSON.stringify({ length: nv.loop.length, blend: nv.loop.blend });
   if (loop !== last.loop) {
+    // (its light was kept clear of the old loop's ends)
+    take.valid = false;
     dropLoop();
     timeline.updateConfig(timelineConfig(duration()) as never);
     requestSeek(Math.min(playT, duration()));
@@ -693,7 +714,7 @@ async function exportVideo() {
       Math.round(d / SCRUB_DT),
       60,
       async (i) => {
-        if (i > 0) await seek(i * SCRUB_DT);
+        await seek(i * SCRUB_DT);
         compose(c, k, true);
       },
       (p, left) => videoButton.set(p, left),

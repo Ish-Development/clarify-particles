@@ -71,6 +71,18 @@ function litLine(pen: Pen, pts: Pt[], base: number, head = -1, glow = 0) {
 // brightness, speed and afterglow, multipliers (1: as designed)
 export const LOOK = { gain: 1, speed: 1, fade: 1, dotInner: 1, dotOuter: 1 };
 
+// A loop (the export lab's): its length, and where the take is in it (s,
+// set before each step). Light that couldn't play out before the loop
+// comes round doesn't start: nothing new in its last `end` s, nor in its
+// first `start` s (where the end fades into the start), so it comes round
+// as calm as it set off, and what does light up plays through
+export const LOOP = { length: 0, t: 0, start: 0, end: 3 };
+export function quiet() {
+  if (!(LOOP.length > 0)) return false;
+  const at = ((LOOP.t % LOOP.length) + LOOP.length) % LOOP.length;
+  return at < LOOP.start || at > LOOP.length - LOOP.end;
+}
+
 // The bolt: from a seed node it takes the quickest way to every node it can
 // reach (each line a little slower or quicker), so it branches; only the
 // lines it reached a node by light up. Times in s since the strike.
@@ -100,6 +112,7 @@ class Bolt {
     });
   }
   strike(seed: number, len: (k: number) => number) {
+    if (quiet()) return;
     const { speed, jitter } = this.o;
     const reach = this.o.reach ?? Infinity;
     this.hit.fill(Infinity);
@@ -429,7 +442,7 @@ class Routes implements Drawing {
  * middle, each rising and falling at its own pace; a dot on each tip.
  * Every few s a sweep of light crosses it, left to right, lighting each
  * bar as it passes and leaving a glow behind. */
-const SIGNAL = { bars: 41, span: 170, min: 6, max: 132, dot: 3, every: 3.8, cross: 1.5 };
+const SIGNAL = { bars: 41, span: 170, min: 6, max: 132, dot: 3, every: 3.75, cross: 1.5 };
 class Signal implements Drawing {
   readonly maxLines = SIGNAL.bars + 1;
   readonly maxDots = SIGNAL.bars * 2;
@@ -552,14 +565,15 @@ class Converge implements Drawing {
       this.curves.push({ pts, len: lengthOf(pts), out: true, flashAt: -Infinity });
     }
     // a few already on their way in
-    for (let k = 0; k < 3; k++) this.runs.push({ curve: Math.floor(Math.random() * inputs), t: Math.random() * CONVERGE.run });
+    // (in a loop it sets off calm, as it comes round)
+    if (!(LOOP.length > 0)) for (let k = 0; k < 3; k++) this.runs.push({ curve: Math.floor(Math.random() * inputs), t: Math.random() * CONVERGE.run });
   }
   step(dt: number) {
     const { inputs, outputs, run, fade, gap } = CONVERGE;
     this.t += dt;
     this.sparks.step(dt);
     // a new signal sets off on an input about every 0.6 s
-    if (Math.random() < dt / 0.6) this.runs.push({ curve: Math.floor(Math.random() * inputs), t: 0 });
+    if (Math.random() < dt / 0.6 && !quiet()) this.runs.push({ curve: Math.floor(Math.random() * inputs), t: 0 });
     for (const r of this.runs) {
       const before = r.t;
       r.t += dt;
@@ -608,15 +622,21 @@ class Converge implements Drawing {
 /* RINGS OF STROKES, in the pendulum's language: strokes between an inner
  * and an outer ring, the middle empty, a dot at each end; a spark sweeps
  * round now and then, lighting the strokes it passes. */
-// how lit a stroke at angle a is by a sweep (head at h, rad, going round)
-function swept(a: number, h: number, tail: number) {
-  const back = wrap(h - a);
-  return back < tail ? (1 - back / tail) ** 2 : 0;
-}
+// A sweep: from the top, once round clockwise, its head `run` rad along.
+// A stroke lights as the head passes and fades behind it (`tail` rad); past
+// the top again nothing new lights and the tail runs out, so a sweep grows
+// in and dies away rather than switching on and off
 const SWEEP = { every: 9, round: 2.4, tail: 1.6 };
+function swept(a: number, run: number) {
+  const along = wrap(a + Math.PI / 2);
+  if (along > run) return 0;
+  const back = run - along;
+  return back < SWEEP.tail ? (1 - back / SWEEP.tail) ** 2 : 0;
+}
+// (in a loop: a whole number of sweeps to it, so one never runs into the end)
 const sweepHead = (t: number) => {
-  const p = (t % SWEEP.every) / SWEEP.round;
-  return p <= 1 ? { h: -Math.PI / 2 + p * TAU, on: 1 } : { h: 0, on: 0 };
+  const every = LOOP.length > 0 ? LOOP.length / Math.max(1, Math.round(LOOP.length / SWEEP.every)) : SWEEP.every;
+  return ((t % every) / SWEEP.round) * TAU;
 };
 
 /* HALO: string art. Each stroke joins outer dot i to inner dot i + k, so
@@ -632,11 +652,11 @@ class Halo implements Drawing {
   draw(pen: Pen) {
     const { n, outer, inner, twist, breathe, period } = HALO;
     const k = twist + breathe * Math.sin((this.t * TAU) / period);
-    const { h, on } = sweepHead(this.t);
+    const run = sweepHead(this.t);
     for (let i = 0; i < n; i++) {
       const a = (i * TAU) / n;
       const b = ((i + k) * TAU) / n;
-      const l = on * swept(a, h, SWEEP.tail);
+      const l = swept(a, run);
       pen.line(Math.cos(a) * outer, Math.sin(a) * outer, Math.cos(b) * inner, Math.sin(b) * inner, 0.9 + 1.6 * l);
       pen.dot(Math.cos(a) * outer, Math.sin(a) * outer, 3.5 * (1 + 0.6 * l), 1);
       pen.dot(Math.cos(b) * inner, Math.sin(b) * inner, 2.5, 1);
@@ -659,7 +679,7 @@ class Iris implements Drawing {
   draw(pen: Pen) {
     const { n, outer, lean, period } = IRIS;
     const inner = IRIS.inner[0] + (IRIS.inner[1] - IRIS.inner[0]) * (0.5 + 0.5 * Math.sin((this.t * TAU) / period));
-    const { h, on } = sweepHead(this.t);
+    const run = sweepHead(this.t);
     for (const r of [outer, inner]) for (let s = 0; s < 96; s++) {
       const a0 = (s * TAU) / 96;
       const a1 = ((s + 1) * TAU) / 96;
@@ -667,7 +687,7 @@ class Iris implements Drawing {
     }
     for (let i = 0; i < n; i++) {
       const a = (i * TAU) / n;
-      const l = on * swept(a, h, SWEEP.tail);
+      const l = swept(a, run);
       for (const dir of [1, -1]) {
         const b = a + (dir * lean * TAU) / n;
         pen.line(Math.cos(a) * outer, Math.sin(a) * outer, Math.cos(b) * inner, Math.sin(b) * inner, (dir > 0 ? 1 : 0.55) + 1.5 * l);
@@ -690,7 +710,7 @@ class Dial implements Drawing {
     this.t += dt;
   }
   draw(pen: Pen) {
-    const { h, on } = sweepHead(this.t);
+    const run = sweepHead(this.t);
     DIAL.rings.forEach(([r0, r1, spin], k) => {
       const n = [120, 90, 60][k];
       const turn = spin * this.t * TAU;
@@ -698,7 +718,7 @@ class Dial implements Drawing {
         const a = turn + (i * TAU) / n;
         const long = i % 5 === 0;
         const ro = long ? r1 : r0 + (r1 - r0) * 0.55;
-        const l = on * swept(a, h, SWEEP.tail);
+        const l = swept(a, run);
         pen.line(Math.cos(a) * r0, Math.sin(a) * r0, Math.cos(a) * ro, Math.sin(a) * ro, (long ? 1 : 0.6) + 1.6 * l);
         if (long) pen.dot(Math.cos(a) * ro, Math.sin(a) * ro, 3 * (1 + 0.6 * l), 1);
         else pen.dot(Math.cos(a) * r0, Math.sin(a) * r0, 1.6, 0.6);
@@ -798,7 +818,7 @@ class Tally implements Drawing {
     const before = this.t;
     this.t += dt;
     for (let i = 0; i < this.since.length; i++) this.since[i] += dt;
-    if (Math.floor(before / TALLY.every) !== Math.floor(this.t / TALLY.every)) {
+    if (Math.floor(before / TALLY.every) !== Math.floor(this.t / TALLY.every) && !quiet()) {
       const i = Math.floor(Math.random() * this.on.length);
       this.on[i] = !this.on[i];
       this.since[i] = 0;
@@ -868,7 +888,7 @@ class CircleStudy implements Drawing {
 
 /* ROSETTE: twelve circles round a heavier ring, overlapping into a rosette;
  * it turns very slowly, one circle at a time a little brighter. */
-const ROSE = { n: 12, r: 88, d: 70, hub: 46, turn: 90, every: 2.4 };
+const ROSE = { n: 12, r: 88, d: 70, hub: 46, turn: 90, every: 2.5 };
 class Rosette implements Drawing {
   readonly maxLines = ROSE.n * 97 + 3 * 97;
   readonly maxDots = 0;
@@ -1302,7 +1322,7 @@ class Mesh implements Drawing {
     while (this.lit.length && this.lit[0].t > MESH.cellFade) this.lit.shift();
     if (this.t >= this.nextCell) {
       this.nextCell = this.t + MESH.cellEvery;
-      this.lit.push({ cell: Math.floor(Math.random() * this.cells.length), t: 0 });
+      if (!quiet()) this.lit.push({ cell: Math.floor(Math.random() * this.cells.length), t: 0 });
     }
     if (this.since > MESH.every && this.bolt.done()) {
       this.since = 0;
@@ -1454,10 +1474,13 @@ export const LOOP_UNITS: Record<string, number> = {
   signal: 15,
   halo: 22,
   iris: 18,
-  dial: 2.5,
+  // (its ticks come round every 2.5 s; 5 leaves its light sweep room to play out)
+  dial: 5,
   proof: 14,
   circleStudy: 16,
-  rosette: 7.5,
+  // (its lit circle, a step on every 2.5 s as the figure turns, is back in
+  // the same place every 22.5 s: 90° of turn and 9 steps of 30°)
+  rosette: 22.5,
   construction: 16,
   hexagon: 18,
   golden: 16,
@@ -1466,7 +1489,8 @@ export const LOOP_UNITS: Record<string, number> = {
   sine: 9,
   incircle: 16,
   hinge: 30,
-  pendulum: 4.5,
+  // (its pulse: every 9 s)
+  pendulum: 9,
   rings: 16,
   spider: 20,
 };
