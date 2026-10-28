@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embed · Clarify Field Motion</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./lab.css" />
+    <style>
+      /* the whole page is the frame: one model, centred, the controls over it */
+      html, body { height: 100%; overflow: hidden; }
+      #frame { position: fixed; inset: 0; display: grid; place-items: center; background: #060709; touch-action: pan-y; transition: background 0.5s cubic-bezier(0.16, 1, 0.3, 1); }
+      #effect { position: relative; }
+      body.light #frame { background: #ebeff3; }
+      body.light #effect { filter: invert(1); }
+
+      .bar { position: fixed; left: 16px; right: 16px; display: flex; align-items: center; gap: 8px; z-index: 2; pointer-events: none; }
+      .bar > * { pointer-events: auto; }
+      .top { top: 16px; }
+      .bottom { bottom: 16px; justify-content: space-between; }
+      .glass { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 10px; background: rgba(13, 15, 18, 0.6); border: 1px solid rgba(248, 251, 253, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+      body.light .glass { background: rgba(248, 251, 253, 0.6); border-color: rgba(3, 3, 4, 0.08); }
+      button, .glass a { white-space: nowrap; height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 500 13px var(--sans); cursor: pointer; display: inline-flex; align-items: center; text-decoration: none; transition: color 0.2s, background 0.2s; }
+      button:hover, .glass a:hover, button.on { color: var(--ink); }
+      button.on { background: rgba(248, 251, 253, 0.08); }
+      body.light button, body.light .glass a { color: #575b5f; }
+      body.light button:hover, body.light .glass a:hover, body.light button.on { color: #030304; }
+      body.light button.on { background: rgba(3, 3, 4, 0.06); }
+      button:focus-visible, a:focus-visible { outline: 1px solid var(--muted); outline-offset: -1px; }
+
+      #tabs { overflow-x: auto; scrollbar-width: none; }
+      .model { gap: 4px; }
+      .model .label { display: flex; flex-direction: column; min-width: 148px; padding: 0 6px; text-align: center; }
+      #name { font: 500 14px var(--sans); color: var(--ink); white-space: nowrap; }
+      body.light #name { color: #030304; }
+      #count { font: 11px var(--mono); letter-spacing: 0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
+      .arrow { width: 32px; padding: 0; justify-content: center; font-size: 16px; }
+
+      /* "Interactive", top right (?label=0: none): in the controls' glass, so it follows the ground */
+      #tag { position: fixed; top: 16px; right: 16px; z-index: 2; height: 32px; padding: 0 10px; display: flex; align-items: center; pointer-events: none; font: 11px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+      body.light #tag { color: #575b5f; }
+      body.bare .bar, body.bare #tag, body.untagged #tag { display: none; }
+      @media (max-width: 560px) {
+        .bar { left: 8px; right: 8px; }
+        .top { top: 8px; justify-content: center; }
+        .bottom { bottom: 8px; }
+        button, .glass a { height: 28px; padding: 0 8px; font-size: 12px; }
+        .model .label { min-width: 0; }
+        #name { font-size: 13px; }
+        #open { display: none !important; }
+        #tag { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="frame"><div id="effect"></div></div>
+    <div id="tag" class="glass">Interactive</div>
+    <div class="bar top"><div class="glass" id="tabs" role="tablist" aria-label="Style"></div></div>
+    <div class="bar bottom">
+      <div class="glass model">
+        <button class="arrow" id="prev" aria-label="Previous model">‹</button>
+        <div class="label"><span id="name"></span><span id="count"></span></div>
+        <button class="arrow" id="next" aria-label="Next model">›</button>
+      </div>
+      <div class="glass actions">
+        <button id="pause">Pause</button>
+        <button id="ground">Light</button>
+        <a id="open" target="_blank" rel="noopener">Open in the lab ↗</a>
+      </div>
+    </div>
+    <script type="module" src="./embed.ts"></script>
+  </body>
+</html>

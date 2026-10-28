@@ -35,6 +35,6 @@ export default defineConfig({
   build: {
     outDir: process.env.LAB_OUT ?? "dist-lab",
     emptyOutDir: true,
-    rollupOptions: { input: ["models", "export", "morph"].map((n) => resolve(__dirname, `lab/${n}.html`)) },
+    rollupOptions: { input: ["models", "export", "morph", "embed", "morph-embed"].map((n) => resolve(__dirname, `lab/${n}.html`)) },
   },
 });
