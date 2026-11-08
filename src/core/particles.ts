@@ -175,7 +175,11 @@ export class ParticleSystem {
       sp.yaw + this.par.x * cfg.parallax,
       sp.tilt - this.par.y * cfg.parallax,
     );
-    const ease = this.snap ? 1 : easeFactor;
+    // a drag spin turns the shape faster than the dots' easing can follow: they'd cut across the
+    // curve and the shape would squash flat. While held, or coasting fast, they follow it outright,
+    // handing back to the easing as the coast slows.
+    const spinning = sp.held ? 1 : Math.min(1, (Math.abs(sp.vYaw) + Math.abs(sp.vTilt)) / 0.6);
+    const ease = this.snap ? 1 : easeFactor + (1 - easeFactor) * spinning;
     this.snap = false;
     const out = this.scratch;
     // shapes size themselves from min(w, h): scaleByWidth re-bases on w

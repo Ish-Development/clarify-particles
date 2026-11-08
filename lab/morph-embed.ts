@@ -5,7 +5,13 @@
 // The morph lab (morph.ts) is untouched; this plays the same scenes freely,
 // not on a timeline.
 // URL: ?family=dots|blocks, ?ground=light, ?ui=0 (no controls), ?label=0 (no "Interactive" tag),
-// ?tour=<s> (seconds per shape on the tour; 0: no tour).
+// ?tour=<s> (seconds per shape on the tour; 0: no tour),
+// In a narrow frame (max-width 560px, a phone) the controls become one bottom bar (family tabs,
+// previous / next shape): still interactive, taps only, swipes scroll the page.
+// ?wheel=parent (forward the wheel to the host page, see below),
+// ?watch (no input at all): no controls, no tag, no input at all; it tours on its own
+// and never catches a touch, so the page scrolls through it. The host page also sets
+// pointer-events: none on the iframe (the Parasail ?watch pattern).
 import { getView, mount, setPaused, unmount } from "../src/runtime/engine";
 import { MODELS, fitDots, specFor, type Model } from "./models";
 
@@ -31,8 +37,15 @@ const tabs = document.getElementById("tabs")!;
 const chips = document.getElementById("chips")!;
 const pause = document.getElementById("pause") as HTMLButtonElement;
 const ground = document.getElementById("ground") as HTMLButtonElement;
+const mBar = document.querySelector<HTMLElement>(".m-bar")!;
+const mModes = document.getElementById("m-modes")!;
+const mName = document.getElementById("m-name")!;
+const mCount = document.getElementById("m-count")!;
+const phone = matchMedia("(max-width: 560px)");
 if (q.get("ui") === "0") document.body.classList.add("bare");
 if (q.get("label") === "0") document.body.classList.add("untagged");
+const watch = q.has("watch");
+if (watch) document.body.classList.add("bare", "watch");
 
 let family: Family = q.get("family") === "blocks" ? "blocks" : "dots";
 let models: Model[] = [];
@@ -47,11 +60,65 @@ type Blocks = { morphing: boolean; shape: number; places: Float32Array[]; real: 
 const view = () => getView(effect) as unknown as { cfg: Record<string, unknown>; blocks?: Blocks | null } | undefined;
 
 function place() {
+  const bare = document.body.classList.contains("bare");
+  const m = !bare && phone.matches ? mBar.offsetHeight : 0;
+  frame.style.setProperty("--m-bar", `${m}px`);
   const r = frame.getBoundingClientRect();
-  const bars = document.body.classList.contains("bare") ? 0 : [...document.querySelectorAll<HTMLElement>(".bar")].reduce((h, b) => h + b.offsetHeight + 16, 0);
+  const bars = bare ? 0 : m ? m + 16 : [...document.querySelectorAll<HTMLElement>(".bar")].reduce((h, b) => h + b.offsetHeight + 16, 0);
   const w = Math.round(Math.min(r.width * 0.86, (r.height - bars) * 0.94));
   Object.assign(effect.style, { width: `${w}px`, height: `${w}px` });
   return w;
+}
+
+// Switching family: the field goes soft and fades (blur 6px, scale 0.97), the
+// other family comes up out of the same haze. The site's reveal curve
+// (cubic-bezier(0.2, 0.7, 0.2, 1)): strong ease-out, no bounce.
+const EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
+const look = (blur: number) => `${light ? "invert(1) " : ""}blur(${blur}px)`;
+let switching = false;
+async function switchTo(f: Family) {
+  if (switching || f === family) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return start(f);
+  switching = true;
+  markTabs(f);
+  // the shape menu (desktop chips, phone name) fades out with the field, and back in once it holds
+  // the other family's shapes; the chips' glass eases to its new width instead of jumping
+  const menu = [chips, mName.parentElement!];
+  const was = chips.offsetWidth;
+  const soft = { duration: 380, easing: EASE, fill: "forwards" as const };
+  const menuOut = menu.map((m) => m.animate([{ opacity: 1, filter: "blur(0px)" }, { opacity: 0, filter: "blur(4px)" }], soft));
+  const out = effect.animate(
+    [{ opacity: 1, filter: look(0), transform: "scale(1)" }, { opacity: 0, filter: look(6), transform: "scale(0.97)" }],
+    { duration: 380, easing: EASE, fill: "forwards" },
+  );
+  await out.finished;
+  start(f);
+  const now = chips.offsetWidth;
+  if (was && now && was !== now) chips.animate([{ width: `${was}px` }, { width: `${now}px` }], { duration: 600, easing: EASE });
+  menu.forEach((m) =>
+    m.animate([{ opacity: 0, filter: "blur(4px)" }, { opacity: 1, filter: "blur(0px)" }], { duration: 700, delay: 200, easing: EASE, fill: "backwards" }),
+  );
+  menuOut.forEach((a) => a.cancel());
+  // a beat for the new scene's first frames (blocks load their own chunk the first time)
+  await new Promise((r) => setTimeout(r, 120));
+  const back = effect.animate(
+    [{ opacity: 0, filter: look(6), transform: "scale(0.97)" }, { opacity: 1, filter: look(0), transform: "scale(1)" }],
+    { duration: 900, easing: EASE, fill: "forwards" },
+  );
+  out.cancel();
+  await back.finished;
+  back.cancel(); // back to the stylesheet's own filter (the light ground's invert)
+  switching = false;
+}
+
+// the family tabs show the pick at once (the pill starts sliding on the tap, not after the fade)
+function markTabs(f: Family) {
+  for (const b of [...tabs.querySelectorAll("button"), ...mModes.querySelectorAll("button")]) {
+    const sel = b.dataset.family === f;
+    b.classList.toggle("on", sel);
+    b.setAttribute("aria-selected", String(sel));
+  }
+  slide();
 }
 
 function start(f: Family) {
@@ -66,9 +133,14 @@ function start(f: Family) {
     f === "dots"
       ? { sequence: "", shape: shapes[0], holdShape: shapes[0], gather: false }
       : { shapes: shapes.join(","), holdTime: 1e9 };
-  mount(effect, specFor(effect, models[0], extra), { root: effect });
+  // watch: no pointer reactions, no drag-to-spin, a lighter pixel ratio
+  // otherwise: drag to spin, mouse and finger (sideways drags only on touch, so up/down still scrolls the page)
+  const still = watch
+    ? { interactive: false, touchSpin: false, touchHover: false, mouseSpin: false, mobileDpr: 1.5 }
+    : { interactive: true, mouseSpin: true, touchSpin: true, touchHold: 0, touchHover: false }; // blocks default to interactive: false, which turns spin off
+  mount(effect, specFor(effect, models[0], { ...extra, ...still }), { root: effect });
   fitDots(effect, w);
-  for (const b of tabs.children) b.classList.toggle("on", (b as HTMLElement).dataset.family === f);
+  markTabs(f);
   chips.replaceChildren(
     ...models.map((m, i) => {
       const b = document.createElement("button");
@@ -82,6 +154,8 @@ function start(f: Family) {
 
 function mark() {
   [...chips.children].forEach((b, i) => b.classList.toggle("on", i === on));
+  mName.textContent = chips.children[on]?.textContent ?? "";
+  mCount.textContent = `${String(on + 1).padStart(2, "0")} / ${String(models.length).padStart(2, "0")}`;
 }
 
 // morph into model i
@@ -119,9 +193,35 @@ for (const [f, { title }] of Object.entries(FAMILIES)) {
   const b = document.createElement("button");
   b.dataset.family = f;
   b.textContent = title;
-  b.onclick = () => (touched(), f !== family && start(f as Family));
+  b.onclick = () => (touched(), switchTo(f as Family));
   tabs.append(b);
+  const m = b.cloneNode(true) as HTMLButtonElement;
+  m.setAttribute("role", "tab");
+  m.onclick = b.onclick;
+  mModes.append(m);
 }
+// the pill under the picked family tab, in each tab list; `still` = no slide (first paint, resize)
+function slide(still = false) {
+  for (const list of [tabs, mModes]) {
+    let pill = list.querySelector<HTMLElement>(".pill");
+    if (!pill) {
+      pill = document.createElement("span");
+      pill.className = "pill";
+      list.prepend(pill);
+      still = true;
+    }
+    const on = list.querySelector<HTMLElement>("button.on");
+    if (!on || !on.offsetWidth) continue;
+    pill.classList.toggle("still", still);
+    Object.assign(pill.style, { width: `${on.offsetWidth}px`, height: `${on.offsetHeight}px`, transform: `translate(${on.offsetLeft}px, ${on.offsetTop}px)` });
+    if (still) void pill.offsetWidth;
+    pill.classList.remove("still");
+  }
+}
+document.getElementById("m-prev")!.onclick = () => (touched(), go((on - 1 + models.length) % models.length));
+document.getElementById("m-next")!.onclick = () => (touched(), go((on + 1) % models.length));
+phone.addEventListener("change", () => (fitDots(effect, place()), slide(true)));
+document.fonts?.ready.then(() => slide(true));
 
 function setGround(l: boolean) {
   document.body.classList.toggle("light", l);
@@ -138,22 +238,45 @@ function setPause(p: boolean) {
 const every = q.has("tour") ? Number(q.get("tour")) : 4.5;
 let tour = every > 0 ? window.setInterval(() => !paused && go((on + 1) % models.length), every * 1000) : 0;
 function touched() {
+  if (watch) return; // watch tours forever
   if (tour) clearInterval(tour);
   tour = 0;
 }
 
 pause.onclick = () => (touched(), setPause(!paused));
 ground.onclick = () => (touched(), setGround((light = !light)));
-addEventListener("keydown", (e) => {
+if (!watch) addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") touched(), go((on + 1) % models.length);
   else if (e.key === "ArrowLeft") touched(), go((on - 1 + models.length) % models.length);
   else if (e.key === " ") e.preventDefault(), touched(), setPause(!paused);
+});
+// ?wheel=parent: a host page with its own smooth scroll (Lenis on ish.studio) never gets the wheel
+// that happens over this iframe, so hand vertical wheel turns to the parent as
+// { type: "ish:wheel", deltaY } (px). Opt-in: other hosts (the brand book) keep the browser's own
+// scroll chaining. Sideways turns over the shape chips and pinch-zoom (ctrlKey) stay here.
+if (q.get("wheel") === "parent" && window.parent !== window) {
+  addEventListener(
+    "wheel",
+    (e) => {
+      if (e.ctrlKey) return;
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && (e.target as Element).closest?.("#chips, #tabs")) return;
+      e.preventDefault();
+      const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? innerHeight : 1;
+      window.parent.postMessage({ type: "ish:wheel", deltaY: e.deltaY * k }, "*");
+    },
+    { passive: false },
+  );
+}
+// a drag (or a tap) on the field counts as a touch: the tour stops. pointerup, not down: a finger
+// that scrolls the page ends in pointercancel instead, and leaves the tour running
+frame.addEventListener("pointerup", (e) => {
+  if (e.target === frame || effect.contains(e.target as Node)) touched();
 });
 document.addEventListener("visibilitychange", () => setPaused(document.hidden || paused));
 let resizing = 0;
 addEventListener("resize", () => {
   cancelAnimationFrame(resizing);
-  resizing = requestAnimationFrame(() => fitDots(effect, place()));
+  resizing = requestAnimationFrame(() => (fitDots(effect, place()), slide(true)));
 });
 
 setGround(light);

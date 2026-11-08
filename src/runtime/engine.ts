@@ -1775,10 +1775,21 @@ const NO_SYSTEM: Steerable = {
 // Wait (briefly) for the in-scene text's fonts, so the labels aren't drawn
 // in a fallback face; the site normally has them loaded already.
 // The integrations network (blocks-scene.ts, its own chunk): a 3D line
-// drawing that animates by itself; no pointer reactions.
+// drawing that animates by itself; no pointer reactions, except drag to spin
+// with mouseSpin / touchSpin (both off by default).
 class BlocksView extends View {
   readonly system = NO_SYSTEM;
   readonly is3d = true;
+  readonly canSpin = true;
+  grab(on: boolean) {
+    this.blocks?.grab(on);
+    wake();
+  }
+  spinBy(dx: number, _dy: number, dt: number) {
+    // a drag across the whole zone turns it half way round (as the points do)
+    this.blocks?.spinBy((dx * Math.PI) / Math.max(240, this.w), dt);
+    wake();
+  }
   private blocks: BlocksScene | null = null;
   private disposed = false;
 

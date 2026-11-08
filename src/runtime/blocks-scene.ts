@@ -300,6 +300,10 @@ export class BlocksScene {
   private clock = 0; // s into the hold, then the morph
   private morphing = false;
   private turn = 0.25; // starts off the straight isometric view, where the far grid lines up behind the near one
+  // drag to spin (the view's mouseSpin / touchSpin): held = a finger or the mouse has it, spinVel = the
+  // fling it coasts on after release (rad/s, eases out)
+  private held = false;
+  private spinVel = 0;
   private aspect = 1;
   private reduced = false;
 
@@ -694,6 +698,17 @@ export class BlocksScene {
     this.lineBlurAttr.needsUpdate = true;
   }
 
+  /** Drag to spin: while held the slow turn stops and the drag turns it. */
+  grab(on: boolean) {
+    this.held = on;
+    if (on) this.spinVel = 0;
+  }
+  /** Turns by `da` rad over `dt` s of drag; the last speed carries on as a fling. */
+  spinBy(da: number, dt: number) {
+    this.turn += da;
+    if (dt > 0) this.spinVel = this.spinVel * 0.5 + (da / dt) * 0.5;
+  }
+
   /** Advances the network; true while anything moves (always, unless reduced). */
   update(dt: number): boolean {
     if (this.reduced) return false;
@@ -702,7 +717,10 @@ export class BlocksScene {
     this.boltClock += dt;
     const all = c.stagger + c.morphTime;
     const kick = this.morphing ? c.spinKick * Math.sin(Math.PI * clamp01(this.clock / all)) : 0;
-    this.turn += dt * c.turnSpeed * (1 + kick);
+    if (!this.held) {
+      this.turn += dt * c.turnSpeed * (1 + kick) + this.spinVel * dt;
+      this.spinVel *= Math.exp(-dt * 2.5);
+    }
     if (!this.morphing) {
       if (this.places.length > 1 && this.clock >= c.holdTime) this.startMorph();
     } else if (this.clock >= all) {

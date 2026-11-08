@@ -30,6 +30,16 @@
       button:focus-visible, a:focus-visible { outline: 1px solid var(--muted); outline-offset: -1px; }
 
       #tabs { overflow-x: auto; scrollbar-width: none; }
+      /* the family tabs: one pill slides under the picked tab (the site's reveal curve), instead of the
+         highlight jumping across */
+      #tabs, #m-modes { position: relative; }
+      #tabs button, #m-modes button { position: relative; z-index: 1; transition: color 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+      #tabs button.on, #m-modes button.on { background: transparent; }
+      .pill { position: absolute; z-index: 0; top: 0; left: 0; border-radius: 7px; background: rgba(248, 251, 253, 0.08); pointer-events: none;
+        transition: transform 0.55s cubic-bezier(0.2, 0.7, 0.2, 1), width 0.55s cubic-bezier(0.2, 0.7, 0.2, 1); }
+      #m-modes .pill { border-radius: 9px; }
+      .pill.still { transition: none; }
+      body.light .pill { background: rgba(3, 3, 4, 0.06); }
       #chips { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
       .model { gap: 4px; }
       .model .label { display: flex; flex-direction: column; min-width: 148px; padding: 0 6px; text-align: center; }
@@ -41,7 +51,31 @@
       /* "Interactive", top right (?label=0: none): in the controls' glass, so it follows the ground */
       #tag { position: fixed; top: 16px; right: 16px; z-index: 2; height: 32px; padding: 0 10px; display: flex; align-items: center; pointer-events: none; font: 11px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
       body.light #tag { color: #575b5f; }
+      /* ?watch: nothing in here takes input, so a phone scrolls the page straight through */
+      html:has(body.watch), body.watch { pointer-events: none; touch-action: auto; user-select: none; -webkit-user-select: none; }
+      body.watch #frame { touch-action: auto; }
       body.bare .bar, body.bare #tag, body.untagged #tag { display: none; }
+      /* Phones (a narrow frame): one thumb-sized bar at the bottom, like the Parasail shader tool's:
+         the two families as tabs, then the shape with previous / next. Taps only: swipes scroll the page. */
+      .m-bar { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 2; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); gap: 6px;
+        background: rgba(13, 15, 18, 0.72); border-top: 1px solid rgba(248, 251, 253, 0.08); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+      body.light .m-bar { background: rgba(248, 251, 253, 0.72); border-color: rgba(3, 3, 4, 0.08); }
+      .m-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 12px; background: rgba(248, 251, 253, 0.05); }
+      body.light .m-modes { background: rgba(3, 3, 4, 0.05); }
+      .m-bar button { height: 44px; padding: 0 8px; font-size: 14px; justify-content: center; border-radius: 9px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+      .m-shape { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 4px; }
+      .m-shape button { width: 44px; padding: 0; font-size: 18px; background: rgba(248, 251, 253, 0.05); }
+      body.light .m-shape button { background: rgba(3, 3, 4, 0.05); }
+      .m-label { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+      #m-name { font: 500 14px var(--sans); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+      body.light #m-name { color: #030304; }
+      #m-count { font: 11px var(--mono); letter-spacing: 0.02em; color: var(--muted); font-variant-numeric: tabular-nums; }
+      @media (max-width: 560px) {
+        .bar, #tag { display: none !important; }
+        .m-bar { display: grid; }
+        body.bare .m-bar { display: none; }
+        #frame { padding-bottom: var(--m-bar, 0px); }
+      }
       @media (max-width: 560px) {
         .bar { left: 8px; right: 8px; }
         .top { top: 8px; justify-content: center; }
@@ -67,6 +101,14 @@
         <button id="ground">Light</button>
       </div>
     </div>
+    <nav class="m-bar" aria-label="Field Motion">
+      <div class="m-modes" id="m-modes" role="tablist" aria-label="Family"></div>
+      <div class="m-shape">
+        <button id="m-prev" aria-label="Previous shape">&#8249;</button>
+        <div class="m-label" aria-live="polite"><span id="m-name"></span><span id="m-count"></span></div>
+        <button id="m-next" aria-label="Next shape">&#8250;</button>
+      </div>
+    </nav>
     <script type="module" src="./morph-embed.ts"></script>
   </body>
 </html>
