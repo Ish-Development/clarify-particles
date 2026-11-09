@@ -233,15 +233,19 @@ function setGround(l: boolean) {
   ground.textContent = l ? "Dark" : "Light";
 }
 let light = q.get("ground") === "light";
+// off screen (the iframe scrolled out of the host page's view) nothing runs: no frames, no tour
+let inView = true;
+const rest = () => setPaused(paused || !inView || document.hidden);
+new IntersectionObserver(([e]) => ((inView = e.isIntersecting), rest())).observe(frame);
 function setPause(p: boolean) {
   paused = p;
-  setPaused(p);
+  rest();
   pause.textContent = p ? "Play" : "Pause";
 }
 
 // the tour: the next shape every few seconds, until the first touch
 const every = q.has("tour") ? Number(q.get("tour")) : 4.5;
-let tour = every > 0 ? window.setInterval(() => !paused && go((on + 1) % models.length), every * 1000) : 0;
+let tour = every > 0 ? window.setInterval(() => !paused && inView && !document.hidden && go((on + 1) % models.length), every * 1000) : 0;
 function touched() {
   if (watch) return; // watch tours forever
   if (tour) clearInterval(tour);
@@ -277,7 +281,7 @@ if (q.get("wheel") === "parent" && window.parent !== window) {
 frame.addEventListener("pointerup", (e) => {
   if (e.target === frame || effect.contains(e.target as Node)) touched();
 });
-document.addEventListener("visibilitychange", () => setPaused(document.hidden || paused));
+document.addEventListener("visibilitychange", rest);
 let resizing = 0;
 addEventListener("resize", () => {
   cancelAnimationFrame(resizing);
