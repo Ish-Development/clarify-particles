@@ -13,7 +13,7 @@
 // and never catches a touch, so the page scrolls through it. The host page also sets
 // pointer-events: none on the iframe (the Parasail ?watch pattern).
 import { getView, mount, setPaused, unmount } from "../src/runtime/engine";
-import { MODELS, fitDots, specFor, type Model } from "./models";
+import { MODELS, crispDots, fitDots, specFor, type Model } from "./models";
 
 // the shapes each family offers, in the order the tour plays them: clear
 // silhouettes that read well one after another
@@ -121,6 +121,11 @@ function markTabs(f: Family) {
   slide();
 }
 
+// On a phone the fine, faint dots fade away (the site also shows the frame scaled down, ~0.64),
+// so they get fewer, bigger and brighter there, to read as clearly as the blocks and lines.
+const SMALL_DOTS = { density: 0.7, size: 1.7, opacity: 2 };
+const small = () => phone.matches || matchMedia("(pointer: coarse)").matches;
+
 function start(f: Family) {
   family = f;
   models = FAMILIES[f].names.map((n) => MODELS.find((m) => m.name === n)).filter((m): m is Model => !!m);
@@ -131,7 +136,7 @@ function start(f: Family) {
   const w = place();
   const extra =
     f === "dots"
-      ? { sequence: "", shape: shapes[0], holdShape: shapes[0], gather: false }
+      ? { sequence: "", shape: shapes[0], holdShape: shapes[0], gather: false, ...(small() ? crispDots(models[0], SMALL_DOTS) : {}) }
       : { shapes: shapes.join(","), holdTime: 1e9 };
   // watch: no pointer reactions, no drag-to-spin, a lighter pixel ratio
   // otherwise: drag to spin, mouse and finger (sideways drags only on touch, so up/down still scrolls the page)
@@ -220,7 +225,7 @@ function slide(still = false) {
 }
 document.getElementById("m-prev")!.onclick = () => (touched(), go((on - 1 + models.length) % models.length));
 document.getElementById("m-next")!.onclick = () => (touched(), go((on + 1) % models.length));
-phone.addEventListener("change", () => (fitDots(effect, place()), slide(true)));
+phone.addEventListener("change", () => (family === "dots" && !switching ? start(family) : fitDots(effect, place()), slide(true)));
 document.fonts?.ready.then(() => slide(true));
 
 function setGround(l: boolean) {
