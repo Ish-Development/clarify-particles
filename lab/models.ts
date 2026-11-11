@@ -216,8 +216,10 @@ const LINE_DIALS = {
   electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [9, 1, 30, 0.5] as [number, number, number, number] },
 };
 export const STYLE_DIALS = {
-  // (crispDots)
-  dots: { density: [100, 10, 100, 5], size: [100, 50, 400, 5], opacity: [100, 0, 400, 5] },
+  // (crispDots) The labs start at half the dots, a little fainter (50 / 100 / 85): the site's own
+  // (100 / 100 / 100) reads too dense and filled in the labs' frames (user's pick, 2026-11-11; the
+  // morph embed's DOTS too)
+  dots: { density: [50, 10, 100, 5], size: [100, 50, 400, 5], opacity: [85, 0, 400, 5] },
   network: { lines: { brightness: x1(1.8), width: x1(4, 0.25) }, nodes: { size: x1(4) } },
   // the blocks have inside lines too (the line models don't)
   blocks: { ...LINE_DIALS, depth: { inner: x1(4), farSide: x1(3.3) } },

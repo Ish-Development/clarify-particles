@@ -12,8 +12,9 @@
 // ?watch (no input at all): no controls, no tag, no input at all; it tours on its own
 // and never catches a touch, so the page scrolls through it. The host page also sets
 // pointer-events: none on the iframe (the Parasail ?watch pattern).
-import { getView, mount, setPaused, unmount } from "../src/runtime/engine";
+import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
 import { MODELS, crispDots, fitDots, specFor, type Model } from "./models";
+import { viewToSvg } from "./svg";
 
 // the shapes each family offers, in the order the tour plays them: clear
 // silhouettes that read well one after another
@@ -125,6 +126,16 @@ function markTabs(f: Family) {
 // so they get fewer, bigger and brighter there, to read as clearly as the blocks and lines.
 const SMALL_DOTS = { density: 0.7, size: 1.7, opacity: 2 };
 const small = () => phone.matches || matchMedia("(pointer: coarse)").matches;
+// The dots' dials (crispDots, × the model's own): ?density=0.5&size=1.2&opacity=1.4, and
+// ?shells=1 for one shell instead of the hero's nested three. Unset: DOTS (half the dots, a little fainter: the
+// site's 10,000 read too dense and filled in a frame this size; the labs' main settings, user, 2026-11-11).
+const DOTS = { density: 0.5, size: 1, opacity: 0.85 };
+const dial = (k: keyof typeof DOTS, base: number) => (q.has(k) && Number(q.get(k)) > 0 ? Number(q.get(k)) : base);
+const dots = (m: Model) => {
+  const d = small() ? SMALL_DOTS : DOTS;
+  const shells = Number(q.get("shells"));
+  return { ...crispDots(m, { density: dial("density", d.density), size: dial("size", d.size), opacity: dial("opacity", d.opacity) }), ...(shells > 0 ? { innerCopies: shells } : {}) };
+};
 
 function start(f: Family) {
   family = f;
@@ -136,7 +147,7 @@ function start(f: Family) {
   const w = place();
   const extra =
     f === "dots"
-      ? { sequence: "", shape: shapes[0], holdShape: shapes[0], gather: false, ...(small() ? crispDots(models[0], SMALL_DOTS) : {}) }
+      ? { sequence: "", shape: shapes[0], holdShape: shapes[0], gather: false, ...dots(models[0]) }
       : { shapes: shapes.join(","), holdTime: 1e9 };
   // watch: no pointer reactions, no drag-to-spin, a lighter pixel ratio
   // otherwise: drag to spin, mouse and finger (sideways drags only on touch, so up/down still scrolls the page)
@@ -251,6 +262,58 @@ function touched() {
   if (tour) clearInterval(tour);
   tour = 0;
 }
+
+// Export: the shape on screen, as it stands this frame, on the ground showing. PNG: a square PNG_PX
+// wide (the field is redrawn at that size for one frame, then back). SVG: vectors, editable in Figma.
+// Video and other frames: the export lab.
+const PNG_PX = 2160;
+const GROUND = () => (light ? "#ebeff3" : "#060709");
+const frames = (n: number) => new Promise<void>((ok) => (function f(i: number) { i ? requestAnimationFrame(() => f(i - 1)) : ok(); })(n));
+function save(blob: Blob, ext: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `clarify-${models[on].name.toLowerCase().replace(/\s+/g, "-")}.${ext}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+let exporting = false;
+async function exportPng() {
+  if (exporting || !view()) return;
+  exporting = true;
+  const was = paused;
+  const w = effect.offsetWidth;
+  try {
+    // the engine picks the new pixel ratio up when its box changes size: a px off, for this frame
+    setExportScale(PNG_PX / (w - 1));
+    Object.assign(effect.style, { width: `${w - 1}px`, height: `${w - 1}px` });
+    await frames(3);
+    setPaused(true);
+    const canvas = (getView(effect) as unknown as { canvas: HTMLCanvasElement }).canvas;
+    const c = document.createElement("canvas");
+    c.width = c.height = PNG_PX;
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = GROUND();
+    ctx.fillRect(0, 0, PNG_PX, PNG_PX);
+    if (light) ctx.filter = "invert(1)";
+    ctx.drawImage(canvas, 0, 0, PNG_PX, PNG_PX);
+    const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"));
+    if (blob) save(blob, "png");
+  } finally {
+    setExportScale(0);
+    fitDots(effect, place());
+    paused = was;
+    rest();
+    exporting = false;
+  }
+}
+function exportSvg() {
+  const v = getView(effect);
+  if (!v) return;
+  const w = effect.offsetWidth;
+  save(new Blob([viewToSvg(v, { w, h: w, left: 0, top: 0, background: GROUND(), invert: light })], { type: "image/svg+xml" }), "svg");
+}
+document.getElementById("png")!.onclick = () => (touched(), void exportPng());
+document.getElementById("svg")!.onclick = () => (touched(), exportSvg());
 
 pause.onclick = () => (touched(), setPause(!paused));
 ground.onclick = () => (touched(), setGround((light = !light)));

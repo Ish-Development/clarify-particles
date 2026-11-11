@@ -141,7 +141,7 @@ function showPanel(f: Family | null) {
   stylePanel = null;
   if (!f) return;
   const dials = f === "dots" ? STYLE_DIALS.dots : STYLE_DIALS.blocks;
-  const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: f === "dots" ? "morph-dots-site" : `morph-${f}`, persist: true });
+  const k = createDialKit(f === "dots" ? "Dots" : "Blocks and lines", dials as never, { id: f === "dots" ? "morph-dots-fine" : `morph-${f}`, persist: true });
   k.setValues(tidy(k.values) as never);
   // the model's own dials as they were in the export lab
   if (handed?.style) k.setValues(fit(dials, handed.style) as never);

@@ -29,6 +29,8 @@
       body.light button.on { background: rgba(3, 3, 4, 0.06); }
       button:focus-visible, a:focus-visible { outline: 1px solid var(--muted); outline-offset: -1px; }
 
+      .sep { width: 1px; height: 16px; margin: 0 4px; background: rgba(248, 251, 253, 0.12); }
+      body.light .sep { background: rgba(3, 3, 4, 0.12); }
       #tabs { overflow-x: auto; scrollbar-width: none; }
       /* the family tabs: one pill slides under the picked tab (the site's reveal curve), instead of the
          highlight jumping across */
@@ -99,6 +101,9 @@
       <div class="glass actions">
         <button id="pause">Pause</button>
         <button id="ground">Light</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button id="png" title="Download this shape as a PNG (2160 px)">PNG</button>
+        <button id="svg" title="Download this shape as an SVG (editable in Figma)">SVG</button>
       </div>
     </div>
     <nav class="m-bar" aria-label="Field Motion">
