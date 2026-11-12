@@ -13,7 +13,7 @@
 // and never catches a touch, so the page scrolls through it. The host page also sets
 // pointer-events: none on the iframe (the Parasail ?watch pattern).
 import { getView, mount, setExportScale, setPaused, unmount } from "../src/runtime/engine";
-import { MODELS, crispDots, fitDots, specFor, type Model } from "./models";
+import { DOTS_MAIN, MODELS, crispDots, fitDots, specFor, type Model } from "./models";
 import { viewToSvg } from "./svg";
 
 // the shapes each family offers, in the order the tour plays them: clear
@@ -127,11 +127,8 @@ function markTabs(f: Family) {
 const SMALL_DOTS = { density: 0.7, size: 1.7, opacity: 2 };
 const small = () => phone.matches || matchMedia("(pointer: coarse)").matches;
 // The dots' dials (crispDots, × the model's own): ?density=0.5&size=1.2&opacity=1.4, and
-// ?shells=1 for one shell instead of the hero's nested three. Unset: DOTS (half the dots, a little fainter: the
-// site's 10,000 read too dense and filled in a frame this size; the labs' main settings, user, 2026-11-11).
-// size 0.8: the field is bigger here than the same shape on the brand book's Graphics page, and its dots
-// (sized to the box, fitDots) came out chunkier than there; at 0.8 the two match side by side (2026-11-12).
-const DOTS = { density: 0.5, size: 0.8, opacity: 0.85 };
+// ?shells=1 for one shell instead of the hero's nested three. Unset: the labs' main look (DOTS_MAIN, models.ts).
+const DOTS = { density: DOTS_MAIN.density / 100, size: DOTS_MAIN.size / 100, opacity: DOTS_MAIN.opacity / 100 };
 const dial = (k: keyof typeof DOTS, base: number) => (q.has(k) && Number(q.get(k)) > 0 ? Number(q.get(k)) : base);
 const dots = (m: Model) => {
   const d = small() ? SMALL_DOTS : DOTS;

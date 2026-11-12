@@ -6,7 +6,7 @@
 // ?ui=0 (no controls), ?label=0 (no "Interactive" tag), ?auto=<s> (step to
 // the next model every s seconds until someone touches it).
 import { mount, setPaused, unmount } from "../src/runtime/engine";
-import { MODELS, STYLES, fitDots, modelByName, specFor, type Model } from "./models";
+import { MODELS, STYLES, fitDots, mainDots, modelByName, specFor, type Model } from "./models";
 
 const q = new URLSearchParams(location.search);
 const frame = document.getElementById("frame")!;
@@ -40,7 +40,7 @@ function show(m: Model) {
   model = m;
   unmount(effect);
   place();
-  mount(effect, specFor(effect, m), { root: effect });
+  mount(effect, specFor(effect, m, mainDots(m)), { root: effect });
   fitDots(effect, effect.clientWidth);
   const list = inStyle();
   name.textContent = m.name;

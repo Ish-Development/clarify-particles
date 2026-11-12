@@ -200,6 +200,16 @@ export function crispDots(m: Model, d: { density: number; size: number; opacity:
   };
 }
 
+// The dots' main look, in % of the model's own (the site's): half the dots, a little smaller and
+// fainter. One value for every lab page (the gallery, both embeds, the export and morph labs' dials),
+// so a dot model looks the same wherever it shows. The site's own (100 / 100 / 100) read too dense
+// and filled in the labs' frames; at size 80 a model here matches the same one on the brand book's
+// Graphics page (user, 2026-11-11 and -12: "we need to be consistent").
+export const DOTS_MAIN = { density: 50, size: 80, opacity: 85 };
+// a dot model's overrides for that look (nothing for the other styles)
+export const mainDots = (m: Model): Record<string, unknown> =>
+  crispDots(m, { density: DOTS_MAIN.density / 100, size: DOTS_MAIN.size / 100, opacity: DOTS_MAIN.opacity / 100 });
+
 // Each style's own panel in the export lab, shown only for its models: the
 // dials, in % of the model's own settings (100: as it is, unless said), and
 // what they set on a model.
@@ -216,10 +226,8 @@ const LINE_DIALS = {
   electricity: { brightness: x1(3), speed: x1(4, 0.25), afterglow: x1(4, 0.2), rest: [9, 1, 30, 0.5] as [number, number, number, number] },
 };
 export const STYLE_DIALS = {
-  // (crispDots) The labs start at half the dots, a little fainter (50 / 100 / 85): the site's own
-  // (100 / 100 / 100) reads too dense and filled in the labs' frames (user's pick, 2026-11-11; the
-  // morph embed's DOTS too)
-  dots: { density: [50, 10, 100, 5], size: [100, 50, 400, 5], opacity: [85, 0, 400, 5] },
+  // (crispDots) every lab page starts at DOTS_MAIN
+  dots: { density: [DOTS_MAIN.density, 10, 100, 5], size: [DOTS_MAIN.size, 50, 400, 5], opacity: [DOTS_MAIN.opacity, 0, 400, 5] },
   network: { lines: { brightness: x1(1.8), width: x1(4, 0.25) }, nodes: { size: x1(4) } },
   // the blocks have inside lines too (the line models don't)
   blocks: { ...LINE_DIALS, depth: { inner: x1(4), farSide: x1(3.3) } },

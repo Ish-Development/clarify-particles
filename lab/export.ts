@@ -130,7 +130,7 @@ let styleTimer = 0;
 function showPanel(style: Style) {
   if (stylePanel?.style === style) return;
   stylePanel?.kit.destroy();
-  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: style === "dots" ? "export-dots-fine" : `export-${style}-pct`, persist: true });
+  const k = createDialKit(PANEL_NAMES[style], STYLE_DIALS[style] as never, { id: style === "dots" ? "export-dots-main" : `export-${style}-pct`, persist: true });
   k.setValues(tidy(k.values) as never);
   stylePanel = { style, kit: k };
   shiftSnap(k as never, STYLE_DIALS[style]);

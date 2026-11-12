@@ -2,7 +2,7 @@
 // style, each linking to the export lab with that model open. Run with the
 // lab's dev server and open /lab/models.html.
 import { mount } from "../src/runtime/engine";
-import { MODELS, STYLES, fitDots, specFor } from "./models";
+import { MODELS, STYLES, fitDots, mainDots, specFor } from "./models";
 
 const main = document.getElementById("grid")!;
 const list = document.getElementById("list")!;
@@ -40,7 +40,7 @@ STYLES.forEach(([style, title], i) => {
     if (!m.site) tag.classList.add("new");
     grid.append(a);
     const art = a.querySelector<HTMLElement>(".art")!;
-    mount(art, specFor(art, m), { root: art });
+    mount(art, specFor(art, m, mainDots(m)), { root: art });
     fitDots(art, art.clientWidth);
   }
 });
